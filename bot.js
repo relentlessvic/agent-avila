@@ -3,7 +3,7 @@
  *
  * Cloud mode: runs on Railway on a schedule. Pulls candle data direct from
  * Binance (free, no auth), calculates all indicators, runs safety check,
- * executes via BitGet if everything lines up.
+ * executes via Kraken if everything lines up.
  *
  * Local mode: run manually — node bot.js
  * Cloud mode: deploy to Railway, set env vars, Railway triggers on cron schedule
@@ -17,8 +17,18 @@ import { execSync } from "child_process";
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 
 function checkOnboarding() {
-  const required = ["BITGET_API_KEY", "BITGET_SECRET_KEY", "BITGET_PASSPHRASE"];
+  const required = ["KRAKEN_API_KEY", "KRAKEN_SECRET_KEY"];
   const missing = required.filter((k) => !process.env[k]);
+
+  // On Railway, env vars are injected directly — no .env file needed
+  if (process.env.RAILWAY_ENVIRONMENT) {
+    if (missing.length > 0) {
+      console.log(`\n⚠️  Missing Railway env vars: ${missing.join(", ")}`);
+      console.log("Add them in your Railway project → Variables tab.\n");
+      process.exit(1);
+    }
+    return;
+  }
 
   if (!existsSync(".env")) {
     console.log(
@@ -27,10 +37,9 @@ function checkOnboarding() {
     writeFileSync(
       ".env",
       [
-        "# BitGet credentials",
-        "BITGET_API_KEY=",
-        "BITGET_SECRET_KEY=",
-        "BITGET_PASSPHRASE=",
+        "# Kraken credentials",
+        "KRAKEN_API_KEY=",
+        "KRAKEN_SECRET_KEY=",
         "",
         "# Trading config",
         "PORTFOLIO_VALUE_USD=1000",
@@ -45,13 +54,13 @@ function checkOnboarding() {
       execSync("open .env");
     } catch {}
     console.log(
-      "Fill in your BitGet credentials in .env then re-run: node bot.js\n",
+      "Fill in your Kraken credentials in .env then re-run: node bot.js\n",
     );
     process.exit(0);
   }
 
   if (missing.length > 0) {
-    console.log(`\n⚠️  Missing credentials in .env: ${missing.join(", ")}`);
+    console.log(`\n⚠️  Missing Kraken credentials in .env: ${missing.join(", ")}`);
     console.log("Opening .env for you now...\n");
     try {
       execSync("open .env");
@@ -79,11 +88,10 @@ const CONFIG = {
   maxTradesPerDay: parseInt(process.env.MAX_TRADES_PER_DAY || "3"),
   paperTrading: process.env.PAPER_TRADING !== "false",
   tradeMode: process.env.TRADE_MODE || "spot",
-  bitget: {
-    apiKey: process.env.BITGET_API_KEY,
-    secretKey: process.env.BITGET_SECRET_KEY,
-    passphrase: process.env.BITGET_PASSPHRASE,
-    baseUrl: process.env.BITGET_BASE_URL || "https://api.bitget.com",
+  kraken: {
+    apiKey: process.env.KRAKEN_API_KEY,
+    secretKey: process.env.KRAKEN_SECRET_KEY,
+    baseUrl: "https://api.kraken.com",
   },
 };
 
@@ -107,35 +115,36 @@ function countTodaysTrades(log) {
   ).length;
 }
 
-// ─── Market Data (Binance public API — free, no auth) ───────────────────────
+// ─── Market Data (Kraken public API — free, no auth, no geo-restrictions) ────
 
-async function fetchCandles(symbol, interval, limit = 100) {
-  // Map our timeframe format to Binance interval format
+async function fetchCandles(symbol, interval, limit = 720) {
   const intervalMap = {
-    "1m": "1m",
-    "3m": "3m",
-    "5m": "5m",
-    "15m": "15m",
-    "30m": "30m",
-    "1H": "1h",
-    "4H": "4h",
-    "1D": "1d",
-    "1W": "1w",
+    "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
+    "1H": 60, "4H": 240, "1D": 1440, "1W": 10080,
   };
-  const binanceInterval = intervalMap[interval] || "1m";
+  const krakenInterval = intervalMap[interval] || 1;
+  const krakenPair = mapToKrakenPair(symbol);
 
-  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${binanceInterval}&limit=${limit}`;
+  const url = `https://api.kraken.com/0/public/OHLC?pair=${krakenPair}&interval=${krakenInterval}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Binance API error: ${res.status}`);
+  if (!res.ok) throw new Error(`Kraken market API error: ${res.status}`);
   const data = await res.json();
+  if (data.error && data.error.length > 0) {
+    throw new Error(`Kraken market API: ${data.error.join(", ")}`);
+  }
 
-  return data.map((k) => ({
-    time: k[0],
+  // Response key is the full pair name (e.g. XXBTZUSD) — find it by excluding "last"
+  const pairKey = Object.keys(data.result).find((k) => k !== "last");
+  const candles = data.result[pairKey];
+
+  // Kraken OHLC format: [time, open, high, low, close, vwap, volume, count]
+  return candles.slice(-limit).map((k) => ({
+    time: k[0] * 1000,
     open: parseFloat(k[1]),
     high: parseFloat(k[2]),
     low: parseFloat(k[3]),
     close: parseFloat(k[4]),
-    volume: parseFloat(k[5]),
+    volume: parseFloat(k[6]),
   }));
 }
 
@@ -315,56 +324,72 @@ function checkTradeLimits(log) {
   return true;
 }
 
-// ─── BitGet Execution ────────────────────────────────────────────────────────
+// ─── Kraken Execution ────────────────────────────────────────────────────────
 
-function signBitGet(timestamp, method, path, body = "") {
-  const message = `${timestamp}${method}${path}${body}`;
+// Maps Binance-style symbols to Kraken pair names
+function mapToKrakenPair(symbol) {
+  const map = {
+    BTCUSDT: "XBTUSD",
+    ETHUSDT: "ETHUSD",
+    SOLUSDT: "SOLUSD",
+    ADAUSDT: "ADAUSD",
+    XRPUSDT: "XRPUSD",
+    DOGEUSDT: "XDGUSD",
+    LTCUSDT: "XLTCUSD",
+    LINKUSDT: "LINKUSD",
+    DOTUSDT: "DOTUSD",
+    AVAXUSDT: "AVAXUSD",
+    MATICUSDT: "MATICUSD",
+    BNBUSDT: "BNBUSD",
+  };
+  return map[symbol] || symbol;
+}
+
+// Kraken HMAC-SHA512 signing: API-Sign = HMAC-SHA512(path + SHA256(nonce + postdata), base64_decode(secret))
+function signKraken(path, nonce, postData) {
+  const secretBuffer = Buffer.from(CONFIG.kraken.secretKey, "base64");
+  const sha256Hash = crypto
+    .createHash("sha256")
+    .update(nonce + postData)
+    .digest();
   return crypto
-    .createHmac("sha256", CONFIG.bitget.secretKey)
-    .update(message)
+    .createHmac("sha512", secretBuffer)
+    .update(Buffer.concat([Buffer.from(path), sha256Hash]))
     .digest("base64");
 }
 
-async function placeBitGetOrder(symbol, side, sizeUSD, price) {
-  const quantity = (sizeUSD / price).toFixed(6);
-  const timestamp = Date.now().toString();
-  const path =
-    CONFIG.tradeMode === "spot"
-      ? "/api/v2/spot/trade/placeOrder"
-      : "/api/v2/mix/order/placeOrder";
+async function placeKrakenOrder(symbol, side, sizeUSD, price) {
+  const krakenPair = mapToKrakenPair(symbol);
+  const volume = (sizeUSD / price).toFixed(8);
+  const nonce = Date.now().toString();
+  const path = "/0/private/AddOrder";
 
-  const body = JSON.stringify({
-    symbol,
-    side,
-    orderType: "market",
-    quantity,
-    ...(CONFIG.tradeMode === "futures" && {
-      productType: "USDT-FUTURES",
-      marginMode: "isolated",
-      marginCoin: "USDT",
-    }),
-  });
+  const postData = new URLSearchParams({
+    nonce,
+    ordertype: "market",
+    type: side,
+    volume,
+    pair: krakenPair,
+  }).toString();
 
-  const signature = signBitGet(timestamp, "POST", path, body);
+  const signature = signKraken(path, nonce, postData);
 
-  const res = await fetch(`${CONFIG.bitget.baseUrl}${path}`, {
+  const res = await fetch(`${CONFIG.kraken.baseUrl}${path}`, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "ACCESS-KEY": CONFIG.bitget.apiKey,
-      "ACCESS-SIGN": signature,
-      "ACCESS-TIMESTAMP": timestamp,
-      "ACCESS-PASSPHRASE": CONFIG.bitget.passphrase,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "API-Key": CONFIG.kraken.apiKey,
+      "API-Sign": signature,
     },
-    body,
+    body: postData,
   });
 
   const data = await res.json();
-  if (data.code !== "00000") {
-    throw new Error(`BitGet order failed: ${data.msg}`);
+  if (data.error && data.error.length > 0) {
+    throw new Error(`Kraken order failed: ${data.error.join(", ")}`);
   }
 
-  return data.data;
+  return { orderId: data.result.txid[0] };
 }
 
 // ─── Tax CSV Logging ─────────────────────────────────────────────────────────
@@ -442,7 +467,7 @@ function writeTradeCsv(logEntry) {
   const row = [
     date,
     time,
-    "BitGet",
+    "Kraken",
     logEntry.symbol,
     side,
     quantity,
@@ -518,7 +543,7 @@ async function run() {
   }
 
   // Fetch candle data — need enough for EMA(8) + full session for VWAP
-  console.log("\n── Fetching market data from Binance ───────────────────\n");
+  console.log("\n── Fetching market data from Kraken ────────────────────\n");
   const candles = await fetchCandles(CONFIG.symbol, CONFIG.timeframe, 500);
   const closes = candles.map((c) => c.close);
   const price = closes[closes.length - 1];
@@ -531,9 +556,9 @@ async function run() {
 
   console.log(`  EMA(8):  $${ema8.toFixed(2)}`);
   console.log(`  VWAP:    $${vwap ? vwap.toFixed(2) : "N/A"}`);
-  console.log(`  RSI(3):  ${rsi3 ? rsi3.toFixed(2) : "N/A"}`);
+  console.log(`  RSI(3):  ${rsi3 !== null ? rsi3.toFixed(2) : "N/A"}`);
 
-  if (!vwap || !rsi3) {
+  if (vwap === null || rsi3 === null) {
     console.log("\n⚠️  Not enough data to calculate indicators. Exiting.");
     return;
   }
@@ -589,7 +614,7 @@ async function run() {
         `\n🔴 PLACING LIVE ORDER — $${tradeSize.toFixed(2)} BUY ${CONFIG.symbol}`,
       );
       try {
-        const order = await placeBitGetOrder(
+        const order = await placeKrakenOrder(
           CONFIG.symbol,
           "buy",
           tradeSize,
