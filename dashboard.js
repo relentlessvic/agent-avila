@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { readFileSync, writeFileSync, existsSync, appendFileSync } from "fs";
 import { createServer } from "http";
+import { spawn } from "child_process";
 import crypto from "crypto";
 
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
@@ -651,7 +652,6 @@ const HTML = `<!DOCTYPE html>
 
   body {
     background: var(--bg);
-    background-image: radial-gradient(ellipse at 20% 50%, rgba(0,212,255,0.03) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(124,92,255,0.03) 0%, transparent 60%);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     font-size: 14px;
@@ -716,14 +716,52 @@ const HTML = `<!DOCTYPE html>
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; animation: pulse 2s infinite; box-shadow: 0 0 6px var(--green); }
   @keyframes pulse { 0%,100% { opacity: 1; box-shadow: 0 0 6px var(--green); } 50% { opacity: 0.5; box-shadow: 0 0 2px var(--green); } }
 
-  /* ── Glassmorphism cards ── */
-  .card, .stat-card, .pnl-card, .chart-card, .balance-card, .trade-terminal, .ctrl-panel, .paper-wallet, .position-card, .table-card {
-    background: var(--glass-bg) !important;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+  /* ── Cards (lightweight, with hover lift) ── */
+  .card, .stat-card, .pnl-card, .chart-card, .balance-card, .trade-terminal, .ctrl-panel, .paper-wallet, .position-card, .table-card, .perf-panel, .capital-panel, .portfolio-panel, .health-monitor {
+    background: var(--card) !important;
     border: 1px solid var(--border) !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.03);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.03);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
+  .card:hover, .stat-card:hover, .pnl-card:hover, .balance-card:hover, .perf-panel:hover, .capital-panel:hover, .portfolio-panel:hover, .health-monitor:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 12px rgba(0,212,255,0.05), inset 0 1px 0 rgba(255,255,255,0.05);
+    border-color: rgba(0,212,255,0.18) !important;
+  }
+
+  /* ── Hero Live Ticker ── */
+  .hero-ticker { display:flex; align-items:center; justify-content:space-between; padding:18px 28px; margin-bottom:24px; background: linear-gradient(135deg, rgba(0,212,255,0.06) 0%, rgba(124,92,255,0.06) 100%); border:1px solid rgba(0,212,255,0.18); border-radius:14px; box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04); position:relative; overflow:hidden; }
+  .hero-ticker::before { content:""; position:absolute; top:0; left:-100%; width:100%; height:1px; background:linear-gradient(90deg, transparent, var(--blue), transparent); animation: shimmer 3s ease-in-out infinite; }
+  @keyframes shimmer { 0% { left:-100%; } 100% { left:100%; } }
+  .ticker-left { display:flex; align-items:center; gap:18px; }
+  .ticker-pair { font-size:12px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  .ticker-symbol-icon { width:36px; height:36px; border-radius:50%; background: linear-gradient(135deg, var(--blue), var(--purple)); display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:900; color:#fff; box-shadow: 0 0 18px rgba(0,212,255,0.35); }
+  .ticker-price { font-size:32px; font-weight:900; font-variant-numeric:tabular-nums; transition:color 0.4s ease; line-height:1; }
+  .ticker-arrow { display:inline-block; font-size:18px; transition:transform 0.3s; }
+  .ticker-arrow.up   { color:var(--green); animation: bounce-up   0.5s; }
+  .ticker-arrow.down { color:var(--red);   animation: bounce-down 0.5s; }
+  @keyframes bounce-up   { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-4px); } }
+  @keyframes bounce-down { 0%,100% { transform:translateY(0); } 50% { transform:translateY(4px); } }
+  .ticker-right { display:flex; gap:24px; align-items:center; }
+  .ticker-stat { text-align:right; }
+  .ticker-stat-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+  .ticker-stat-value { font-size:18px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .ticker-pulse-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow: 0 0 8px var(--green); animation: pulse-glow 2s ease-in-out infinite; display:inline-block; margin-right:6px; }
+  @keyframes pulse-glow { 0%,100% { box-shadow:0 0 8px var(--green); opacity:1; } 50% { box-shadow:0 0 14px var(--green); opacity:0.7; } }
+  .ticker-live-label { font-size:11px; font-weight:700; color:var(--green); letter-spacing:1px; }
+  @media(max-width:768px) { .hero-ticker { flex-direction:column; gap:12px; padding:14px 18px; } .ticker-right { width:100%; justify-content:space-around; } .ticker-price { font-size:24px; } }
+
+  /* Health ring pulse */
+  .portfolio-score-ring { animation: ring-breathe 4s ease-in-out infinite; }
+  @keyframes ring-breathe { 0%,100% { box-shadow: 0 0 20px rgba(0,212,255,0.15); } 50% { box-shadow: 0 0 32px rgba(0,212,255,0.3); } }
+
+  /* Number tween animation */
+  .num-flash-up   { animation: flash-green 0.8s ease-out; }
+  .num-flash-down { animation: flash-red   0.8s ease-out; }
+  @keyframes flash-green { 0% { color:var(--green); text-shadow:0 0 10px var(--green); } 100% { } }
+  @keyframes flash-red   { 0% { color:var(--red);   text-shadow:0 0 10px var(--red);   } 100% { } }
+
+  /* Cards (lightweight) closing wrapper */
   .position-card.pos-open {
     border-color: rgba(0,212,255,0.3) !important;
     box-shadow: 0 0 30px var(--glow-blue), 0 8px 32px rgba(0,0,0,0.4) !important;
@@ -955,6 +993,11 @@ const HTML = `<!DOCTYPE html>
 
   /* ── Portfolio Intelligence ── */
   .portfolio-panel { background:var(--glass-bg); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:10px; padding:20px 24px; margin-bottom:24px; box-shadow:0 8px 32px rgba(0,0,0,0.4); }
+  .portfolio-header-bar { display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--border); gap:20px; flex-wrap:wrap; }
+  .portfolio-hero-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; font-weight:600; margin-bottom:4px; }
+  .portfolio-hero-value { font-size:26px; font-weight:900; font-variant-numeric:tabular-nums; transition:color 0.4s ease; line-height:1; }
+  .portfolio-hero-change { font-size:14px; font-weight:700; }
+  @media(max-width:600px) { .portfolio-header-bar { flex-direction:column; align-items:flex-start; gap:12px; } .portfolio-header-bar > div:last-child { text-align:left !important; width:100%; } }
   .portfolio-top { display:grid; grid-template-columns:auto 1fr; gap:24px; align-items:start; margin-bottom:16px; }
   .portfolio-score-ring { display:flex; flex-direction:column; align-items:center; justify-content:center; width:100px; height:100px; border-radius:50%; border:4px solid var(--blue); box-shadow:0 0 20px var(--glow-blue); }
   .portfolio-score-num { font-size:28px; font-weight:900; color:var(--blue); line-height:1; }
@@ -1028,6 +1071,15 @@ const HTML = `<!DOCTYPE html>
   .ctrl-btn-danger:hover  { border-color:var(--red);    color:var(--red); }
   .ctrl-btn-success:hover { border-color:var(--green);  color:var(--green); }
   .ctrl-btn-warn:hover    { border-color:var(--yellow); color:var(--yellow); }
+  /* Active-state highlights for current settings */
+  .ctrl-btn.is-active-green  { background:rgba(0,255,154,0.12); border-color:rgba(0,255,154,0.5); color:var(--green); box-shadow:0 0 12px rgba(0,255,154,0.15); }
+  .ctrl-btn.is-active-red    { background:rgba(255,77,106,0.12); border-color:rgba(255,77,106,0.5); color:var(--red);   box-shadow:0 0 12px rgba(255,77,106,0.15); }
+  .ctrl-btn.is-active-yellow { background:rgba(255,181,71,0.12); border-color:rgba(255,181,71,0.5); color:var(--yellow); box-shadow:0 0 12px rgba(255,181,71,0.15); }
+  .ctrl-btn.is-active-blue   { background:rgba(0,212,255,0.12);  border-color:rgba(0,212,255,0.5); color:var(--blue);   box-shadow:0 0 12px rgba(0,212,255,0.15); }
+  .ctrl-btn.is-active-green::after,
+  .ctrl-btn.is-active-red::after,
+  .ctrl-btn.is-active-yellow::after,
+  .ctrl-btn.is-active-blue::after { content:" ✓ active"; font-size:10px; font-weight:700; opacity:0.8; margin-left:4px; }
   .ctrl-input-row { display:flex; gap:6px; align-items:center; }
   .ctrl-input { width:64px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; font-weight:600; padding:7px 10px; outline:none; }
   .ctrl-input:focus { border-color:var(--blue); }
@@ -1276,8 +1328,112 @@ const HTML = `<!DOCTYPE html>
         <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-top:6px">Performance feedback loop · EMA slope regime detection · Adaptive entry threshold (70–85) · Timed pauses · Capital Router (70/30) · Portfolio Intelligence panel · Decision logger</div>
       </div>
       <div class="info-card" style="border-color:rgba(0,212,255,0.3);box-shadow:0 0 15px rgba(0,212,255,0.08)">
-        <div class="info-card-label" style="color:var(--blue)">⚡ Agent Avila (Current) — Portfolio Intelligence + Navigation</div>
-        <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-top:6px">Portfolio Intelligence layer · Capital Routing · Market quality multiplier · System Health Monitor · Nav drawer · Agent Avila rebrand</div>
+        <div class="info-card-label" style="color:var(--blue)">⚡ Agent Avila (Current) — Full Trading Platform</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.8;margin-top:6px">Hero Live Ticker · Portfolio Intelligence · Capital Router · Trading Terminal · Bot Controls · Chat Assistant · System Health Monitor · Nav drawer · Live Railway deployment · Engagement animations</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h2>🎛 What's On Your Dashboard</h2>
+    <div class="info-step">
+      <div class="info-step-num">⚡</div>
+      <div class="info-step-body">
+        <h3>Hero Live Ticker (top of page)</h3>
+        <p>Big animated XRP price with up/down arrows that bounce on each tick. Shows session P&L %, 24h price range, and a pulsing LIVE indicator. Updates sub-second from Kraken WebSocket — no polling.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">🩺</div>
+      <div class="info-step-body">
+        <h3>System Health Monitor</h3>
+        <p>4-card status grid: Kraken API (online + latency), WebSocket Feed (connected/reconnecting), Data Freshness (minutes since last bot run), and Bot Engine (running/stale). Auto-checks every 30 seconds.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">🧠</div>
+      <div class="info-step-body">
+        <h3>Portfolio Intelligence Panel</h3>
+        <p>Glowing health ring (0–100 composite score) with system status. Shows Open Risk %, Unrealized P&L, Realized P&L, Efficiency Score, Total Balance, Drawdown. Allocation bar shows USD/XRP/at-risk split.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">💰</div>
+      <div class="info-step-body">
+        <h3>Capital Router</h3>
+        <p>Enforces 70/30 active/reserve capital split. XRP is locked to HOLD_ASSET — never traded. Auto-conversion is OFF by default. Three role buttons (HOLD/ACTIVE/AGGRESSIVE) with confirmation gate on the dangerous one.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">📊</div>
+      <div class="info-step-body">
+        <h3>Performance State Panel</h3>
+        <p>Live win rate, profit factor, R-ratio, drawdown — all color-coded. Adaptation badges show what the bot is doing right now: tightening on losses, loosening on wins, locking leverage on streaks.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">🎛</div>
+      <div class="info-step-body">
+        <h3>Bot Controls + Trading Terminal</h3>
+        <p>Bot Controls = software-side commands (START/STOP, PAUSE/RESUME, set risk %, set leverage, mode toggle). Trading Terminal = manual market actions (BUY MARKET, OPEN LONG, CLOSE POSITION, SELL ALL, manually set SL/TP). Live mode requires typed CONFIRM.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">📈</div>
+      <div class="info-step-body">
+        <h3>Open Position Card (with glow)</h3>
+        <p>Entry price, current price, live P&L, time in trade, risk $ if stopped. Visual progress bar between SL ←→ TP with entry marker. Card glows green when profitable, red when underwater, blue when neutral.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">⚡</div>
+      <div class="info-step-body">
+        <h3>Chat Assistant (bottom right ⚡ bubble)</h3>
+        <p>Powered by Claude. Asks questions about your bot, explains decisions, runs commands. Try: "Why did the bot skip?" "What's my exposure?" "Reduce risk to 0.5%". Safe commands auto-execute; live trades require confirmation.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">📜</div>
+      <div class="info-step-body">
+        <h3>Trade History + Decision Log</h3>
+        <p>Every run is logged with full reasoning: signal score breakdown (EMA +30, RSI +28, VWAP +20, etc.), regime, leverage used, threshold applied, and why a trade fired or was skipped. Toggle Simple/Advanced view at the top.</p>
+      </div>
+    </div>
+    <div class="info-step">
+      <div class="info-step-num">☰</div>
+      <div class="info-step-body">
+        <h3>Nav Drawer (top-left hamburger)</h3>
+        <p>Slide-in navigation organized into Overview, Trading, Performance, History & Controls. Click any item to smooth-scroll to that section. Mobile-friendly.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="info-section">
+    <h2>🌐 Where Agent Avila Runs</h2>
+    <div class="info-cards" style="grid-template-columns:repeat(2,1fr)">
+      <div class="info-card">
+        <div class="info-card-icon">💻</div>
+        <div class="info-card-label">Local Mac</div>
+        <div class="info-card-value" style="font-size:14px">localhost:3000</div>
+        <div class="info-card-sub">Cron runs bot every 5 min · Dashboard reads local files</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-icon">☁️</div>
+        <div class="info-card-label">Railway (Cloud)</div>
+        <div class="info-card-value" style="font-size:13px">agent-avila-dashboard-production.up.railway.app</div>
+        <div class="info-card-sub">Dashboard live publicly · Bot runs on Railway cron</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-icon">📦</div>
+        <div class="info-card-label">GitHub</div>
+        <div class="info-card-value" style="font-size:14px">github.com/relentlessvic/agent-avila</div>
+        <div class="info-card-sub">All code version-controlled, pushable from Mac</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-icon">🔑</div>
+        <div class="info-card-label">Kraken</div>
+        <div class="info-card-value" style="font-size:14px">XRP/USD margin enabled</div>
+        <div class="info-card-sub">Up to 10x leverage available, capped at 3x</div>
       </div>
     </div>
   </div>
@@ -1508,6 +1664,41 @@ const HTML = `<!DOCTYPE html>
 
 <main>
 
+  <!-- Hero Live Ticker -->
+  <div class="hero-ticker">
+    <div class="ticker-left">
+      <div class="ticker-symbol-icon">X</div>
+      <div>
+        <div class="ticker-pair">XRP / USD · Live</div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span class="ticker-price" id="ticker-price">$—</span>
+          <span class="ticker-arrow" id="ticker-arrow">—</span>
+        </div>
+      </div>
+    </div>
+    <div class="ticker-right">
+      <div class="ticker-stat" style="text-align:left">
+        <div class="ticker-stat-label">Live Trend</div>
+        <svg id="ticker-sparkline" width="120" height="28" style="display:block;margin-top:2px"></svg>
+      </div>
+      <div class="ticker-stat">
+        <div class="ticker-stat-label">Session P&L</div>
+        <div class="ticker-stat-value" id="ticker-pnl" style="color:var(--muted)">—</div>
+      </div>
+      <div class="ticker-stat">
+        <div class="ticker-stat-label">24h Range</div>
+        <div class="ticker-stat-value" id="ticker-range" style="font-size:13px">—</div>
+      </div>
+      <div class="ticker-stat" style="text-align:right">
+        <div class="ticker-stat-label">Status</div>
+        <div style="display:flex;align-items:center;justify-content:flex-end">
+          <span class="ticker-pulse-dot"></span>
+          <span class="ticker-live-label">LIVE</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- System Health -->
   <div class="section-title" id="section-health">🩺 System Health</div>
   <div class="health-monitor">
@@ -1542,6 +1733,19 @@ const HTML = `<!DOCTYPE html>
   <!-- Portfolio Intelligence -->
   <div class="section-title" id="section-portfolio">Portfolio Intelligence</div>
   <div class="portfolio-panel">
+    <div class="portfolio-header-bar">
+      <div>
+        <div class="portfolio-hero-label">Total Portfolio Value</div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span class="portfolio-hero-value" id="port-hero-value">$—</span>
+          <span class="portfolio-hero-change" id="port-hero-change" style="color:var(--muted)">—</span>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div class="portfolio-hero-label" style="margin-bottom:4px">Live Trend (60 ticks)</div>
+        <svg id="portfolio-sparkline" width="180" height="40" style="display:block"></svg>
+      </div>
+    </div>
     <div class="portfolio-top">
       <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
         <div class="portfolio-score-ring" id="port-score-ring">
@@ -1694,17 +1898,17 @@ const HTML = `<!DOCTYPE html>
       <div>
         <div class="ctrl-group-label">Bot State</div>
         <div class="ctrl-btns">
-          <button class="ctrl-btn ctrl-btn-success" onclick="sendCmd('START_BOT')">▶ START_BOT</button>
-          <button class="ctrl-btn ctrl-btn-danger"  onclick="sendCmd('STOP_BOT')">⛔ STOP_BOT</button>
-          <button class="ctrl-btn ctrl-btn-warn"    onclick="sendCmd('PAUSE_TRADING')">⏸ PAUSE</button>
-          <button class="ctrl-btn ctrl-btn-success" onclick="sendCmd('RESUME_TRADING')">▶ RESUME</button>
+          <button class="ctrl-btn ctrl-btn-success" id="btn-start"   onclick="sendCmd('START_BOT')">▶ START_BOT</button>
+          <button class="ctrl-btn ctrl-btn-danger"  id="btn-stop"    onclick="sendCmd('STOP_BOT')">⛔ STOP_BOT</button>
+          <button class="ctrl-btn ctrl-btn-warn"    id="btn-pause"   onclick="sendCmd('PAUSE_TRADING')">⏸ PAUSE</button>
+          <button class="ctrl-btn ctrl-btn-success" id="btn-resume"  onclick="sendCmd('RESUME_TRADING')">▶ RESUME</button>
         </div>
       </div>
       <div>
         <div class="ctrl-group-label">Trading Mode</div>
         <div class="ctrl-btns">
-          <button class="ctrl-btn ctrl-btn-warn"    onclick="confirmLive()">🔴 SET_MODE_LIVE</button>
-          <button class="ctrl-btn ctrl-btn-success" onclick="sendCmd('SET_MODE_PAPER')">📋 SET_MODE_PAPER</button>
+          <button class="ctrl-btn ctrl-btn-warn"    id="btn-mode-live"  onclick="confirmLive()">🔴 SET_MODE_LIVE</button>
+          <button class="ctrl-btn ctrl-btn-success" id="btn-mode-paper" onclick="sendCmd('SET_MODE_PAPER')">📋 SET_MODE_PAPER</button>
         </div>
         <div class="ctrl-group-label" style="margin-top:12px">Resets</div>
         <div class="ctrl-btns">
@@ -2580,6 +2784,20 @@ const HTML = `<!DOCTYPE html>
       modeLabel.textContent = ctrl.paperTrading !== false ? "📋 PAPER MODE" : "🔴 LIVE MODE";
       modeLabel.style.color = ctrl.paperTrading !== false ? "var(--blue)" : "var(--red)";
     }
+
+    // Highlight active state buttons
+    const setActive = (id, active, color) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      ["is-active-green","is-active-red","is-active-yellow","is-active-blue"].forEach(c => el.classList.remove(c));
+      if (active) el.classList.add("is-active-" + color);
+    };
+    setActive("btn-start",      !ctrl.stopped, "green");
+    setActive("btn-stop",        ctrl.stopped, "red");
+    setActive("btn-pause",       ctrl.paused,  "yellow");
+    setActive("btn-resume",     !ctrl.paused,  "green");
+    setActive("btn-mode-paper",  ctrl.paperTrading !== false, "blue");
+    setActive("btn-mode-live",   ctrl.paperTrading === false, "red");
   }
 
   // ── Nav Drawer ────────────────────────────────────────────────────────────
@@ -3264,8 +3482,39 @@ const HTML = `<!DOCTYPE html>
   // ── Kraken WebSocket — real-time live price ───────────────────────────────
   let livePrice = null;
 
+  let prevTickerPrice = null;
+  let sessionOpenPrice = null;
+  let priceHigh = null, priceLow = null;
+  let liveCandle = null; // current 5m candle being built from WS ticks
+  let priceHistory = []; // last 60 ticks for sparkline
+  let portfolioHistory = []; // last 60 portfolio values for sparkline
+  let portfolioOpenValue = null;
+
   function updateLivePrice(price) {
     livePrice = price;
+    if (sessionOpenPrice === null) sessionOpenPrice = price;
+    if (priceHigh === null || price > priceHigh) priceHigh = price;
+    if (priceLow  === null || price < priceLow)  priceLow  = price;
+
+    // Hero ticker
+    const tp = document.getElementById("ticker-price");
+    const ta = document.getElementById("ticker-arrow");
+    const tpnl = document.getElementById("ticker-pnl");
+    const trange = document.getElementById("ticker-range");
+    if (tp)   tp.textContent = "$" + price.toFixed(4);
+    if (ta && prevTickerPrice !== null) {
+      if (price > prevTickerPrice)      { ta.textContent = "▲"; ta.className = "ticker-arrow up"; if (tp) tp.style.color = "var(--green)"; }
+      else if (price < prevTickerPrice) { ta.textContent = "▼"; ta.className = "ticker-arrow down"; if (tp) tp.style.color = "var(--red)"; }
+      setTimeout(() => { if (tp) tp.style.color = "var(--text)"; }, 600);
+    }
+    if (tpnl && sessionOpenPrice) {
+      const pct = ((price - sessionOpenPrice) / sessionOpenPrice) * 100;
+      const sign = pct >= 0 ? "+" : "";
+      tpnl.textContent = sign + pct.toFixed(3) + "%";
+      tpnl.style.color = pct > 0 ? "var(--green)" : pct < 0 ? "var(--red)" : "var(--muted)";
+    }
+    if (trange && priceHigh && priceLow) trange.textContent = "$" + priceLow.toFixed(4) + " — $" + priceHigh.toFixed(4);
+    prevTickerPrice = price;
 
     // Update price in indicators panel
     const rows = document.querySelectorAll("#indicators-content .indicator-row");
@@ -3277,6 +3526,102 @@ const HTML = `<!DOCTYPE html>
     // Update open position P&L + bar live
     if (lastRenderData?.position?.open) renderPosition(lastRenderData.position, price);
     if (lastRenderData) renderPortfolioPanel(lastRenderData.portfolioState, lastRenderData.perfState, lastRenderData.position, price);
+
+    // Push to sparkline history (keep last 60 ticks)
+    priceHistory.push(price);
+    if (priceHistory.length > 60) priceHistory.shift();
+    renderSparkline();
+
+    // Update live candle on chart (TradingView-style)
+    updateLiveCandle(price);
+
+    // Update portfolio sparkline + hero value
+    updatePortfolioLive(price);
+  }
+
+  function updatePortfolioLive(price) {
+    if (!lastRenderData) return;
+    const port = lastRenderData.portfolioState || {};
+    const pos  = lastRenderData.position;
+    const realized = parseFloat(port.realizedPnl || 0);
+    const baseBalance = parseFloat(port.totalBalanceUSD || 100);
+    const unrealized = pos?.open ? ((price - pos.entryPrice) / pos.entryPrice * pos.tradeSize) : 0;
+    const totalValue = baseBalance + unrealized;
+
+    if (portfolioOpenValue === null) portfolioOpenValue = totalValue;
+    portfolioHistory.push(totalValue);
+    if (portfolioHistory.length > 60) portfolioHistory.shift();
+
+    const hv = document.getElementById("port-hero-value");
+    const hc = document.getElementById("port-hero-change");
+    if (hv) hv.textContent = "$" + totalValue.toFixed(2);
+    if (hc && portfolioOpenValue) {
+      const change    = totalValue - portfolioOpenValue;
+      const changePct = (change / portfolioOpenValue) * 100;
+      const sign = change >= 0 ? "+" : "";
+      hc.textContent = sign + "$" + Math.abs(change).toFixed(2) + " (" + sign + changePct.toFixed(3) + "%)";
+      hc.style.color = change > 0 ? "var(--green)" : change < 0 ? "var(--red)" : "var(--muted)";
+      if (hv) hv.style.color = change > 0 ? "var(--green)" : change < 0 ? "var(--red)" : "var(--text)";
+    }
+
+    renderPortfolioSparkline();
+  }
+
+  function renderPortfolioSparkline() {
+    const svg = document.getElementById("portfolio-sparkline");
+    if (!svg || portfolioHistory.length < 2) return;
+    const w = 180, h = 40;
+    const min = Math.min(...portfolioHistory), max = Math.max(...portfolioHistory);
+    const range = (max - min) || 0.001;
+    const pts = portfolioHistory.map((v, i) => {
+      const x = (i / (portfolioHistory.length - 1)) * w;
+      const y = h - ((v - min) / range) * (h - 4) - 2;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+    const last = portfolioHistory[portfolioHistory.length - 1];
+    const first = portfolioHistory[0];
+    const color = last >= first ? "#00FF9A" : "#FF4D6A";
+    const fillColor = last >= first ? "rgba(0,255,154,0.12)" : "rgba(255,77,106,0.12)";
+    // Build area fill path
+    const areaPath = "M0," + h + " L" + pts.replace(/,/g, " ").split(" ").map((v,i) => i % 2 === 0 ? v : v).join(",").replace(/,([0-9.]+),/g, ' L$1,').replace(/^L/,'') + " L" + w + "," + h + " Z";
+    svg.innerHTML =
+      '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<circle cx="' + (w).toFixed(1) + '" cy="' + (h - ((last - min) / range) * (h - 4) - 2).toFixed(1) + '" r="3" fill="' + color + '"/>';
+  }
+
+  function renderSparkline() {
+    const svg = document.getElementById("ticker-sparkline");
+    if (!svg || priceHistory.length < 2) return;
+    const w = 120, h = 28;
+    const min = Math.min(...priceHistory), max = Math.max(...priceHistory);
+    const range = (max - min) || 0.0001;
+    const pts = priceHistory.map((p, i) => {
+      const x = (i / (priceHistory.length - 1)) * w;
+      const y = h - ((p - min) / range) * h;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    }).join(" ");
+    const last = priceHistory[priceHistory.length - 1];
+    const first = priceHistory[0];
+    const color = last >= first ? "#00FF9A" : "#FF4D6A";
+    svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  }
+
+  function updateLiveCandle(price) {
+    if (!candleSeries) return;
+    // 5m bucket: floor to 300-second boundary
+    const now = Math.floor(Date.now() / 1000);
+    const bucketTime = Math.floor(now / 300) * 300;
+
+    if (!liveCandle || liveCandle.time !== bucketTime) {
+      // New candle bucket
+      liveCandle = { time: bucketTime, open: price, high: price, low: price, close: price };
+    } else {
+      // Update existing candle
+      liveCandle.high = Math.max(liveCandle.high, price);
+      liveCandle.low  = Math.min(liveCandle.low,  price);
+      liveCandle.close = price;
+    }
+    try { candleSeries.update(liveCandle); } catch {}
   }
 
   function connectTickerWS() {
@@ -3309,7 +3654,7 @@ const HTML = `<!DOCTYPE html>
     const msgs = document.getElementById("chat-messages");
     const div  = document.createElement("div");
     div.className = "chat-msg " + type;
-    div.innerHTML = text.replace(/\n/g, "<br>").replace(/\[EXECUTE:[^\]]+\]/g, "").replace(/\[CONFIRM_REQUIRED\]/g, "");
+    div.innerHTML = text.replace(/\\n/g, "<br>").replace(/\\[EXECUTE:[^\\]]+\\]/g, "").replace(/\\[CONFIRM_REQUIRED\\]/g, "");
     if (id) div.id = id;
     msgs.appendChild(div);
     msgs.scrollTop = msgs.scrollHeight;
@@ -3345,7 +3690,7 @@ const HTML = `<!DOCTYPE html>
       typingEl.remove();
 
       const reply = data.reply || "No response.";
-      const cleanReply = reply.replace(/\[EXECUTE:[^\]]+\]/g, "").replace(/\[CONFIRM_REQUIRED\]/g, "").trim();
+      const cleanReply = reply.replace(/\\[EXECUTE:[^\\]]+\\]/g, "").replace(/\\[CONFIRM_REQUIRED\\]/g, "").trim();
       appendMsg(cleanReply, "chat-msg-bot");
       chatHistory.push({ role: "assistant", content: reply });
 
@@ -3411,7 +3756,7 @@ async function sseLoop() {
     broadcastSSE("data", getApiData());
     try { broadcastSSE("balance", await fetchKrakenBalance()); } catch {}
   }
-  setTimeout(sseLoop, 1000);
+  setTimeout(sseLoop, 5000);
 }
 sseLoop();
 
@@ -3803,3 +4148,19 @@ if (!process.env.DASHBOARD_TOTP_SECRET) {
 server.listen(PORT, () => {
   console.log(`\n  Dashboard → http://localhost:${PORT}\n`);
 });
+
+// ─── Embedded bot runner — only on Railway, runs every 5 minutes ─────────────
+// On local Mac, the cron job already runs the bot, so we skip this to avoid duplicates.
+if (process.env.RAILWAY_ENVIRONMENT) {
+  const runBot = () => {
+    console.log("[bot-runner] Starting bot.js…");
+    const proc = spawn("node", ["bot.js"], { stdio: "inherit" });
+    proc.on("exit", code => console.log(`[bot-runner] bot.js exited with code ${code}`));
+    proc.on("error", err => console.log(`[bot-runner] error: ${err.message}`));
+  };
+  // First run after 10 seconds (let server warm up)
+  setTimeout(runBot, 10000);
+  // Then every 5 minutes
+  setInterval(runBot, 5 * 60 * 1000);
+  console.log("  Bot runner enabled (Railway env detected)");
+}
