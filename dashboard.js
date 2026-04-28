@@ -709,26 +709,49 @@ function loginPage(error = "") {
       if (pw.type === "password") { pw.type = "text"; btn.textContent = "Hide"; }
       else { pw.type = "password"; btn.textContent = "Show"; }
     }
-    function handleLoginSubmit(e) {
+    function showLoginError(msg) {
+      var existing = document.querySelector(".error");
+      if (existing) existing.remove();
+      var card = document.querySelector(".card");
+      var form = document.getElementById("login-form");
+      var err = document.createElement("div");
+      err.className = "error";
+      err.textContent = "⚠ " + msg;
+      card.insertBefore(err, form);
+    }
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
       var email = document.getElementById("email").value.trim();
       var pw    = document.getElementById("password").value;
-      if (!email || !pw) {
-        e.preventDefault();
-        var existingErr = document.querySelector(".error");
-        if (existingErr) existingErr.remove();
-        var card = document.querySelector(".card");
-        var form = document.getElementById("login-form");
-        var err = document.createElement("div");
-        err.className = "error";
-        err.textContent = "⚠ Please fill in all fields.";
-        card.insertBefore(err, form);
-        return false;
-      }
+      if (!email || !pw) { showLoginError("Please fill in all fields."); return false; }
+
       var btn = document.getElementById("login-submit");
       var txt = document.getElementById("login-btn-text");
       btn.disabled = true;
       txt.innerHTML = '<span class="btn-spinner"></span>Signing in...';
-      return true;
+
+      try {
+        var res = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: pw }),
+        });
+        var data;
+        try { data = await res.json(); }
+        catch { throw new Error("Server returned invalid response"); }
+
+        if (res.ok && data.success) {
+          window.location.href = data.redirect || "/2fa";
+          return false;
+        }
+        showLoginError(data.error || "Login failed.");
+      } catch (err) {
+        showLoginError("Connection error: " + err.message);
+      }
+
+      btn.disabled = false;
+      txt.textContent = "Sign in →";
+      return false;
     }
   </script>
 </div>
@@ -4871,6 +4894,41 @@ const server = createServer(async (req, res) => {
     }
     res.writeHead(200, { "Content-Type": "text/html" });
     res.end(loginPage());
+    return;
+  }
+
+  // ── AJAX login endpoint (returns JSON, used by modern login form) ────────
+  if (req.url === "/api/login" && req.method === "POST") {
+    try {
+      const body = await readBody(req);
+      let email = "", password = "";
+      try {
+        const j = JSON.parse(body);
+        email = j.email || ""; password = j.password || "";
+      } catch {
+        const p = new URLSearchParams(body);
+        email = p.get("email") || ""; password = p.get("password") || "";
+      }
+      if (
+        email    === (process.env.DASHBOARD_EMAIL    || "") &&
+        password === (process.env.DASHBOARD_PASSWORD || "")
+      ) {
+        const pending = generateToken();
+        pendingSessions.add(pending);
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Set-Cookie": `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/`,
+        });
+        res.end(JSON.stringify({ success: true, redirect: "/2fa" }));
+      } else {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Invalid email or password." }));
+      }
+    } catch (e) {
+      log.error("/api/login", e.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Server error." }));
+    }
     return;
   }
 
