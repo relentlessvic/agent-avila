@@ -2224,7 +2224,7 @@ const HTML = `<!DOCTYPE html>
     </table>
   </div>
 
-  <div class="footer">Auto-refreshes every second &nbsp;·&nbsp; Paper trading mode — no real money</div>
+  <div class="footer">Live price every tick · Data refresh every 5s · <span id="footer-mode">Paper trading mode — no real money</span></div>
 </main>
 </div>
 
@@ -3445,19 +3445,19 @@ const HTML = `<!DOCTYPE html>
       renderSafetyCheck(latest);
     }
 
-    renderPortfolioPanel(data.portfolioState, data.perfState, data.position, livePrice);
-    renderCapitalPanel(data.capitalState, data.paperPnL);
-    renderPerfPanel(data.perfState);
-    renderControl(data.control);
-    renderLiveStatus(data);
-    renderPosition(data.position, data.latest?.price);
+    const safe = (name, fn) => { try { fn(); } catch (e) { console.warn("[render]", name, "failed:", e.message); } };
+    safe("portfolio", () => renderPortfolioPanel(data.portfolioState, data.perfState, data.position, livePrice));
+    safe("capital",   () => renderCapitalPanel(data.capitalState, data.paperPnL));
+    safe("perf",      () => renderPerfPanel(data.perfState));
+    safe("control",   () => renderControl(data.control));
+    safe("liveStatus",() => renderLiveStatus(data));
+    safe("position",  () => renderPosition(data.position, data.latest?.price));
     lastRenderData = data;
-    renderTradeTable(recentTrades);
-
-    renderReasoning(data.recentLogs);
-    renderHealthStatus(data.latest);
-    renderRSIHistory(data.allLogs);
-    renderHeatmap(data.allLogs);
+    safe("tradeTable", () => renderTradeTable(recentTrades));
+    safe("reasoning",  () => renderReasoning(data.recentLogs));
+    safe("health",     () => renderHealthStatus(data.latest));
+    safe("rsiHistory", () => renderRSIHistory(data.allLogs));
+    safe("heatmap",    () => renderHeatmap(data.allLogs));
   }
 
   // ── SSE live stream ────────────────────────────────────────────────────────
