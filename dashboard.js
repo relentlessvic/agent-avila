@@ -2556,10 +2556,13 @@ const HTML = `<!DOCTYPE html>
     let data;
     try {
       data = await safeJson("/api/candles");
-      if (data.error) throw new Error(data.error);
+      if (data.error) throw new Error(data.message || data.error);
+      chartHealthy = true;
     } catch (e) {
+      chartHealthy = false;
       document.getElementById("chart-container").innerHTML =
         \`<div class="chart-error">⚠ Chart data failed to load<div style="font-size:11px;color:rgba(139,148,158,0.6);margin-top:6px">\${e.message}</div></div>\`;
+      runHealthCheck();
       return;
     }
 
@@ -3347,7 +3350,7 @@ const HTML = `<!DOCTYPE html>
   // ── System Health Monitor ─────────────────────────────────────────────────
   let wsConnected = false;
 
-  function updateHealthPanel(krakenOk, krakenLatency, lastRunAge, wsOk) {
+  function updateHealthPanel(krakenOk, krakenLatency, lastRunAge, wsOk, chartOk = true) {
     const set = (id, text, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = text; el.className = "health-check-status " + cls; };
     // Standard status badges: 🟢 DATA OK / 🟡 PARTIAL / 🔴 ERROR
     set("hc-api", krakenOk ? "🟢 DATA OK" : "🔴 ERROR", krakenOk ? "health-ok" : "health-fail");
@@ -3365,22 +3368,40 @@ const HTML = `<!DOCTYPE html>
     const botDetail = document.getElementById("hc-bot-detail");
     if (botDetail) botDetail.textContent = botOk ? "On schedule (5m)" : fresh ? "Last run > 15m ago" : "Bot has not run yet";
     const navDot = document.getElementById("nav-drawer-health-dot");
-    if (navDot) { const allOk = krakenOk && wsOk && botOk; navDot.style.background = allOk ? "var(--green)" : "var(--yellow)"; }
+    if (navDot) {
+      const allOk = krakenOk && wsOk && botOk && chartOk;
+      navDot.style.background = allOk ? "var(--green)" : (krakenOk && botOk) ? "var(--yellow)" : "var(--red)";
+    }
+    // Track chart status as part of health
+    if (!chartOk) {
+      const dataEl = document.getElementById("hc-data");
+      if (dataEl && dataEl.textContent === "🟢 DATA OK") {
+        dataEl.textContent = "🟡 PARTIAL"; dataEl.className = "health-check-status health-warn";
+        const ageEl = document.getElementById("hc-data-age");
+        if (ageEl) ageEl.textContent = "Chart load failed";
+      }
+    }
   }
 
+  let chartHealthy = true; // tracked when chart errors/loads
   async function runHealthCheck() {
     try {
       const data = await safeJson("/api/health");
-      updateHealthPanel(data.krakenOk, data.krakenLatency, data.lastRunAge, wsConnected);
+      // Single source of truth: derive lastRunAge from latest.timestamp if available (matches nav clock)
+      let ageMin = data.lastRunAge;
+      if (lastRenderData?.latest?.timestamp) {
+        ageMin = (Date.now() - new Date(lastRenderData.latest.timestamp).getTime()) / 60000;
+      }
+      updateHealthPanel(data.krakenOk, data.krakenLatency, ageMin, wsConnected, chartHealthy);
       // Self-heal: if data is stale (> 6 min), trigger a bot run to wake Railway from sleep
-      if (data.lastRunAge !== null && data.lastRunAge > 6) {
-        console.log("[self-heal] Data is " + data.lastRunAge + " min stale — triggering bot run");
+      if (ageMin !== null && ageMin > 6) {
+        console.log("[self-heal] Data is " + ageMin.toFixed(1) + " min stale — triggering bot run");
         try {
           const r = await safeJson("/api/run-bot", { method: "POST" });
           if (r.triggered) showToast("Bot was sleeping — woke it up", "info");
         } catch {}
       }
-    } catch { updateHealthPanel(false, 0, null, wsConnected); }
+    } catch { updateHealthPanel(false, 0, null, wsConnected, chartHealthy); }
   }
   runHealthCheck();
   setInterval(runHealthCheck, 30000);
@@ -4591,8 +4612,9 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       res.end(JSON.stringify(data));
     } catch (e) {
+      console.error("[/api/balance] error:", e.message);
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: e.message }));
+      res.end(JSON.stringify({ error: true, message: e.message, source: "kraken-balance" }));
     }
   } else if (req.url === "/api/control" && req.method === "POST") {
     try {
@@ -4670,8 +4692,9 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       res.end(JSON.stringify(data));
     } catch (e) {
+      console.error("[/api/candles] error:", e.message);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: e.message }));
+      res.end(JSON.stringify({ error: true, message: e.message, source: "kraken-ohlc" }));
     }
 
   } else if (req.url === "/api/chat" && req.method === "POST") {
