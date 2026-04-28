@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync, appendFileSync } from "fs";
 import { createServer } from "http";
 import crypto from "crypto";
 
-const PORT = process.env.DASHBOARD_PORT || 3000;
+const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
 
 // ─── Bot Log / CSV ────────────────────────────────────────────────────────────
 
