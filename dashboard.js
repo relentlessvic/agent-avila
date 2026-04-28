@@ -1276,8 +1276,13 @@ const HTML = `<!DOCTYPE html>
   .ctrl-btn.is-active-yellow::after,
   .ctrl-btn.is-active-blue::after { content:" ✓ active"; font-size:10px; font-weight:700; opacity:0.8; margin-left:4px; }
   .ctrl-input-row { display:flex; gap:6px; align-items:center; }
-  .ctrl-input { width:64px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; font-weight:600; padding:7px 10px; outline:none; }
-  .ctrl-input:focus { border-color:var(--blue); }
+  .ctrl-input { width:88px; background:var(--bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; font-weight:600; padding:7px 10px; outline:none; transition:all 0.15s; }
+  .ctrl-input::placeholder { color:rgba(139,148,158,0.5); font-weight:500; font-size:11px; }
+  .ctrl-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,212,255,0.15); }
+  .ctrl-input:invalid { border-color:rgba(255,77,106,0.4); }
+  .trade-pct-input::placeholder { color:rgba(139,148,158,0.5); font-weight:500; font-size:11px; }
+  .trade-pct-input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(0,212,255,0.15); }
+  .trade-pct-input:invalid { border-color:rgba(255,77,106,0.4); }
   @media(max-width:700px) { .ctrl-groups { grid-template-columns:1fr 1fr; } }
 
   /* ── Open Position Card ── */
@@ -2059,7 +2064,7 @@ const HTML = `<!DOCTYPE html>
       <button class="capital-role-btn" id="cap-btn-active"   onclick="setCapital('SET_XRP_ROLE','ACTIVE')">⚡ ACTIVE</button>
       <button class="capital-role-btn capital-danger" id="cap-btn-aggressive" onclick="confirmCapital()">🔥 AGGRESSIVE</button>
       <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:8px">ACTIVE %:</span>
-      <input class="ctrl-input" id="cap-active-pct" type="number" min="10" max="95" step="5" value="70" style="width:56px">
+      <input class="ctrl-input" id="cap-active-pct" type="number" min="10" max="95" step="5" value="70" placeholder="% (e.g. 70)" title="Active trading capital % (10–95, rest is reserve)" style="width:64px">
       <button class="ctrl-btn" onclick="setCapital('SET_ACTIVE_PCT', document.getElementById('cap-active-pct').value)">Set</button>
     </div>
   </div>
@@ -2160,30 +2165,30 @@ const HTML = `<!DOCTYPE html>
       <div>
         <div class="ctrl-group-label">Risk Settings</div>
         <div class="ctrl-input-row">
-          <input class="ctrl-input" id="ctrl-leverage-val" type="number" min="1" max="3" value="2">
+          <input class="ctrl-input" id="ctrl-leverage-val" type="number" min="1" max="3" step="1" value="2" placeholder="1–3" title="Leverage 1× to 3× (hard cap)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_LEVERAGE', document.getElementById('ctrl-leverage-val').value)">Leverage ×</button>
         </div>
         <div class="ctrl-input-row">
-          <input class="ctrl-input" id="ctrl-risk-val" type="number" min="0.1" max="5" step="0.1" value="1">
+          <input class="ctrl-input" id="ctrl-risk-val" type="number" min="0.1" max="5" step="0.1" value="1" placeholder="Risk % (e.g. 1)" title="Risk per trade as % of balance (0.1–5)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_RISK', document.getElementById('ctrl-risk-val').value)">Risk %</button>
         </div>
         <div class="ctrl-input-row">
-          <input class="ctrl-input" id="ctrl-dailyloss-val" type="number" min="0.5" max="20" step="0.5" value="3">
+          <input class="ctrl-input" id="ctrl-dailyloss-val" type="number" min="0.5" max="20" step="0.5" value="3" placeholder="Max % (e.g. 3)" title="Stop trading if daily loss exceeds this % (0.5–20)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_MAX_DAILY_LOSS', document.getElementById('ctrl-dailyloss-val').value)">Max Daily Loss %</button>
         </div>
       </div>
       <div>
         <div class="ctrl-group-label">2.0 Guards</div>
         <div class="ctrl-input-row">
-          <input class="ctrl-input" id="ctrl-cooldown-val" type="number" min="0" max="120" step="5" value="15">
+          <input class="ctrl-input" id="ctrl-cooldown-val" type="number" min="0" max="120" step="5" value="15" placeholder="Min (e.g. 15)" title="Wait N minutes between trades (0–120)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_COOLDOWN', document.getElementById('ctrl-cooldown-val').value)">Cooldown (min)</button>
         </div>
         <div class="ctrl-input-row">
-          <input class="ctrl-input" id="ctrl-killpct-val" type="number" min="1" max="50" step="0.5" value="5">
+          <input class="ctrl-input" id="ctrl-killpct-val" type="number" min="1" max="50" step="0.5" value="5" placeholder="Drawdown % (e.g. 5)" title="Halt all trading if drawdown exceeds this % (1–50)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_KILL_DRAWDOWN', document.getElementById('ctrl-killpct-val').value)">Kill Switch %</button>
         </div>
         <div class="ctrl-input-row">
-          <input class="ctrl-input" id="ctrl-pauselosses-val" type="number" min="1" max="10" value="3">
+          <input class="ctrl-input" id="ctrl-pauselosses-val" type="number" min="1" max="10" step="1" value="3" placeholder="Streak (e.g. 3)" title="Auto-pause after N consecutive losses (1–10)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_PAUSE_LOSSES', document.getElementById('ctrl-pauselosses-val').value)">Pause After Losses</button>
         </div>
       </div>
@@ -2204,7 +2209,7 @@ const HTML = `<!DOCTYPE html>
         <button class="trade-cmd-btn trade-btn-buy" onclick="tradeCmd('OPEN_LONG', { leverage: document.getElementById('t-lev').value })">OPEN LONG XRP <span id="t-lev-display">2</span>×</button>
         <div class="trade-pct-row" style="margin-top:8px">
           <span class="trade-pct-label">Leverage</span>
-          <input class="trade-pct-input" id="t-lev" type="number" min="1" max="3" value="2" oninput="document.getElementById('t-lev-display').textContent=this.value">
+          <input class="trade-pct-input" id="t-lev" type="number" min="1" max="3" step="1" value="2" placeholder="× (1–3)" title="Leverage multiplier 1×–3×" oninput="document.getElementById('t-lev-display').textContent=this.value">
         </div>
       </div>
       <div class="trade-cmd-col">
@@ -2216,12 +2221,12 @@ const HTML = `<!DOCTYPE html>
         <div class="trade-cmd-col-label">Set Exit Levels</div>
         <div class="trade-pct-row">
           <span class="trade-pct-label">Stop Loss %</span>
-          <input class="trade-pct-input" id="t-sl" type="number" min="0.1" max="10" step="0.05" value="1.25">
+          <input class="trade-pct-input" id="t-sl" type="number" min="0.1" max="10" step="0.05" value="1.25" placeholder="SL % (e.g. 1.25)" title="Stop loss % below entry (0.1–10)">
         </div>
         <button class="trade-cmd-btn trade-btn-set" onclick="tradeCmd('SET_STOP_LOSS', { pct: document.getElementById('t-sl').value })">SET STOP LOSS</button>
         <div class="trade-pct-row" style="margin-top:6px">
           <span class="trade-pct-label">Take Profit %</span>
-          <input class="trade-pct-input" id="t-tp" type="number" min="0.1" max="20" step="0.1" value="2">
+          <input class="trade-pct-input" id="t-tp" type="number" min="0.1" max="20" step="0.1" value="2" placeholder="TP % (e.g. 2)" title="Take profit % above entry (0.1–20)">
         </div>
         <button class="trade-cmd-btn trade-btn-set" onclick="tradeCmd('SET_TAKE_PROFIT', { pct: document.getElementById('t-tp').value })">SET TAKE PROFIT</button>
       </div>
