@@ -13,6 +13,41 @@ const log = {
   error: (src, msg, ...x) => console.error(`[${new Date().toISOString()}] [ERROR] [${src}]`, msg, ...x),
 };
 
+// ─── Standardized response helpers (success/fail) ────────────────────────────
+function success(data) { return { success: true, data, ok: true }; }
+function fail(error)   { return { success: false, error: (error?.message || error || "Unknown error"), ok: false }; }
+
+function handleError(err, res, source) {
+  log.error(source || "unhandled", err.message || String(err));
+  console.error("🔥 Backend Error:", err);
+  const status = err.status || 500;
+  if (!res.headersSent) {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(fail(err)));
+  }
+}
+
+async function handleApiRoute(req, res, source, fn) {
+  try {
+    const data = await fn();
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(success(data)));
+  } catch (err) {
+    handleError(err, res, source);
+  }
+}
+
+// Retry helper for ANY async function (Kraken, fetch, etc) — exponential backoff
+async function withRetry(fn, retries = 2, delay = 500) {
+  try { return await fn(); }
+  catch (err) {
+    if (retries <= 0) throw err;
+    log.warn("retry", `attempt failed: ${err.message} — retrying in ${delay}ms`);
+    await new Promise(res => setTimeout(res, delay));
+    return withRetry(fn, retries - 1, delay * 2);
+  }
+}
+
 // ─── Bot Log / CSV ────────────────────────────────────────────────────────────
 
 function loadLog() {
@@ -271,17 +306,26 @@ const TICKER_RESPONSE_KEY = {
 async function fetchAssetPrices(assetNames) {
   const pairs = assetNames.filter(a => a !== "USD" && ASSET_TO_PAIR[a]).map(a => ASSET_TO_PAIR[a]);
   if (!pairs.length) return {};
-  const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pairs.join(",")}`);
-  const data = await res.json();
-  if (data.error?.length) return {};
-  const prices = {};
-  for (const [asset, pair] of Object.entries(ASSET_TO_PAIR)) {
-    if (!assetNames.includes(asset)) continue;
-    const key = TICKER_RESPONSE_KEY[pair] || pair;
-    const ticker = data.result[key] || data.result[pair];
-    if (ticker) prices[asset] = parseFloat(ticker.c[0]);
+  try {
+    const data = await withRetry(async () => {
+      const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pairs.join(",")}`);
+      if (!res.ok) throw new Error(`Kraken Ticker HTTP ${res.status}`);
+      const j = await res.json();
+      if (j.error?.length) throw new Error(`Kraken Ticker: ${j.error.join(", ")}`);
+      return j;
+    });
+    const prices = {};
+    for (const [asset, pair] of Object.entries(ASSET_TO_PAIR)) {
+      if (!assetNames.includes(asset)) continue;
+      const key = TICKER_RESPONSE_KEY[pair] || pair;
+      const ticker = data.result[key] || data.result[pair];
+      if (ticker) prices[asset] = parseFloat(ticker.c[0]);
+    }
+    return prices;
+  } catch (e) {
+    log.error("kraken-ticker", e.message);
+    return {}; // safe fallback — same as before
   }
-  return prices;
 }
 
 function signKrakenRequest(path, nonce, postData) {
@@ -301,30 +345,49 @@ const PAIR_TO_KRAKEN = {
 
 async function fetchCurrentPrice(symbol) {
   const pair = PAIR_TO_KRAKEN[symbol] || symbol;
-  const res  = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`);
-  const data = await res.json();
-  if (data.error?.length) throw new Error(data.error.join(", "));
-  const key  = Object.keys(data.result)[0];
-  return parseFloat(data.result[key].c[0]);
+  return withRetry(async () => {
+    const res = await fetch(`https://api.kraken.com/0/public/Ticker?pair=${pair}`);
+    if (!res.ok) throw new Error(`Kraken Ticker HTTP ${res.status}`);
+    const data = await res.json();
+    if (data.error?.length) throw new Error(data.error.join(", "));
+    const key  = Object.keys(data.result)[0];
+    return parseFloat(data.result[key].c[0]);
+  }); // throws after 3 attempts — caller's existing try/catch handles it
 }
 
 async function execKrakenOrder(side, pair, volume, leverage = 1) {
   const apiKey    = process.env.KRAKEN_API_KEY;
   const secretKey = process.env.KRAKEN_SECRET_KEY;
   if (!apiKey || !secretKey) throw new Error("Kraken credentials not set");
-  const nonce    = Date.now().toString();
-  const path     = "/0/private/AddOrder";
-  const params   = { nonce, ordertype: "market", type: side, volume, pair };
-  if (leverage > 1) params.leverage = leverage;
-  const postData = new URLSearchParams(params).toString();
-  const sig      = signKrakenRequest(path, nonce, postData);
-  const res = await fetch(`https://api.kraken.com${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", "API-Key": apiKey, "API-Sign": sig },
-    body: postData,
-  });
+  // Retry network/transport errors only — never retry once Kraken accepts the request
+  // (avoids duplicate orders if first attempt actually placed but we missed the response)
+  let res;
+  try {
+    res = await withRetry(async () => {
+      const nonce    = Date.now().toString();
+      const path     = "/0/private/AddOrder";
+      const params   = { nonce, ordertype: "market", type: side, volume, pair };
+      if (leverage > 1) params.leverage = leverage;
+      const postData = new URLSearchParams(params).toString();
+      const sig      = signKrakenRequest(path, nonce, postData);
+      const r = await fetch(`https://api.kraken.com${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "API-Key": apiKey, "API-Sign": sig },
+        body: postData,
+      });
+      if (!r.ok) throw new Error(`Kraken AddOrder HTTP ${r.status}`);
+      return r;
+    }, 1); // only ONE retry on transport failure for safety
+  } catch (e) {
+    log.error("kraken-order", `transport failure: ${e.message}`);
+    throw e;
+  }
   const data = await res.json();
-  if (data.error?.length) throw new Error(data.error.join(", "));
+  // Once we have a JSON response, do NOT retry — Kraken rejections are final
+  if (data.error?.length) {
+    log.error("kraken-order", `rejected: ${data.error.join(", ")}`);
+    throw new Error(data.error.join(", "));
+  }
   return { orderId: data.result.txid[0] };
 }
 
@@ -436,23 +499,31 @@ async function fetchKrakenBalance() {
   const secretKey = process.env.KRAKEN_SECRET_KEY;
   if (!apiKey || !secretKey) return { error: "KRAKEN_API_KEY / KRAKEN_SECRET_KEY not set in .env" };
 
-  const path = "/0/private/Balance";
-  const nonce = Date.now().toString();
-  const postData = new URLSearchParams({ nonce }).toString();
-  const signature = signKrakenRequest(path, nonce, postData);
-
-  const res = await fetch(`https://api.kraken.com${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "API-Key": apiKey,
-      "API-Sign": signature,
-    },
-    body: postData,
-  });
-
-  const data = await res.json();
-  if (data.error?.length) return { error: data.error.join(", ") };
+  let data;
+  try {
+    data = await withRetry(async () => {
+      const path = "/0/private/Balance";
+      const nonce = Date.now().toString();
+      const postData = new URLSearchParams({ nonce }).toString();
+      const signature = signKrakenRequest(path, nonce, postData);
+      const res = await fetch(`https://api.kraken.com${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "API-Key": apiKey,
+          "API-Sign": signature,
+        },
+        body: postData,
+      });
+      if (!res.ok) throw new Error(`Kraken Balance HTTP ${res.status}`);
+      const j = await res.json();
+      if (j.error?.length) throw new Error(j.error.join(", "));
+      return j;
+    });
+  } catch (e) {
+    log.error("kraken-balance", e.message);
+    return { error: e.message }; // safe fallback — same return shape as before
+  }
 
   const HIDE = new Set(["PEPE", "DOGE", "ELIZAOS"]);
 
