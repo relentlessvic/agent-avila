@@ -628,11 +628,30 @@ function loginPage(error = "") {
     box-shadow: 0 4px 14px rgba(0,212,255,0.3);
     font-family: inherit;
   }
-  button[type="submit"]:hover {
+  button[type="submit"]:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 8px 22px rgba(0,212,255,0.45);
   }
-  button[type="submit"]:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,212,255,0.3); }
+  button[type="submit"]:active:not(:disabled) { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,212,255,0.3); }
+  button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  /* Show/hide password toggle */
+  .password-wrap { position: relative; }
+  .password-toggle {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .password-toggle:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+  /* Loading spinner */
+  .btn-spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px; vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .error {
     background: rgba(255,77,106,0.08);
     border: 1px solid rgba(255,77,106,0.25);
@@ -662,14 +681,17 @@ function loginPage(error = "") {
     <p class="sub">Sign in to your trading dashboard</p>
   </div>
   ${error ? `<div class="error">⚠ ${error}</div>` : ""}
-  <form method="POST" action="/login" autocomplete="on">
+  <form method="POST" action="/login" autocomplete="on" id="login-form" onsubmit="return handleLoginSubmit(event)">
     <div class="field">
       <label for="email">Email</label>
       <input id="email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required autofocus>
     </div>
     <div class="field">
       <label for="password">Password</label>
-      <input id="password" type="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+      <div class="password-wrap">
+        <input id="password" type="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+        <button type="button" class="password-toggle" onclick="togglePassword()" id="pw-toggle">Show</button>
+      </div>
     </div>
     <div class="row">
       <label class="checkbox-wrap">
@@ -677,9 +699,38 @@ function loginPage(error = "") {
       </label>
       <a href="#" class="forgot" onclick="alert('Reset via .env DASHBOARD_PASSWORD or backup phrase'); return false">Forgot password?</a>
     </div>
-    <button type="submit">Sign in →</button>
+    <button type="submit" id="login-submit"><span id="login-btn-text">Sign in →</span></button>
   </form>
   <div class="footer-text">Protected by 2FA · <a href="https://github.com/relentlessvic/agent-avila">github.com/relentlessvic/agent-avila</a></div>
+  <script>
+    function togglePassword() {
+      var pw = document.getElementById("password");
+      var btn = document.getElementById("pw-toggle");
+      if (pw.type === "password") { pw.type = "text"; btn.textContent = "Hide"; }
+      else { pw.type = "password"; btn.textContent = "Show"; }
+    }
+    function handleLoginSubmit(e) {
+      var email = document.getElementById("email").value.trim();
+      var pw    = document.getElementById("password").value;
+      if (!email || !pw) {
+        e.preventDefault();
+        var existingErr = document.querySelector(".error");
+        if (existingErr) existingErr.remove();
+        var card = document.querySelector(".card");
+        var form = document.getElementById("login-form");
+        var err = document.createElement("div");
+        err.className = "error";
+        err.textContent = "⚠ Please fill in all fields.";
+        card.insertBefore(err, form);
+        return false;
+      }
+      var btn = document.getElementById("login-submit");
+      var txt = document.getElementById("login-btn-text");
+      btn.disabled = true;
+      txt.innerHTML = '<span class="btn-spinner"></span>Signing in...';
+      return true;
+    }
+  </script>
 </div>
 </body>
 </html>`;
