@@ -534,8 +534,9 @@ function manageActiveTrade(position, price) {
 
 function countTodaysTrades(log) {
   const today = new Date().toISOString().slice(0, 10);
+  // Count entries only (BUYs) — exclude EXIT (sells) and holding monitoring entries
   return log.trades.filter(
-    (t) => t.timestamp.startsWith(today) && t.orderPlaced,
+    (t) => t.timestamp.startsWith(today) && t.orderPlaced && t.type !== "EXIT",
   ).length;
 }
 

@@ -64,7 +64,7 @@ function getApiData() {
   const latest = log.trades.length ? log.trades[log.trades.length - 1] : null;
   const today = new Date().toISOString().slice(0, 10);
   const todayCount = log.trades.filter(
-    (t) => t.timestamp.startsWith(today) && t.orderPlaced
+    (t) => t.timestamp.startsWith(today) && t.orderPlaced && t.type !== "EXIT"
   ).length;
   const stats = {
     total: log.trades.length,
