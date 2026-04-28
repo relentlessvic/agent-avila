@@ -770,7 +770,7 @@ function loginPage(error = "") {
       <label class="checkbox-wrap">
         <input type="checkbox" name="rememberMe" id="rememberMe"> Remember me
       </label>
-      <a href="#" class="forgot" onclick="alert('Reset via .env DASHBOARD_PASSWORD or backup phrase'); return false">Forgot password?</a>
+      <button type="button" class="forgot" id="forgot-link" onclick="openForgot()" style="background:none;border:none;padding:0;font:inherit;cursor:pointer">Forgot password?</button>
     </div>
     <button type="submit" id="login-submit"><span id="login-btn-text">Sign in →</span></button>
   </form>
@@ -796,8 +796,32 @@ function loginPage(error = "") {
       card.insertBefore(err, form);
     }
     function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+    var submitting = false;
+    function setLoginPhase(phase, message) {
+      var btn = document.getElementById("login-submit");
+      var txt = document.getElementById("login-btn-text");
+      if (!btn || !txt) return;
+      if (phase === "idle")        { btn.disabled = false; txt.textContent = "Sign in →"; }
+      else if (phase === "loading"){ btn.disabled = true;  txt.innerHTML = '<span class="btn-spinner"></span>Signing in...'; }
+      else if (phase === "success"){ btn.disabled = true;  txt.innerHTML = '<span class="btn-spinner"></span>Redirecting...'; }
+      else if (phase === "error")  { btn.disabled = false; txt.textContent = "Sign in →"; if (message) showLoginError(message); }
+    }
+    function readApiResponse(data) {
+      // Backend compatibility layer — accept { success } OR { ok } (legacy)
+      if (!data || typeof data !== "object") return { ok: false, error: "Malformed response" };
+      var ok = data.success === true || data.ok === true;
+      return { ok: ok, error: data.error || data.message || null, redirect: data.redirect || null, token: data.token || null };
+    }
+    function storeAuthToken(token, persistent) {
+      if (!token) return;
+      try {
+        if (persistent) { localStorage.setItem("token", token); sessionStorage.removeItem("token"); }
+        else            { sessionStorage.setItem("token", token); localStorage.removeItem("token"); }
+      } catch (_) {}
+    }
     async function handleLoginSubmit(e) {
       e.preventDefault();
+      if (submitting) return false;
       var email = document.getElementById("email").value.trim();
       var pw    = document.getElementById("password").value;
       var rememberMe = document.getElementById("rememberMe")?.checked || false;
@@ -805,37 +829,96 @@ function loginPage(error = "") {
       if (!email || !pw)        { showLoginError("Email and password are required"); return false; }
       if (!isValidEmail(email)) { showLoginError("Invalid email format");            return false; }
 
-      var btn = document.getElementById("login-submit");
-      var txt = document.getElementById("login-btn-text");
-      btn.disabled = true;
-      txt.innerHTML = '<span class="btn-spinner"></span>Signing in...';
+      submitting = true;
+      setLoginPhase("loading");
 
       try {
-        var res = await fetch("/api/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email, password: pw, rememberMe: rememberMe }),
-        });
+        var controller = new AbortController();
+        var timer = setTimeout(function(){ controller.abort(); }, 15000);
+        var res;
+        try {
+          res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email, password: pw, rememberMe: rememberMe }),
+            signal: controller.signal,
+          });
+        } catch (netErr) {
+          clearTimeout(timer);
+          if (netErr.name === "AbortError") throw new Error("Request timed out — please try again");
+          throw new Error("Network error — check your connection");
+        }
+        clearTimeout(timer);
+
         var data;
         try { data = await res.json(); }
         catch { throw new Error("Server returned invalid response"); }
 
-        if (!data.success) throw new Error(data.error || "Login failed");
+        var parsed = readApiResponse(data);
 
-        // Store optional token (HTTP-only cookie still primary auth mechanism)
-        if (data.token)    localStorage.setItem("token", data.token);
-        if (rememberMe)    localStorage.setItem("avila_email", email);
-        else                localStorage.removeItem("avila_email");
+        if (!res.ok || !parsed.ok) {
+          if (res.status === 401) throw new Error(parsed.error || "Invalid email or password");
+          if (res.status === 429) throw new Error("Too many attempts — please wait a minute and try again");
+          if (res.status >= 500)  throw new Error("Server error — please try again shortly");
+          throw new Error(parsed.error || "Login failed");
+        }
 
-        window.location.href = data.redirect || "/2fa";
+        storeAuthToken(parsed.token, rememberMe);
+        if (rememberMe) localStorage.setItem("avila_email", email);
+        else            localStorage.removeItem("avila_email");
+
+        setLoginPhase("success");
+        setTimeout(function(){ window.location.href = parsed.redirect || "/2fa"; }, 250);
         return false;
       } catch (err) {
-        showLoginError(err.message || "Network error");
+        submitting = false;
+        setLoginPhase("error", err.message || "Login failed");
+        return false;
       }
-
-      btn.disabled = false;
-      txt.textContent = "Sign in →";
-      return false;
+    }
+    // Forgot password — real modal action, hits /api/forgot-password
+    function openForgot() {
+      if (document.getElementById("forgot-modal")) return;
+      var overlay = document.createElement("div");
+      overlay.id = "forgot-modal";
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px";
+      overlay.innerHTML = '<div style="background:#0F1525;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:28px;max-width:380px;width:100%;color:#E6EAF1">' +
+        '<h2 style="margin:0 0 8px;font-size:18px;font-weight:700">Reset access</h2>' +
+        '<p style="margin:0 0 16px;font-size:13px;color:#8B98A5;line-height:1.5">Enter your account email. If it matches, recovery instructions will be sent and you can authenticate via your backup phrase on the 2FA screen.</p>' +
+        '<input id="forgot-email" type="email" placeholder="you@example.com" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:#E6EAF1;font-size:14px;padding:11px 14px;outline:none;margin-bottom:14px;font-family:inherit" />' +
+        '<div id="forgot-msg" style="font-size:12px;margin-bottom:12px;min-height:16px"></div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button type="button" id="forgot-cancel" style="flex:1;padding:11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#E6EAF1;border-radius:10px;cursor:pointer;font-family:inherit;font-size:13px">Cancel</button>' +
+          '<button type="button" id="forgot-submit" style="flex:1;padding:11px;background:linear-gradient(135deg,#00D4FF,#7C5CFF);border:none;color:#fff;border-radius:10px;cursor:pointer;font-weight:600;font-family:inherit;font-size:13px">Send</button>' +
+        '</div></div>';
+      document.body.appendChild(overlay);
+      function close() { overlay.remove(); }
+      document.getElementById("forgot-cancel").onclick = close;
+      overlay.addEventListener("click", function(e){ if (e.target === overlay) close(); });
+      document.getElementById("forgot-submit").onclick = async function() {
+        var em = document.getElementById("forgot-email").value.trim();
+        var msg = document.getElementById("forgot-msg");
+        var btn = document.getElementById("forgot-submit");
+        if (!isValidEmail(em)) { msg.style.color = "#FF4D6A"; msg.textContent = "Invalid email format"; return; }
+        btn.disabled = true; btn.textContent = "Sending…";
+        try {
+          var r = await fetch("/api/forgot-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: em }),
+          });
+          var d; try { d = await r.json(); } catch { d = {}; }
+          msg.style.color = "#10D9A0";
+          msg.textContent = (d && (d.message || d.error)) || "If that email exists, recovery instructions have been sent.";
+          btn.textContent = "Done";
+          setTimeout(close, 2200);
+        } catch (e) {
+          msg.style.color = "#FF4D6A"; msg.textContent = "Network error — try again";
+          btn.disabled = false; btn.textContent = "Send";
+        }
+      };
     }
     // Auto-restore email on page load if previously remembered
     (function() {
@@ -854,6 +937,7 @@ function loginPage(error = "") {
 }
 
 const pendingSessions = new Set();
+const loginAttempts = new Map(); // ip -> { count, first } — sliding 5-min window
 
 // TOTP (RFC 6238) — no external deps
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -4994,6 +5078,22 @@ const server = createServer(async (req, res) => {
   // ── AJAX login endpoint (returns JSON, used by modern login form) ────────
   if (req.url === "/api/login" && req.method === "POST") {
     try {
+      // Rate limit: 8 attempts per IP per 5 minutes
+      const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown").toString().split(",")[0].trim();
+      const now = Date.now();
+      const window = 5 * 60 * 1000;
+      const limit = 8;
+      const rec = loginAttempts.get(ip) || { count: 0, first: now };
+      if (now - rec.first > window) { rec.count = 0; rec.first = now; }
+      rec.count++;
+      loginAttempts.set(ip, rec);
+      if (rec.count > limit) {
+        log.warn("/api/login", `rate-limited ${ip} (${rec.count} attempts)`);
+        res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" });
+        res.end(JSON.stringify({ success: false, ok: false, error: "Too many attempts. Try again in a minute." }));
+        return;
+      }
+
       const body = await readBody(req);
       let email = "", password = "", rememberMe = false;
       try {
@@ -5011,6 +5111,7 @@ const server = createServer(async (req, res) => {
         email    === (process.env.DASHBOARD_EMAIL    || "") &&
         password === (process.env.DASHBOARD_PASSWORD || "")
       ) {
+        loginAttempts.delete(ip); // success resets the counter
         const pending = generateToken();
         pendingSessions.add(pending);
         const cookieMaxAge = rememberMe ? "; Max-Age=2592000" : ""; // 30 days when remembered
@@ -5018,16 +5119,44 @@ const server = createServer(async (req, res) => {
           "Content-Type": "application/json",
           "Set-Cookie": `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/${cookieMaxAge}`,
         });
-        res.end(JSON.stringify({ success: true, redirect: "/2fa", rememberMe }));
+        res.end(JSON.stringify({ success: true, ok: true, redirect: "/2fa", rememberMe }));
       } else {
         log.warn("/api/login", `failed login attempt for "${email.slice(0,40)}"`);
         res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, error: "Invalid email or password." }));
+        res.end(JSON.stringify({ success: false, ok: false, error: "Invalid email or password." }));
       }
     } catch (e) {
       log.error("/api/login", e.message);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, error: "Server error." }));
+      res.end(JSON.stringify({ success: false, ok: false, error: "Server error." }));
+    }
+    return;
+  }
+
+  // ── Forgot password (real action — never confirms account existence) ────
+  if (req.url === "/api/forgot-password" && req.method === "POST") {
+    try {
+      const body = await readBody(req);
+      let email = "";
+      try { email = (JSON.parse(body).email || "").toString(); }
+      catch { email = (new URLSearchParams(body).get("email") || ""); }
+      const isAccount = !!email && email === (process.env.DASHBOARD_EMAIL || "");
+      if (isAccount) {
+        log.info("/api/forgot-password", `recovery request for "${email.slice(0,40)}"`);
+      } else {
+        log.warn("/api/forgot-password", `recovery request for unknown email "${email.slice(0,40)}"`);
+      }
+      // Same response either way — never leak whether the account exists
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: true,
+        ok: true,
+        message: "If that email exists, use your backup phrase on the 2FA screen to regain access.",
+      }));
+    } catch (e) {
+      log.error("/api/forgot-password", e.message);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, ok: false, error: "Server error." }));
     }
     return;
   }
