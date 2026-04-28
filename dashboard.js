@@ -494,34 +494,170 @@ function loginPage(error = "") {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login — Agent Avila</title>
+<title>Sign in — Agent Avila</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --blue: #58a6ff; --red: #f85149; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; width: 360px; }
-  h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
-  .sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
-  label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; }
-  input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; padding: 10px 12px; outline: none; margin-bottom: 16px; transition: border-color 0.15s; }
-  input:focus { border-color: var(--blue); }
-  button { width: 100%; background: var(--blue); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; padding: 11px; cursor: pointer; margin-top: 4px; transition: opacity 0.15s; }
-  button:hover { opacity: 0.85; }
-  .error { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--red); border-radius: 6px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; }
+  :root {
+    --bg: #0B0F1A; --card: #121A2A; --border: rgba(0,212,255,0.12);
+    --text: #E6EDF3; --muted: #8B98A5; --blue: #00D4FF; --purple: #7C5CFF;
+    --red: #FF4D6A; --green: #00FF9A;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse 600px 400px at 25% 30%, rgba(0,212,255,0.08), transparent 70%),
+      radial-gradient(ellipse 600px 500px at 80% 80%, rgba(124,92,255,0.08), transparent 70%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 20px;
+    overflow: hidden;
+  }
+  /* Animated background grid */
+  body::before {
+    content: ""; position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+    pointer-events: none;
+  }
+  .card {
+    position: relative; width: 100%; max-width: 420px;
+    background: rgba(18,26,42,0.85);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 44px 40px;
+    box-shadow:
+      0 20px 60px rgba(0,0,0,0.5),
+      0 0 40px rgba(0,212,255,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.04);
+    animation: cardIn 0.6s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+  /* Gradient border accent */
+  .card::before {
+    content: ""; position: absolute; inset: -1px; border-radius: 20px;
+    background: linear-gradient(135deg, rgba(0,212,255,0.5), rgba(124,92,255,0.5), transparent 60%);
+    z-index: -1; opacity: 0.4;
+  }
+  .logo-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 32px; }
+  .logo {
+    width: 56px; height: 56px; border-radius: 16px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 900; color: #fff;
+    box-shadow: 0 8px 24px rgba(0,212,255,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+    margin-bottom: 16px;
+    animation: logoPulse 3s ease-in-out infinite;
+  }
+  @keyframes logoPulse {
+    0%,100% { box-shadow: 0 8px 24px rgba(0,212,255,0.35), inset 0 1px 0 rgba(255,255,255,0.2); }
+    50%     { box-shadow: 0 8px 32px rgba(0,212,255,0.55), inset 0 1px 0 rgba(255,255,255,0.2); }
+  }
+  h1 {
+    font-size: 24px; font-weight: 800; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--blue), var(--purple));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .field { margin-bottom: 16px; }
+  label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--muted); margin-bottom: 7px;
+    letter-spacing: 0.02em;
+  }
+  input[type="email"], input[type="password"] {
+    width: 100%; background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); font-size: 14px; padding: 13px 16px;
+    outline: none; transition: all 0.2s;
+    font-family: inherit;
+  }
+  input[type="email"]::placeholder, input[type="password"]::placeholder {
+    color: rgba(139,152,165,0.5);
+  }
+  input[type="email"]:focus, input[type="password"]:focus {
+    border-color: var(--blue);
+    background: rgba(0,212,255,0.04);
+    box-shadow: 0 0 0 4px rgba(0,212,255,0.12);
+  }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; font-size: 12px;
+  }
+  .checkbox-wrap { display: flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; user-select: none; }
+  .checkbox-wrap input { width: 14px; height: 14px; accent-color: var(--blue); cursor: pointer; }
+  .forgot { color: var(--blue); text-decoration: none; font-weight: 500; transition: opacity 0.15s; }
+  .forgot:hover { opacity: 0.75; }
+  button[type="submit"] {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: #fff; border: none; border-radius: 12px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
+    cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 14px rgba(0,212,255,0.3);
+    font-family: inherit;
+  }
+  button[type="submit"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 22px rgba(0,212,255,0.45);
+  }
+  button[type="submit"]:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,212,255,0.3); }
+  .error {
+    background: rgba(255,77,106,0.08);
+    border: 1px solid rgba(255,77,106,0.25);
+    color: var(--red); border-radius: 10px;
+    padding: 11px 14px; font-size: 13px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .footer-text {
+    text-align: center; color: var(--muted); font-size: 12px;
+    margin-top: 24px; padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+  .footer-text a { color: var(--blue); text-decoration: none; }
+  @media (max-width: 480px) {
+    .card { padding: 32px 24px; border-radius: 16px; }
+    h1 { font-size: 22px; }
+    .logo { width: 48px; height: 48px; font-size: 22px; }
+  }
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>Agent Avila</h1>
-  <p class="sub">Sign in to access the dashboard</p>
-  ${error ? `<div class="error">${error}</div>` : ""}
-  <form method="POST" action="/login">
-    <label>Email</label>
-    <input type="email" name="email" autocomplete="email" required>
-    <label>Password</label>
-    <input type="password" name="password" autocomplete="current-password" required>
-    <button type="submit">Sign in</button>
+  <div class="logo-wrap">
+    <div class="logo">⚡</div>
+    <h1>Agent Avila</h1>
+    <p class="sub">Sign in to your trading dashboard</p>
+  </div>
+  ${error ? `<div class="error">⚠ ${error}</div>` : ""}
+  <form method="POST" action="/login" autocomplete="on">
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
+    </div>
+    <div class="row">
+      <label class="checkbox-wrap">
+        <input type="checkbox" name="remember" checked> Remember me
+      </label>
+      <a href="#" class="forgot" onclick="alert('Reset via .env DASHBOARD_PASSWORD or backup phrase'); return false">Forgot password?</a>
+    </div>
+    <button type="submit">Sign in →</button>
   </form>
+  <div class="footer-text">Protected by 2FA · <a href="https://github.com/relentlessvic/agent-avila">github.com/relentlessvic/agent-avila</a></div>
 </div>
 </body>
 </html>`;
