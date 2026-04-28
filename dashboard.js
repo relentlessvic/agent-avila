@@ -762,8 +762,16 @@ const HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>Agent Avila</title>
+<!-- PWA -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0B0F1A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Agent Avila">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -864,6 +872,45 @@ const HTML = `<!DOCTYPE html>
     box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 12px rgba(0,212,255,0.05), inset 0 1px 0 rgba(255,255,255,0.05);
     border-color: rgba(0,212,255,0.18) !important;
   }
+
+  /* ── Toast Notifications ── */
+  .toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: 360px; }
+  .toast { background: rgba(18,26,42,0.95); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 10px; min-width: 240px; pointer-events: all; animation: toastIn 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin: top right; }
+  .toast.toast-out { animation: toastOut 0.25s ease-in forwards; }
+  @keyframes toastIn  { from { opacity: 0; transform: translateX(20px) scale(0.95); } to { opacity: 1; transform: translateX(0) scale(1); } }
+  @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(20px); } }
+  .toast-icon  { font-size: 18px; flex-shrink: 0; }
+  .toast-msg   { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; line-height: 1.4; }
+  .toast-success { border-color: rgba(0,255,154,0.3); box-shadow: 0 8px 24px rgba(0,255,154,0.1); }
+  .toast-error   { border-color: rgba(255,77,106,0.3); box-shadow: 0 8px 24px rgba(255,77,106,0.1); }
+  .toast-info    { border-color: rgba(0,212,255,0.3);  box-shadow: 0 8px 24px rgba(0,212,255,0.1); }
+  .toast-warn    { border-color: rgba(255,181,71,0.3); box-shadow: 0 8px 24px rgba(255,181,71,0.1); }
+
+  /* ── Modal Dialog ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 20px; }
+  .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 30px rgba(0,212,255,0.1); animation: modalIn 0.25s cubic-bezier(0.16,1,0.3,1); }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .modal-icon { width: 48px; height: 48px; border-radius: 12px; background: rgba(255,77,106,0.12); display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px; }
+  .modal-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .modal-msg { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+  .modal-input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: 14px; padding: 12px 14px; outline: none; margin-bottom: 16px; font-family: inherit; }
+  .modal-input:focus { border-color: var(--red); box-shadow: 0 0 0 3px rgba(255,77,106,0.15); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-btn { padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .modal-btn-cancel { background: rgba(255,255,255,0.05); color: var(--muted); }
+  .modal-btn-cancel:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+  .modal-btn-confirm { background: linear-gradient(135deg, var(--red), #d63a55); color: #fff; box-shadow: 0 4px 12px rgba(255,77,106,0.3); }
+  .modal-btn-confirm:hover { box-shadow: 0 6px 20px rgba(255,77,106,0.45); transform: translateY(-1px); }
+  .modal-btn-confirm:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ── Loading skeletons ── */
+  .skeleton { display: inline-block; min-width: 60px; min-height: 1em; background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 100%); background-size: 200% 100%; animation: shimmer-bg 1.5s ease-in-out infinite; border-radius: 4px; color: transparent !important; }
+  @keyframes shimmer-bg { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* ── Keyboard shortcut hint ── */
+  .kbd { display: inline-block; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; padding: 1px 5px; background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; color: var(--muted); margin: 0 2px; }
 
   /* ── Hero Live Ticker ── */
   .hero-ticker { display:flex; align-items:center; justify-content:space-between; padding:18px 28px; margin-bottom:24px; background: linear-gradient(135deg, rgba(0,212,255,0.06) 0%, rgba(124,92,255,0.06) 100%); border:1px solid rgba(0,212,255,0.18); border-radius:14px; box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04); position:relative; overflow:hidden; }
@@ -1384,6 +1431,23 @@ const HTML = `<!DOCTYPE html>
 </head>
 <body>
 
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-icon" id="modal-icon">⚠</div>
+    <div class="modal-title" id="modal-title">Confirm action</div>
+    <div class="modal-msg" id="modal-msg">Are you sure?</div>
+    <input class="modal-input" id="modal-input" placeholder="Type CONFIRM" style="display:none">
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="modal-btn modal-btn-confirm" id="modal-confirm-btn" onclick="confirmModalAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <!-- Nav Drawer Overlay -->
 <div class="nav-drawer-overlay" id="nav-overlay" onclick="closeNav()"></div>
 
@@ -1807,7 +1871,7 @@ const HTML = `<!DOCTYPE html>
       <div>
         <div class="ticker-pair">XRP / USD · Live</div>
         <div style="display:flex;align-items:baseline;gap:10px">
-          <span class="ticker-price" id="ticker-price">$—</span>
+          <span class="ticker-price skeleton" id="ticker-price">$—.——</span>
           <span class="ticker-arrow" id="ticker-arrow">—</span>
         </div>
       </div>
@@ -2386,7 +2450,10 @@ const HTML = `<!DOCTYPE html>
     </div>
     <div class="chat-input-wrap">
       <textarea class="chat-input" id="chat-input" rows="1" placeholder="Ask Agent Avila..." onkeydown="chatKeyDown(event)"></textarea>
-      <button class="chat-send-btn" onclick="sendChat()" title="Send">➤</button>
+      <button class="chat-send-btn" onclick="sendChat()" title="Send (Enter)">➤</button>
+    </div>
+    <div style="padding:6px 12px 10px;font-size:10px;color:var(--muted);text-align:center;border-top:1px solid rgba(255,255,255,0.04)">
+      <span class="kbd">⌘K</span> open chat · <span class="kbd">⌘P</span> pause · <span class="kbd">⌘L</span> live mode · <span class="kbd">esc</span> close
     </div>
   </div>
   <button class="chat-toggle-btn" onclick="toggleChat()" title="Agent Avila Assistant">⚡</button>
@@ -2604,9 +2671,10 @@ const HTML = `<!DOCTYPE html>
   // ── Health Status ──────────────────────────────────────────────────────────
   function renderHealthStatus(latest) {
     if (!latest) return;
-    const diffH = (Date.now() - new Date(latest.timestamp)) / 3600000;
+    const diffMin = (Date.now() - new Date(latest.timestamp)) / 60000;
     const dot = document.getElementById('health-dot');
-    if (dot) dot.className = 'h-dot ' + (diffH < 5 ? 'h-dot-green' : diffH < 9 ? 'h-dot-yellow' : 'h-dot-red');
+    // Bot should run every 5 minutes — anything > 10 min is concerning
+    if (dot) dot.className = 'h-dot ' + (diffMin < 10 ? 'h-dot-green' : diffMin < 30 ? 'h-dot-yellow' : 'h-dot-red');
     const el = document.getElementById('health-last-run');
     if (el) el.textContent = 'Bot last ran ' + timeAgo(latest.timestamp);
   }
@@ -2872,8 +2940,9 @@ const HTML = `<!DOCTYPE html>
     } catch (e) { tradeLog("❌ " + e.message, "err"); }
   }
 
-  function confirmTrade(command, message) {
-    if (confirm(message)) tradeCmd(command);
+  async function confirmTrade(command, message) {
+    const ok = await showModal({ icon: "⚠", title: "Confirm trade action", msg: message, confirmText: "Execute" });
+    if (ok) tradeCmd(command);
   }
 
   async function sendCmd(command, value) {
@@ -2882,14 +2951,18 @@ const HTML = `<!DOCTYPE html>
       const res  = await fetch("/api/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.ok) renderControl(data.control);
-      else alert("Command failed: " + data.error);
-    } catch (e) { alert("Error: " + e.message); }
+      else showToast("Command failed: " + data.error, "error");
+    } catch (e) { showToast("Error: " + e.message, "error"); }
   }
 
-  function confirmLive() {
-    const answer = prompt("Type CONFIRM to switch to LIVE trading. Real money will be used.");
-    if (answer === "CONFIRM") sendCmd("SET_MODE_LIVE");
-    else alert("Cancelled — still in Paper mode.");
+  async function confirmLive() {
+    const ok = await showModal({
+      icon: "🔴", title: "Switch to LIVE mode?",
+      msg: "<strong style='color:var(--red)'>Real money will be used.</strong> Your next trade signal will place a real order on Kraken. The bot still uses your kill switch and stop loss protections.",
+      confirmText: "Go LIVE", requireText: "CONFIRM"
+    });
+    if (ok) { sendCmd("SET_MODE_LIVE"); showToast("Switched to LIVE mode — real money active", "warn"); }
+    else showToast("Cancelled — still in Paper mode", "info");
   }
 
   function renderControl(ctrl) {
@@ -2961,6 +3034,84 @@ const HTML = `<!DOCTYPE html>
     const cached = JSON.parse(localStorage.getItem("agent_avila_ctrl") || "null");
     if (cached) renderControl(cached);
   } catch {}
+
+  // ── Toast Notifications ───────────────────────────────────────────────────
+  function showToast(msg, type) {
+    type = type || "info";
+    const c = document.getElementById("toast-container");
+    if (!c) return;
+    const div = document.createElement("div");
+    div.className = "toast toast-" + type;
+    const icons = { success: "✅", error: "❌", info: "ℹ️", warn: "⚠️" };
+    div.innerHTML = '<span class="toast-icon">' + (icons[type] || "ℹ️") + '</span><span class="toast-msg">' + msg + '</span>';
+    c.appendChild(div);
+    setTimeout(() => { div.classList.add("toast-out"); setTimeout(() => div.remove(), 300); }, 3500);
+  }
+
+  // ── Custom Confirm Modal ──────────────────────────────────────────────────
+  let modalAction = null;
+  function showModal(opts) {
+    return new Promise(resolve => {
+      const o = document.getElementById("modal-overlay");
+      document.getElementById("modal-icon").textContent  = opts.icon  || "⚠";
+      document.getElementById("modal-title").textContent = opts.title || "Confirm action";
+      document.getElementById("modal-msg").innerHTML     = opts.msg   || "Are you sure?";
+      const input = document.getElementById("modal-input");
+      const btn   = document.getElementById("modal-confirm-btn");
+      btn.textContent = opts.confirmText || "Confirm";
+      if (opts.requireText) {
+        input.style.display = ""; input.value = "";
+        input.placeholder = 'Type "' + opts.requireText + '"';
+        btn.disabled = true;
+        input.oninput = () => { btn.disabled = input.value.trim() !== opts.requireText; };
+        setTimeout(() => input.focus(), 100);
+      } else {
+        input.style.display = "none"; btn.disabled = false;
+      }
+      modalAction = (confirmed) => { closeModal(); resolve(confirmed); };
+      o.classList.add("open");
+    });
+  }
+  function closeModal() {
+    document.getElementById("modal-overlay").classList.remove("open");
+    if (modalAction) modalAction(false);
+    modalAction = null;
+  }
+  function confirmModalAction() { if (modalAction) modalAction(true); }
+  // ESC closes modal
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      const o = document.getElementById("modal-overlay");
+      if (o && o.classList.contains("open")) closeModal();
+    }
+  });
+
+  // ── Keyboard Shortcuts ────────────────────────────────────────────────────
+  document.addEventListener("keydown", async e => {
+    if (!(e.metaKey || e.ctrlKey)) return;
+    if (["INPUT","TEXTAREA"].includes(document.activeElement?.tagName)) return;
+    if (e.key === "k") {
+      e.preventDefault(); toggleChat(); showToast("Chat toggled", "info");
+    } else if (e.key === "p") {
+      e.preventDefault();
+      const ctrl = lastRenderData?.control || {};
+      if (ctrl.paused) { sendCmd("RESUME_TRADING"); showToast("Trading resumed", "success"); }
+      else             { sendCmd("PAUSE_TRADING");  showToast("Trading paused", "warn"); }
+    } else if (e.key === "l") {
+      e.preventDefault();
+      const ctrl = lastRenderData?.control || {};
+      if (ctrl.paperTrading === false) {
+        sendCmd("SET_MODE_PAPER"); showToast("Switched to PAPER mode", "info");
+      } else {
+        const ok = await showModal({
+          icon: "🔴", title: "Switch to LIVE mode?",
+          msg: "<strong style='color:var(--red)'>Real money will be used.</strong> Your next trade signal will place a real order on Kraken with leverage.",
+          confirmText: "Go LIVE", requireText: "CONFIRM"
+        });
+        if (ok) { sendCmd("SET_MODE_LIVE"); showToast("Switched to LIVE mode — real money active", "warn"); }
+      }
+    }
+  });
 
   // ── Nav Drawer ────────────────────────────────────────────────────────────
   function toggleNav() {
@@ -3077,9 +3228,13 @@ const HTML = `<!DOCTYPE html>
     if (data.capitalState) renderCapitalPanel(data.capitalState, null);
   }
 
-  function confirmCapital() {
-    const ans = prompt("Type CONFIRM to set XRP role to AGGRESSIVE (XRP becomes full trading liquidity).");
-    if (ans === "CONFIRM") setCapital("SET_XRP_ROLE", "AGGRESSIVE");
+  async function confirmCapital() {
+    const ok = await showModal({
+      icon: "🔥", title: "Set XRP role to AGGRESSIVE?",
+      msg: "<strong style='color:var(--red)'>This makes your XRP holdings part of the trading pool.</strong> The bot can liquidate XRP to fund trades. Not recommended in your stage.",
+      confirmText: "Set Aggressive", requireText: "CONFIRM"
+    });
+    if (ok) { setCapital("SET_XRP_ROLE", "AGGRESSIVE"); showToast("XRP role: AGGRESSIVE", "warn"); }
   }
 
   function renderCapitalPanel(cap, paperPnL) {
@@ -3663,7 +3818,7 @@ const HTML = `<!DOCTYPE html>
     const ta = document.getElementById("ticker-arrow");
     const tpnl = document.getElementById("ticker-pnl");
     const trange = document.getElementById("ticker-range");
-    if (tp)   tp.textContent = "$" + price.toFixed(4);
+    if (tp)   { tp.textContent = "$" + price.toFixed(4); tp.classList.remove("skeleton"); }
     if (ta && prevTickerPrice !== null) {
       if (price > prevTickerPrice)      { ta.textContent = "▲"; ta.className = "ticker-arrow up"; if (tp) tp.style.color = "var(--green)"; }
       else if (price < prevTickerPrice) { ta.textContent = "▼"; ta.className = "ticker-arrow down"; if (tp) tp.style.color = "var(--red)"; }
@@ -4004,7 +4159,34 @@ const server = createServer(async (req, res) => {
   }
 
 
-  // ── Public health endpoint  // ── Public health endpoint (no auth required) ────────────────────────────
+  // ── PWA assets (no auth required) ────────────────────────────────────────
+  if (req.url === "/manifest.json") {
+    res.writeHead(200, { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=86400" });
+    res.end(JSON.stringify({
+      name: "Agent Avila", short_name: "Avila",
+      description: "Adaptive quant trading system",
+      start_url: "/", display: "standalone", orientation: "portrait",
+      background_color: "#0B0F1A", theme_color: "#0B0F1A",
+      icons: [
+        { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+        { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+      ]
+    }));
+    return;
+  }
+  if (req.url === "/favicon.svg" || req.url === "/icon-192.png" || req.url === "/icon-512.png") {
+    // Inline SVG icon — gradient lightning bolt on dark background
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
+      + '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00D4FF"/><stop offset="1" stop-color="#7C5CFF"/></linearGradient></defs>'
+      + '<rect width="512" height="512" rx="96" fill="#0B0F1A"/>'
+      + '<path d="M280 90 L160 280 L240 280 L210 422 L350 230 L270 230 Z" fill="url(#g)" stroke="#fff" stroke-width="8" stroke-linejoin="round"/>'
+      + '</svg>';
+    res.writeHead(200, { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" });
+    res.end(svg);
+    return;
+  }
+
+  // ── Public health endpoint (no auth required) ────────────────────────────
   if (req.url === "/api/health") {
     const t0 = Date.now();
     let krakenOk = false; let krakenLatency = 0;
