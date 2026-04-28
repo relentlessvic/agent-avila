@@ -754,7 +754,7 @@ function loginPage(error = "") {
     <p class="sub">Sign in to your trading dashboard</p>
   </div>
   ${error ? `<div class="error">⚠ ${error}</div>` : ""}
-  <form method="POST" action="/login" autocomplete="on" id="login-form" onsubmit="return handleLoginSubmit(event)">
+  <form method="POST" action="/api/login" autocomplete="on" id="login-form" onsubmit="return handleLoginSubmit(event)">
     <div class="field">
       <label for="email">Email</label>
       <input id="email" type="email" name="email" placeholder="you@example.com" autocomplete="email" required autofocus>
@@ -807,17 +807,16 @@ function loginPage(error = "") {
       else if (phase === "error")  { btn.disabled = false; txt.textContent = "Sign in →"; if (message) showLoginError(message); }
     }
     function readApiResponse(data) {
-      // Backend compatibility layer — accept { success } OR { ok } (legacy)
+      // Single envelope: success/data/error. Legacy 'ok' tolerated on READ
+      // for one transition window — never written by the server now.
       if (!data || typeof data !== "object") return { ok: false, error: "Malformed response" };
-      var ok = data.success === true || data.ok === true;
-      return { ok: ok, error: data.error || data.message || null, redirect: data.redirect || null, token: data.token || null };
-    }
-    function storeAuthToken(token, persistent) {
-      if (!token) return;
-      try {
-        if (persistent) { localStorage.setItem("token", token); sessionStorage.removeItem("token"); }
-        else            { sessionStorage.setItem("token", token); localStorage.removeItem("token"); }
-      } catch (_) {}
+      var success = data.success === true || data.ok === true;
+      var payload = data.data || {};
+      return {
+        ok:       success,
+        error:    data.error || data.message || null,
+        redirect: payload.redirect || data.redirect || null,
+      };
     }
     async function handleLoginSubmit(e) {
       e.preventDefault();
@@ -863,7 +862,8 @@ function loginPage(error = "") {
           throw new Error(parsed.error || "Login failed");
         }
 
-        storeAuthToken(parsed.token, rememberMe);
+        // Auth carrier is the HttpOnly pending_2fa / session cookie set by the
+        // server. Frontend only persists the remembered email for UX autofill.
         if (rememberMe) localStorage.setItem("avila_email", email);
         else            localStorage.removeItem("avila_email");
 
@@ -911,7 +911,7 @@ function loginPage(error = "") {
           });
           var d; try { d = await r.json(); } catch { d = {}; }
           msg.style.color = "#10D9A0";
-          msg.textContent = (d && (d.message || d.error)) || "If that email exists, recovery instructions have been sent.";
+          msg.textContent = (d && (d.data?.message || d.message || d.error)) || "If that email exists, recovery instructions have been sent.";
           btn.textContent = "Done";
           setTimeout(close, 2200);
         } catch (e) {
@@ -938,6 +938,98 @@ function loginPage(error = "") {
 
 const pendingSessions = new Set();
 const loginAttempts = new Map(); // ip -> { count, first } — sliding 5-min window
+
+// ── Canonical login response envelope ─────────────────────────────────────
+//   success → { success: true,  data: {...} }
+//   failure → { success: false, error: "..." }
+// One contract. No `ok`, no parallel keys. Frontend transition layer still
+// accepts legacy `ok` reads, but no new emitter writes it.
+function authOk(data)   { return JSON.stringify({ success: true,  data }); }
+function authFail(err)  { return JSON.stringify({ success: false, error: err }); }
+
+// Single login handler. /api/login (canonical) and /login (deprecated alias)
+// both route here. Response shape varies by Accept/Content-Type so the form
+// keeps working with or without JS.
+async function processLogin(req, res) {
+  try {
+    const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown").toString().split(",")[0].trim();
+    const now = Date.now();
+    const windowMs = 5 * 60 * 1000;
+    const limit = 8;
+    const rec = loginAttempts.get(ip) || { count: 0, first: now };
+    if (now - rec.first > windowMs) { rec.count = 0; rec.first = now; }
+    rec.count++;
+    loginAttempts.set(ip, rec);
+
+    const body = await readBody(req);
+    const ctype = (req.headers["content-type"] || "").toLowerCase();
+    const accept = (req.headers["accept"] || "").toLowerCase();
+    const wantsJson = ctype.includes("application/json") || accept.includes("application/json");
+
+    let email = "", password = "", rememberMe = false;
+    if (ctype.includes("application/json")) {
+      try {
+        const j = JSON.parse(body);
+        email = j.email || "";
+        password = j.password || "";
+        rememberMe = !!(j.rememberMe || j.remember);
+      } catch { /* fall through to urlencoded */ }
+    }
+    if (!email && !password) {
+      const p = new URLSearchParams(body);
+      email = p.get("email") || "";
+      password = p.get("password") || "";
+      rememberMe = !!(p.get("rememberMe") || p.get("remember"));
+    }
+
+    if (rec.count > limit) {
+      log.warn("/api/login", `rate-limited ${ip} (${rec.count} attempts)`);
+      if (wantsJson) {
+        res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" });
+        res.end(authFail("Too many attempts. Try again in a minute."));
+      } else {
+        res.writeHead(429, { "Content-Type": "text/html", "Retry-After": "60" });
+        res.end(loginPage("Too many attempts. Try again in a minute."));
+      }
+      return;
+    }
+
+    const valid =
+      email    === (process.env.DASHBOARD_EMAIL    || "") &&
+      password === (process.env.DASHBOARD_PASSWORD || "");
+
+    if (valid) {
+      loginAttempts.delete(ip);
+      const pending = generateToken();
+      pendingSessions.add(pending);
+      const cookieMaxAge = rememberMe ? "; Max-Age=2592000" : "";
+      const setCookie = `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/${cookieMaxAge}`;
+      if (wantsJson) {
+        res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": setCookie });
+        res.end(authOk({ redirect: "/2fa", rememberMe }));
+      } else {
+        res.writeHead(302, { "Set-Cookie": setCookie, Location: "/2fa" });
+        res.end();
+      }
+      return;
+    }
+
+    log.warn("/api/login", `failed login attempt for "${email.slice(0,40)}"`);
+    if (wantsJson) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(authFail("Invalid email or password."));
+    } else {
+      res.writeHead(401, { "Content-Type": "text/html" });
+      res.end(loginPage("Invalid email or password."));
+    }
+  } catch (e) {
+    log.error("/api/login", e.message);
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(authFail("Server error."));
+    }
+  }
+}
 
 // TOTP (RFC 6238) — no external deps
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -5046,91 +5138,20 @@ sseLoop();
 // ─── Server ───────────────────────────────────────────────────────────────────
 
 const server = createServer(async (req, res) => {
-  // ── Login / Logout ──────────────────────────────────────────────────────────
+  // ── Login: GET serves page; POST is deprecated (routed to canonical) ──
   if (req.url === "/login") {
     if (req.method === "POST") {
-      const body = await readBody(req);
-      const params = new URLSearchParams(body);
-      const email    = params.get("email")    || "";
-      const password = params.get("password") || "";
-      if (
-        email    === (process.env.DASHBOARD_EMAIL    || "") &&
-        password === (process.env.DASHBOARD_PASSWORD || "")
-      ) {
-        const pending = generateToken();
-        pendingSessions.add(pending);
-        res.writeHead(302, {
-          "Set-Cookie": `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/`,
-          Location: "/2fa",
-        });
-        res.end();
-      } else {
-        res.writeHead(401, { "Content-Type": "text/html" });
-        res.end(loginPage("Invalid email or password."));
-      }
-      return;
+      log.warn("/login", "deprecated POST /login — routing to /api/login");
+      return processLogin(req, res);
     }
     res.writeHead(200, { "Content-Type": "text/html" });
     res.end(loginPage());
     return;
   }
 
-  // ── AJAX login endpoint (returns JSON, used by modern login form) ────────
+  // ── Canonical login endpoint ────────────────────────────────────────────
   if (req.url === "/api/login" && req.method === "POST") {
-    try {
-      // Rate limit: 8 attempts per IP per 5 minutes
-      const ip = (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown").toString().split(",")[0].trim();
-      const now = Date.now();
-      const window = 5 * 60 * 1000;
-      const limit = 8;
-      const rec = loginAttempts.get(ip) || { count: 0, first: now };
-      if (now - rec.first > window) { rec.count = 0; rec.first = now; }
-      rec.count++;
-      loginAttempts.set(ip, rec);
-      if (rec.count > limit) {
-        log.warn("/api/login", `rate-limited ${ip} (${rec.count} attempts)`);
-        res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" });
-        res.end(JSON.stringify({ success: false, ok: false, error: "Too many attempts. Try again in a minute." }));
-        return;
-      }
-
-      const body = await readBody(req);
-      let email = "", password = "", rememberMe = false;
-      try {
-        const j = JSON.parse(body);
-        email = j.email || "";
-        password = j.password || "";
-        rememberMe = !!(j.rememberMe || j.remember);
-      } catch {
-        const p = new URLSearchParams(body);
-        email = p.get("email") || "";
-        password = p.get("password") || "";
-        rememberMe = !!(p.get("rememberMe") || p.get("remember"));
-      }
-      if (
-        email    === (process.env.DASHBOARD_EMAIL    || "") &&
-        password === (process.env.DASHBOARD_PASSWORD || "")
-      ) {
-        loginAttempts.delete(ip); // success resets the counter
-        const pending = generateToken();
-        pendingSessions.add(pending);
-        const cookieMaxAge = rememberMe ? "; Max-Age=2592000" : ""; // 30 days when remembered
-        res.writeHead(200, {
-          "Content-Type": "application/json",
-          "Set-Cookie": `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/${cookieMaxAge}`,
-        });
-        res.end(JSON.stringify({ success: true, ok: true, redirect: "/2fa", rememberMe }));
-      } else {
-        log.warn("/api/login", `failed login attempt for "${email.slice(0,40)}"`);
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: false, ok: false, error: "Invalid email or password." }));
-      }
-    } catch (e) {
-      log.error("/api/login", e.message);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, ok: false, error: "Server error." }));
-    }
-    return;
+    return processLogin(req, res);
   }
 
   // ── Forgot password (real action — never confirms account existence) ────
@@ -5150,13 +5171,12 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
         success: true,
-        ok: true,
-        message: "If that email exists, use your backup phrase on the 2FA screen to regain access.",
+        data: { message: "If that email exists, use your backup phrase on the 2FA screen to regain access." },
       }));
     } catch (e) {
       log.error("/api/forgot-password", e.message);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ success: false, ok: false, error: "Server error." }));
+      res.end(JSON.stringify({ success: false, error: "Server error." }));
     }
     return;
   }
