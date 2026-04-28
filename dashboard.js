@@ -874,6 +874,26 @@ const HTML = `<!DOCTYPE html>
     border-color: rgba(0,212,255,0.18) !important;
   }
 
+  /* ── Mode Banner ── */
+  .mode-banner { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; line-height: 1.4; border: 1px solid; transition: all 0.3s; }
+  .mode-banner-icon { font-size: 18px; }
+  .mode-banner.mode-paper { background: rgba(255,181,71,0.06); border-color: rgba(255,181,71,0.25); color: var(--text); }
+  .mode-banner.mode-paper strong { color: var(--yellow); }
+  .mode-banner.mode-live { background: rgba(255,77,106,0.08); border-color: rgba(255,77,106,0.4); color: var(--text); box-shadow: 0 0 18px rgba(255,77,106,0.1); animation: pulseLive 3s ease-in-out infinite; }
+  .mode-banner.mode-live strong { color: var(--red); }
+  @keyframes pulseLive { 0%,100% { box-shadow: 0 0 18px rgba(255,77,106,0.1); } 50% { box-shadow: 0 0 26px rgba(255,77,106,0.22); } }
+
+  /* ── Check Log (terminal-style) ── */
+  .check-log { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; line-height: 1.7; padding: 16px 20px; background: rgba(0,0,0,0.25) !important; max-height: 280px; overflow-y: auto; }
+  .check-log-line { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .check-log-line.muted    { opacity: 0.5; }
+  .check-log-line.cl-skip  { color: var(--muted); }
+  .check-log-line.cl-trade { color: var(--green); font-weight: 700; }
+  .check-log-line.cl-exit  { color: var(--blue); }
+  .check-log-line.cl-block { color: var(--yellow); }
+  .check-log-line.cl-loss  { color: var(--red); font-weight: 700; }
+  .check-log-time { color: rgba(139,148,158,0.55); margin-right: 6px; }
+
   /* ── Toast Notifications ── */
   .toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: 360px; }
   .toast { background: rgba(18,26,42,0.95); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 10px; min-width: 240px; pointer-events: all; animation: toastIn 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin: top right; }
@@ -1917,6 +1937,12 @@ const HTML = `<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Mode Banner -->
+  <div class="mode-banner mode-paper" id="mode-banner">
+    <span class="mode-banner-icon">🔒</span>
+    <span class="mode-banner-text"><strong>PAPER MODE</strong> — Real trading disabled. Bot uses simulated funds only.</span>
+  </div>
+
   <!-- System Health -->
   <div class="section-title" id="section-health">🩺 System Health</div>
   <div class="health-monitor">
@@ -2440,6 +2466,12 @@ const HTML = `<!DOCTYPE html>
     <div id="reasoning-summary-adv" class="reasoning-summary" style="display:none">Loading...</div>
     <div id="reasoning-timeline"></div>
     <div id="reasoning-timeline-advanced" style="display:none"></div>
+  </div>
+
+  <!-- Check Log (terminal-style activity feed) -->
+  <div class="section-title">Recent Bot Activity</div>
+  <div class="check-log card" id="check-log">
+    <div class="check-log-line muted">Loading recent activity…</div>
   </div>
 
   <!-- Condition Heatmap -->
@@ -3155,6 +3187,18 @@ const HTML = `<!DOCTYPE html>
       modeLabel.style.color = ctrl.paperTrading !== false ? "var(--blue)" : "var(--red)";
     }
 
+    // Mode banner at top of dashboard
+    const banner = document.getElementById("mode-banner");
+    if (banner) {
+      if (ctrl.paperTrading === false) {
+        banner.className = "mode-banner mode-live";
+        banner.innerHTML = '<span class="mode-banner-icon">🔴</span><span class="mode-banner-text"><strong>LIVE MODE</strong> — Real money is being used. Trades execute on Kraken.</span>';
+      } else {
+        banner.className = "mode-banner mode-paper";
+        banner.innerHTML = '<span class="mode-banner-icon">🔒</span><span class="mode-banner-text"><strong>PAPER MODE</strong> — Real trading disabled. Bot uses simulated funds only.</span>';
+      }
+    }
+
     // Kraken Balance badge — make it clear what data the bot uses
     const balBadge = document.getElementById("balance-mode-badge");
     if (balBadge) {
@@ -3350,6 +3394,47 @@ const HTML = `<!DOCTYPE html>
     const hidden = body.style.display === "none";
     body.style.display  = hidden ? "" : "none";
     if (title) title.classList.toggle("collapsed", !hidden);
+  }
+
+  function renderCheckLog(allLogs) {
+    const el = document.getElementById("check-log");
+    if (!el || !allLogs?.length) return;
+    const fmt = (run) => {
+      const d = new Date(run.timestamp);
+      const t = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+      let line, cls;
+      if (run.type === "EXIT") {
+        const pnl = parseFloat(run.pnlUSD || 0);
+        const reason = (run.exitReason || "EXIT").replace("_", " ").toLowerCase();
+        line = "Closed position → " + reason + " (" + (pnl >= 0 ? "+" : "") + "$" + pnl.toFixed(2) + ")";
+        cls  = pnl < 0 ? "cl-loss" : "cl-exit";
+      } else if (run.allPass && run.orderPlaced) {
+        line = "Bought XRP at $" + (run.price?.toFixed(4) || "?") + " (score " + (run.signalScore?.toFixed(0) || "?") + "/100)";
+        cls  = "cl-trade";
+      } else if (run.holding) {
+        line = "Holding position — SL/TP monitoring";
+        cls  = "cl-skip";
+      } else {
+        const failed = (run.conditions || []).filter(c => !c.pass);
+        let reason = "Skipped";
+        if (failed.length) {
+          const f = failed[0].label || "";
+          if (f.includes("Daily"))         reason = "Skipped (Daily limit)";
+          else if (f.includes("Liquidation")) reason = "Skipped (Liquidation risk)";
+          else if (f.includes("Volatility") || f.includes("Regime")) reason = "Skipped (Volatile market)";
+          else if (f.includes("EMA"))      reason = "Skipped (EMA fail)";
+          else if (f.includes("RSI"))      reason = "Skipped (RSI " + (run.indicators?.rsi3?.toFixed(0) || "?") + ")";
+          else if (f.includes("VWAP"))     reason = "Skipped (VWAP fail)";
+          else if (f.includes("Overext"))  reason = "Skipped (Overextended)";
+          else                              reason = "Skipped (Score " + (run.signalScore?.toFixed(0) || "?") + "/75)";
+        }
+        line = "Checked conditions → " + reason;
+        cls  = "cl-skip";
+      }
+      return '<div class="check-log-line ' + cls + '"><span class="check-log-time">[' + t + ']</span>' + line + '</div>';
+    };
+    // Most recent first, max 15 lines
+    el.innerHTML = allLogs.slice(0, 15).map(fmt).join("");
   }
 
   function renderPortfolioPanel(port, perf, position, livePrice) {
@@ -3954,6 +4039,7 @@ const HTML = `<!DOCTYPE html>
     safe("reasoning",  () => renderReasoning(data.recentLogs));
     safe("health",     () => renderHealthStatus(data.latest));
     safe("rsiHistory", () => renderRSIHistory(data.allLogs));
+    safe("checkLog",   () => renderCheckLog(data.allLogs));
     safe("heatmap",    () => renderHeatmap(data.allLogs));
   }
 
