@@ -2464,10 +2464,22 @@ const HTML = `<!DOCTYPE html>
   // ── Chart ──────────────────────────────────────────────────────────────────
   let chartInst = null, candleSeries, emaSeries, vwapSeries, bbUpperSeries, bbLowerSeries, volSeries, rsiInst, rsiSeries;
 
+  // Safe JSON fetch — never throws on HTML responses (e.g. session expired → login redirect)
+  async function safeJson(url, opts) {
+    const res = await fetch(url, opts);
+    const text = await res.text();
+    if (!res.ok && res.status === 302) throw new Error("Session expired — please log in");
+    try { return JSON.parse(text); }
+    catch (e) {
+      console.error("[safeJson] Invalid JSON from " + url + ":", text.slice(0, 200));
+      throw new Error("Server returned non-JSON response (status " + res.status + ")");
+    }
+  }
+
   async function initOrUpdateChart() {
     let data;
     try {
-      data = await fetch("/api/candles").then(r => r.json());
+      data = await safeJson("/api/candles");
       if (data.error) throw new Error(data.error);
     } catch (e) {
       document.getElementById("chart-container").innerHTML =
@@ -3156,13 +3168,13 @@ const HTML = `<!DOCTYPE html>
 
   async function runHealthCheck() {
     try {
-      const data = await fetch("/api/health").then(r => r.json());
+      const data = await safeJson("/api/health");
       updateHealthPanel(data.krakenOk, data.krakenLatency, data.lastRunAge, wsConnected);
       // Self-heal: if data is stale (> 6 min), trigger a bot run to wake Railway from sleep
       if (data.lastRunAge !== null && data.lastRunAge > 6) {
         console.log("[self-heal] Data is " + data.lastRunAge + " min stale — triggering bot run");
         try {
-          const r = await fetch("/api/run-bot", { method: "POST" }).then(x => x.json());
+          const r = await safeJson("/api/run-bot", { method: "POST" });
           if (r.triggered) showToast("Bot was sleeping — woke it up", "info");
         } catch {}
       }
