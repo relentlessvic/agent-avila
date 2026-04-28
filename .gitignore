@@ -1,4 +1,16 @@
+# Credentials — NEVER commit
 .env
-*.log
+
+# Runtime state — local only
 safety-check-log.json
+position.json
+performance-state.json
+portfolio-state.json
+capital-state.json
+
+# Logs & data
+*.log
+trades.csv
+
+# Dependencies
 node_modules/
