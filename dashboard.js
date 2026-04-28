@@ -2880,11 +2880,23 @@ const HTML = `<!DOCTYPE html>
           ? \`<div class="decision-banner" style="background:rgba(63,185,80,0.08);border-color:rgba(63,185,80,0.2);color:var(--green);margin-bottom:8px">✅ Market is stable — \${lev}x leverage active (spike ratio: \${vol.spikeRatio}x ATR)</div>\`
           : \`<div class="decision-banner" style="background:rgba(210,153,34,0.08);border-color:rgba(210,153,34,0.3);color:var(--yellow);margin-bottom:8px">⚠️ Market is chaotic — leverage disabled, using 1x only (spike ratio: \${vol.spikeRatio}x ATR)</div>\`)
       : "";
+    // Classify the block reason for clarity
+    function classifyBlock(latest) {
+      const failed = (latest.conditions || []).filter(c => !c.pass);
+      const labels = failed.map(c => c.label || "");
+      if (labels.some(l => l.toLowerCase().includes("regime") || l.toLowerCase().includes("volatil")))     return { type: "REGIME",   text: "Blocked by REGIME — volatile market" };
+      if (labels.some(l => l.toLowerCase().includes("liquidation")))                                       return { type: "SAFETY",   text: "Blocked by SAFETY — liquidation risk" };
+      if (labels.some(l => l.toLowerCase().includes("daily trade limit") || l.toLowerCase().includes("daily limit"))) return { type: "LIMIT", text: "Blocked by LIMIT — daily max reached" };
+      if (latest.holding) return { type: "HOLDING", text: "Holding position — monitoring SL/TP" };
+      return { type: "SIGNAL", text: "Blocked by SIGNAL (not regime) — score below threshold" };
+    }
+    const block = classifyBlock(latest);
+
     const decisionHtml = latest.allPass
       ? \`\${scoreBanner}\${volBanner}<div class="decision-banner decision-pass">\${simple ? "✅ Ready to buy — all signals are aligned" : "✅ All conditions met — trade would fire"}</div>\`
       : \`\${scoreBanner}\${volBanner}\` + (simple
         ? \`<div class="decision-banner decision-fail">⏳ Waiting — not the right entry point yet</div>\`
-        : \`<div class="decision-banner decision-fail">🚫 Blocked — \${latest.conditions.filter(c=>!c.pass).map(c=>c.label).join(", ")}</div>\`);
+        : \`<div class="decision-banner decision-fail">⛔ \${block.text}\${block.type === "SIGNAL" && latest.signalScore !== undefined ? " (\" + latest.signalScore.toFixed(0) + \"/75)" : ""}</div>\`);
 
     const condHtml = conditions.length === 0
       ? \`<div class="empty-state">No conditions evaluated</div>\`
