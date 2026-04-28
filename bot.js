@@ -81,6 +81,20 @@ function checkOnboarding() {
 
 // ─── Discord Notifications (one-way webhook) ────────────────────────────────
 
+// Translate the agent's 4-condition signal into human-readable reasoning.
+// Picks the strongest signal contributors and pairs them with regime context.
+function describeSignalReason(signal, vol, rsi3) {
+  const parts = [];
+  if (rsi3 < 25)               parts.push("RSI oversold");
+  else if (rsi3 < 35)          parts.push("RSI dip");
+  if (signal.bullishBias)      parts.push("EMA+VWAP bullish");
+  else if (signal.conditions?.[0]?.pass) parts.push("EMA uptrend");
+  else if (signal.conditions?.[2]?.pass) parts.push("VWAP support");
+  if (signal.conditions?.[3]?.pass) parts.push("not overextended");
+  if (vol.regime && vol.regime !== "VOLATILE") parts.push(`${vol.regime.toLowerCase()} regime`);
+  return parts.length ? parts.join(" · ") : "strategy trigger";
+}
+
 async function notifyDiscord(message) {
   const webhook = process.env.DISCORD_WEBHOOK_URL;
   if (!webhook) return; // no webhook configured -> silent no-op
@@ -98,6 +112,39 @@ async function notifyDiscord(message) {
     console.log(`[discord] notification failed: ${err.message}`);
     // never let Discord failures block the bot
   }
+}
+
+// Compose and send a once-per-day summary covering yesterday's UTC trades.
+// Idempotent: tracks lastSummaryDate in bot-control.json so a 5-min cron
+// can't re-emit. Skips if today's UTC date matches the last-sent date.
+async function maybeSendDailySummary(log, ctrl) {
+  const todayUtc = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  if (ctrl.lastSummaryDate === todayUtc) return;          // already sent today
+
+  // Summarize yesterday's trades (the day that just closed)
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const yTrades = log.trades.filter(t => t.timestamp?.startsWith(yesterday));
+  const exits   = yTrades.filter(t => t.type === "EXIT" && t.exitReason !== "REENTRY_SIGNAL");
+  const entries = yTrades.filter(t => t.orderPlaced && t.type !== "EXIT");
+  const wins    = exits.filter(t => parseFloat(t.pnlUSD) > 0);
+  const losses  = exits.filter(t => parseFloat(t.pnlUSD) < 0);
+  const pnlUsd  = exits.reduce((s, t) => s + parseFloat(t.pnlUSD || 0), 0);
+  const peakScore = Math.max(0, ...yTrades.map(t => t.signalScore || 0));
+  const skips = yTrades.filter(t => !t.orderPlaced && t.type !== "EXIT").length;
+
+  const winRate = exits.length ? `${Math.round((wins.length / exits.length) * 100)}%` : "—";
+  const pnlStr  = pnlUsd >= 0 ? `+$${pnlUsd.toFixed(2)}` : `-$${Math.abs(pnlUsd).toFixed(2)}`;
+
+  await notifyDiscord(
+    `📊 DAILY SUMMARY · ${yesterday}\n` +
+    `Asset: ${CONFIG.symbol}\n` +
+    `Trades: ${entries.length} entries · ${exits.length} exits (${wins.length}W / ${losses.length}L · ${winRate})\n` +
+    `P&L: ${pnlStr}${CONFIG.paperTrading ? " · paper" : " · live"}\n` +
+    `Peak score: ${peakScore.toFixed(0)}/100 · ${skips} skipped cycles`
+  );
+
+  ctrl.lastSummaryDate = todayUtc;
+  saveControl(ctrl);
 }
 
 // ─── Config ────────────────────────────────────────────────────────────────
@@ -940,6 +987,9 @@ async function run() {
   // Apply control file overrides before anything else
   const ctrl = applyControl();
 
+  // Daily summary check runs regardless of bot state — useful during pause/kill
+  try { await maybeSendDailySummary(loadLog(), ctrl); } catch (e) { console.log("[summary] failed:", e.message); }
+
   if (ctrl.killed) {
     console.log("🚨 Kill switch is active — trading halted. Reset via dashboard to resume.");
     return;
@@ -1035,6 +1085,10 @@ async function run() {
         } catch (err) {
           console.log(`  ❌ SELL ORDER FAILED — ${err.message}`);
           exitEntry.error = err.message;
+          notifyDiscord(
+            `⚠️ RISK ALERT\n` +
+            `Issue: live SELL order FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}`
+          );
         }
       }
 
@@ -1346,6 +1400,10 @@ async function run() {
       } catch (err) {
         console.log(`❌ ORDER FAILED — ${err.message}`);
         logEntry.error = err.message;
+        notifyDiscord(
+          `⚠️ RISK ALERT\n` +
+          `Issue: live BUY order FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}`
+        );
       }
     }
 
@@ -1376,7 +1434,7 @@ async function run() {
         `📈 BUY XRP SIGNAL\n` +
         `Asset: ${CONFIG.symbol}\n` +
         `Price: ${price.toFixed(4)}\n` +
-        `Reason: ${vol.regime || "stable"} regime · score ${signal.score.toFixed(0)}/100 · ${vol.leverage}x${CONFIG.paperTrading ? " · paper" : ""}`
+        `Reason: ${describeSignalReason(signal, vol, rsi3)} · score ${signal.score.toFixed(0)}/100 · ${vol.leverage}x${CONFIG.paperTrading ? " · paper" : ""}`
       );
     }
   }
