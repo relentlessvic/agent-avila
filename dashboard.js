@@ -3034,12 +3034,42 @@ const HTML = `<!DOCTYPE html>
     if (ok) tradeCmd(command);
   }
 
+  function commandSuccessMessage(command, value, ctrl) {
+    const messages = {
+      START_BOT:               () => "✅ Bot started",
+      STOP_BOT:                () => "⛔ Bot stopped",
+      PAUSE_TRADING:           () => "⏸ Trading paused",
+      RESUME_TRADING:          () => "▶ Trading resumed",
+      SET_MODE_PAPER:          () => "📋 Switched to PAPER mode",
+      SET_MODE_LIVE:           () => "🔴 Switched to LIVE mode — real money active",
+      SET_LEVERAGE:            () => "✅ Leverage updated to " + (ctrl?.leverage || value) + "×",
+      SET_RISK:                () => "✅ Risk updated to " + (ctrl?.riskPct || value) + "%",
+      SET_MAX_DAILY_LOSS:      () => "✅ Max daily loss set to " + (ctrl?.maxDailyLossPct || value) + "%",
+      SET_COOLDOWN:            () => "✅ Cooldown set to " + (ctrl?.cooldownMinutes || value) + " min",
+      SET_KILL_DRAWDOWN:       () => "✅ Kill switch threshold set to " + (ctrl?.killSwitchDrawdownPct || value) + "%",
+      SET_PAUSE_LOSSES:        () => "✅ Pause-after-losses set to " + (ctrl?.pauseAfterLosses || value),
+      RESET_KILL_SWITCH:       () => "🔓 Kill switch reset",
+      RESET_COOLDOWN:          () => "⏩ Cooldown skipped",
+      RESET_LOSSES:            () => "↺ Loss counter reset",
+      SET_XRP_ROLE:            () => "✅ XRP role: " + value,
+      SET_AUTO_CONVERT:        () => "✅ Auto-conversion " + (value === "true" ? "ON" : "OFF"),
+      SET_ACTIVE_PCT:          () => "✅ Active capital set to " + value + "%",
+    };
+    const fn = messages[command];
+    return fn ? fn() : "✅ " + command + " applied";
+  }
+
   async function sendCmd(command, value) {
     try {
       const body = value !== undefined ? { command, value } : { command };
       const res  = await fetch("/api/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
-      if (data.ok) renderControl(data.control);
+      if (data.ok) {
+        renderControl(data.control);
+        const msg = commandSuccessMessage(command, value, data.control);
+        const type = command === "SET_MODE_LIVE" ? "warn" : command === "STOP_BOT" || command === "PAUSE_TRADING" ? "warn" : "success";
+        showToast(msg, type);
+      }
       else showToast("Command failed: " + data.error, "error");
     } catch (e) { showToast("Error: " + e.message, "error"); }
   }
