@@ -108,6 +108,30 @@ function checkOnboarding() {
   );
 }
 
+// ─── Log dedup (cuts repeat-skip spam in Railway logs) ───────────────────────
+// File-backed because bot.js is a fresh process every 5 min — an in-memory
+// cache would reset every cycle and never actually dedup across cycles.
+// Keyed on failing-condition signature; suppresses the verbose score block
+// when nothing has changed for cooldownMs. Trades and new skip reasons always
+// log in full. Strategy logic is untouched — this only affects what we print.
+const LOG_STATE_FILE = ".bot-log-state.json";
+function loadLogState() {
+  if (!existsSync(LOG_STATE_FILE)) return {};
+  try { return JSON.parse(readFileSync(LOG_STATE_FILE, "utf8")); } catch { return {}; }
+}
+function saveLogState(state) {
+  try { writeFileSync(LOG_STATE_FILE, JSON.stringify(state)); } catch {}
+}
+function shouldLog(key, cooldownMs = 2 * 60 * 1000) {
+  const state = loadLogState();
+  const now = Date.now();
+  const last = state[key] || 0;
+  if (now - last < cooldownMs) return false;
+  state[key] = now;
+  saveLogState(state);
+  return true;
+}
+
 // ─── Discord Notifications (one-way webhook) ────────────────────────────────
 
 // Translate the agent's 4-condition signal into human-readable reasoning.
@@ -770,10 +794,19 @@ function evalSignal(price, ema8, vwap, rsi3, threshold = 75) {
 
   const allPass = score >= threshold;
 
-  console.log("\n── Signal Score ─────────────────────────────────────────\n");
-  console.log(`  Bias: ${bullishBias ? "BULLISH" : "NEUTRAL/BEARISH"}`);
-  conditions.forEach(c => console.log(`  ${c.pass ? "✅" : "🔲"} ${c.label}: ${c.actual} (+${c.score.toFixed(0)}pts)`));
-  console.log(`  Total: ${score.toFixed(0)}/100 ${allPass ? `→ ✅ TRADE (≥${threshold})` : `→ 🚫 SKIP (<${threshold})`}`);
+  // Always log full block on TRADE; dedup repeat-skip blocks by failing-condition signature
+  const failingKey = conditions.filter(c => !c.pass).map(c => c.label).join("|") || "ALL_PASS";
+  const skipSig    = `signal-skip:${failingKey}:${Math.round(score / 5) * 5}`;
+  const showFull   = allPass || shouldLog(skipSig);
+
+  if (showFull) {
+    console.log("\n── Signal Score ─────────────────────────────────────────\n");
+    console.log(`  Bias: ${bullishBias ? "BULLISH" : "NEUTRAL/BEARISH"}`);
+    conditions.forEach(c => console.log(`  ${c.pass ? "✅" : "🔲"} ${c.label}: ${c.actual} (+${c.score.toFixed(0)}pts)`));
+    console.log(`  Total: ${score.toFixed(0)}/100 ${allPass ? `→ ✅ TRADE (≥${threshold})` : `→ 🚫 SKIP (<${threshold})`}`);
+  } else {
+    console.log(`  🔲 SKIP — same conditions (${failingKey || "—"}) score ${score.toFixed(0)}/100 — waiting`);
+  }
 
   return { score, conditions, allPass, bullishBias, threshold };
 }
@@ -1278,8 +1311,10 @@ async function run() {
   // Cooldown after last trade
   const cooldown = checkCooldown(ctrl);
   if (cooldown.inCooldown) {
-    console.log(`\n⏳ Cooldown active — ${cooldown.remaining.toFixed(1)} min remaining. Skipping entry.`);
-    console.log("═══════════════════════════════════════════════════════════\n");
+    if (shouldLog("cooldown-skip")) {
+      console.log(`\n⏳ Cooldown active — ${cooldown.remaining.toFixed(1)} min remaining. Skipping entry.`);
+      console.log("═══════════════════════════════════════════════════════════\n");
+    }
     return;
   }
 
@@ -1323,7 +1358,9 @@ async function run() {
 
   const withinLimits = checkTradeLimits(log);
   if (!withinLimits) {
-    console.log("\nBot stopping — trade limits reached for today.");
+    if (shouldLog("daily-limit-skip")) {
+      console.log("\nBot stopping — trade limits reached for today.");
+    }
     const limitEntry = {
       timestamp: new Date().toISOString(), symbol: CONFIG.symbol, timeframe: CONFIG.timeframe, price,
       indicators: { ema8, vwap, rsi3 },
@@ -1341,7 +1378,7 @@ async function run() {
   const vol = classifyRegime(candles, ema8);
 
   if (vol.regime === "VOLATILE") {
-    console.log(`\n🚫 VOLATILE MARKET — no trade.`);
+    if (shouldLog("volatile-skip")) console.log(`\n🚫 VOLATILE MARKET — no trade.`);
     const volEntry = {
       timestamp: new Date().toISOString(), symbol: CONFIG.symbol, timeframe: CONFIG.timeframe, price,
       indicators: { ema8, vwap, rsi3 },

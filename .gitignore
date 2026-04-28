@@ -10,6 +10,7 @@ capital-state.json
 bot-control.json
 sessions-store.json
 .bot.lock
+.bot-log-state.json
 
 # Logs & data
 *.log
