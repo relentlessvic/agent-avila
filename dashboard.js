@@ -3017,16 +3017,42 @@ const HTML = `<!DOCTYPE html>
   }
 
   async function tradeCmd(command, params = {}) {
+    // LIVE mode safety gate — every market action requires CONFIRM
+    const isPaper = lastRenderData?.control?.paperTrading !== false;
+    const liveActions = ["BUY_MARKET", "OPEN_LONG", "CLOSE_POSITION", "SELL_ALL"];
+    if (!isPaper && liveActions.includes(command)) {
+      const labels = {
+        BUY_MARKET:     "BUY XRP at market",
+        OPEN_LONG:      "OPEN LONG with " + (params.leverage || 2) + "× leverage",
+        CLOSE_POSITION: "CLOSE your open position",
+        SELL_ALL:       "SELL ALL XRP holdings",
+      };
+      const ok = await showModal({
+        icon: "🔴",
+        title: "Type CONFIRM to execute live trade",
+        msg: "<strong style='color:var(--red)'>This is a LIVE trade with real money.</strong><br>Action: <strong style='color:var(--text)'>" + (labels[command] || command) + "</strong>",
+        confirmText: "Execute Live Trade",
+        requireText: "CONFIRM",
+      });
+      if (!ok) { tradeLog("❌ Cancelled — " + command, "err"); showToast("Live trade cancelled", "info"); return; }
+      showToast("⚡ Executing live trade: " + command, "warn");
+    }
+
     tradeLog("⏳ " + command + "...", "ok");
     try {
       const res  = await fetch("/api/trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command, params }) });
       const data = await res.json();
       if (data.ok || data.message) {
         tradeLog("✅ " + (data.message || command + " OK"), "ok");
+        if (!isPaper) showToast("✅ Live trade executed", "success");
       } else {
         tradeLog("❌ " + data.error, "err");
+        showToast("❌ Trade failed: " + data.error, "error");
       }
-    } catch (e) { tradeLog("❌ " + e.message, "err"); }
+    } catch (e) {
+      tradeLog("❌ " + e.message, "err");
+      showToast("❌ " + e.message, "error");
+    }
   }
 
   async function confirmTrade(command, message) {
