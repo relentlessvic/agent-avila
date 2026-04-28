@@ -2978,14 +2978,19 @@ const HTML = `<!DOCTYPE html>
     if (!ctrl) return;
 
     // Persist to localStorage for instant UI restore on next page load
-    try { localStorage.setItem("agent_avila_ctrl", JSON.stringify({
-      paperTrading: ctrl.paperTrading,
-      stopped: ctrl.stopped,
-      paused: ctrl.paused,
-      killed: ctrl.killed,
-      leverage: ctrl.leverage,
-      riskPct: ctrl.riskPct,
-    })); } catch {}
+    try {
+      // Simple key for trading mode (matches user pattern)
+      localStorage.setItem("tradingMode", ctrl.paperTrading === false ? "LIVE" : "PAPER");
+      // Full snapshot for richer restoration
+      localStorage.setItem("agent_avila_ctrl", JSON.stringify({
+        paperTrading: ctrl.paperTrading,
+        stopped: ctrl.stopped,
+        paused: ctrl.paused,
+        killed: ctrl.killed,
+        leverage: ctrl.leverage,
+        riskPct: ctrl.riskPct,
+      }));
+    } catch {}
 
     const set = (id, text, cls) => {
       const el = document.getElementById(id);
@@ -3040,8 +3045,15 @@ const HTML = `<!DOCTYPE html>
 
   // Restore control state from localStorage immediately on page load (before SSE arrives)
   try {
+    // Try full snapshot first (richer state)
     const cached = JSON.parse(localStorage.getItem("agent_avila_ctrl") || "null");
-    if (cached) renderControl(cached);
+    if (cached) {
+      renderControl(cached);
+    } else {
+      // Fallback to simple tradingMode key
+      const mode = localStorage.getItem("tradingMode") || "PAPER";
+      renderControl({ paperTrading: mode !== "LIVE" });
+    }
   } catch {}
 
   // ── Toast Notifications ───────────────────────────────────────────────────
