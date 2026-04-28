@@ -5411,3 +5411,93 @@ if (process.env.RAILWAY_ENVIRONMENT) {
   setInterval(runBot, 5 * 60 * 1000);
   console.log("  Bot runner enabled (Railway env detected)");
 }
+
+// ─── Embedded health watchdog — runs every 5 minutes on Railway ─────────────
+// Reads the SAME state sources as /api/system-status (no HTTP, no auth issue),
+// emits Discord alerts on real problems. Per-issue throttle so a sustained
+// outage doesn't spam the channel.
+const _alertCooldown = new Map(); // issueKey -> last-fired timestamp
+const _ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1h per issue type
+
+async function sendWatchdogAlert(issueKey, message) {
+  const webhook = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhook) return;
+  const last = _alertCooldown.get(issueKey) || 0;
+  if (Date.now() - last < _ALERT_THROTTLE_MS) return;
+  _alertCooldown.set(issueKey, Date.now());
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: `⚠️ RISK ALERT\nIssue: watchdog · ${message}` }),
+      signal: ctl.signal,
+    });
+    clearTimeout(timer);
+  } catch (e) { log.warn("watchdog", `discord post failed: ${e.message}`); }
+}
+
+function evaluateSystemHealth() {
+  const issues = [];
+
+  // Bot last-run age
+  let lastRunAgeMin = null;
+  if (existsSync("safety-check-log.json")) {
+    try {
+      const blog = JSON.parse(readFileSync("safety-check-log.json", "utf8"));
+      const last = blog.trades?.[blog.trades.length - 1];
+      if (last?.timestamp) lastRunAgeMin = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
+    } catch {}
+  }
+  if (lastRunAgeMin === null) {
+    issues.push(["bot-no-run", "bot has not run yet (no safety-check-log)"]);
+  } else if (lastRunAgeMin > 15) {
+    issues.push(["bot-stale", `bot last ran ${lastRunAgeMin.toFixed(1)} min ago (expected every 5 min)`]);
+  }
+
+  // Stale lock — file present but PID dead. Not a current bug because
+  // acquireBotLock auto-cleans on next attempt, but worth surfacing if it
+  // persists between bot cycles.
+  if (existsSync(".bot.lock")) {
+    try {
+      const pid = parseInt(readFileSync(".bot.lock", "utf8").trim(), 10);
+      let alive = false;
+      try { process.kill(pid, 0); alive = true; } catch {}
+      if (!alive && lastRunAgeMin !== null && lastRunAgeMin > 8) {
+        issues.push(["lock-stale", `bot lockfile present with dead PID ${pid} for >8min — next run will auto-clean`]);
+      }
+    } catch {}
+  }
+
+  // Memory pressure
+  const memMB = Math.round(process.memoryUsage().rss / 1024 / 1024);
+  if (memMB > 700) issues.push(["mem-high", `dashboard memory ${memMB}MB > 700MB threshold`]);
+
+  // Bot disabled by control flags (skip alert if user intentionally paused)
+  let ctrl = {};
+  if (existsSync("bot-control.json")) {
+    try { ctrl = JSON.parse(readFileSync("bot-control.json", "utf8")); } catch {}
+  }
+  if (ctrl.killed) issues.push(["bot-killed", "kill switch is active (drawdown-triggered halt)"]);
+
+  return issues;
+}
+
+async function runHealthWatchdog() {
+  try {
+    const issues = evaluateSystemHealth();
+    for (const [key, msg] of issues) {
+      log.warn("watchdog", `${key}: ${msg}`);
+      await sendWatchdogAlert(key, msg);
+    }
+  } catch (e) {
+    log.error("watchdog", e.message);
+  }
+}
+
+if (process.env.RAILWAY_ENVIRONMENT) {
+  setTimeout(runHealthWatchdog, 30 * 1000);          // first check 30s after boot
+  setInterval(runHealthWatchdog, 5 * 60 * 1000);     // every 5 min thereafter
+  console.log("  Health watchdog enabled");
+}
