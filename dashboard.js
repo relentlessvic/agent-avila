@@ -5048,6 +5048,81 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ── System status (auth-required, broader than /api/health) ────────────
+  if (req.url === "/api/system-status") {
+    try {
+      // Bot last-run derives from the trade log timestamp (single source of truth)
+      let lastRun = null, lastRunAgeMin = null;
+      if (existsSync("safety-check-log.json")) {
+        try {
+          const blog = JSON.parse(readFileSync("safety-check-log.json", "utf8"));
+          const last = blog.trades?.[blog.trades.length - 1];
+          if (last?.timestamp) {
+            lastRun = last.timestamp;
+            lastRunAgeMin = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
+          }
+        } catch {}
+      }
+
+      // Lock liveness: file exists AND PID inside is alive
+      let lockActive = false, lockPid = null;
+      if (existsSync(".bot.lock")) {
+        try {
+          const pid = parseInt(readFileSync(".bot.lock", "utf8").trim(), 10);
+          if (Number.isFinite(pid)) {
+            lockPid = pid;
+            try { process.kill(pid, 0); lockActive = true; } catch { lockActive = false; }
+          }
+        } catch {}
+      }
+
+      // Bot control flags
+      let ctrl = {};
+      if (existsSync("bot-control.json")) {
+        try { ctrl = JSON.parse(readFileSync("bot-control.json", "utf8")); } catch {}
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({
+        success: true,
+        data: {
+          auth: {
+            activeSessions:  sessions.size,
+            pendingSessions: pendingSessions.size,
+          },
+          bot: {
+            lastRun,
+            lastRunAgeMin,
+            running: lockActive,
+            lockPid,
+            paperTrading: ctrl.paperTrading !== false,
+            paused:  !!ctrl.paused,
+            stopped: !!ctrl.stopped,
+            killed:  !!ctrl.killed,
+          },
+          execution: {
+            lockActive,
+            lockFile: ".bot.lock",
+          },
+          discord: {
+            enabled: !!process.env.DISCORD_WEBHOOK_URL,
+            lastSummaryDate: ctrl.lastSummaryDate || null,
+          },
+          runtime: {
+            uptimeSec: Math.round(process.uptime()),
+            memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+            timestamp: Date.now(),
+            railway: !!process.env.RAILWAY_ENVIRONMENT,
+          },
+        },
+      }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+    return;
+  }
+
   if (req.url === "/api/stream") {
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
