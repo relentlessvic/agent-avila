@@ -896,6 +896,57 @@ const HTML = `<!DOCTYPE html>
     border-color: rgba(0,212,255,0.18) !important;
   }
 
+  /* ── Compact Status Bar (single source of truth) ── */
+  .status-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; font-size: 12px; font-weight: 700;
+    border-radius: 999px; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+    transition: transform 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .pill:hover { transform: translateY(-1px); }
+  .pill strong { color: var(--text); font-weight: 800; }
+  .pill-mode.live { background: rgba(255,77,106,0.1); border-color: rgba(255,77,106,0.4); color: var(--red); }
+  .pill-mode      { color: var(--yellow); border-color: rgba(255,181,71,0.3); background: rgba(255,181,71,0.06); }
+  .pill-symbol   { color: var(--text); }
+  .pill-regime.trending { color: var(--blue);   border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.06); }
+  .pill-regime.range    { color: var(--yellow); border-color: rgba(255,181,71,0.3); background: rgba(255,181,71,0.06); }
+  .pill-regime.volatile { color: var(--red);    border-color: rgba(255,77,106,0.3); background: rgba(255,77,106,0.06); }
+  .pill-score-high { color: var(--green); border-color: rgba(0,255,154,0.35); background: rgba(0,255,154,0.05); }
+  .pill-score-mid  { color: var(--yellow); }
+  .pill-score-low  { color: var(--muted); }
+  .pill-bot.running { color: var(--green); border-color: rgba(0,255,154,0.3); background: rgba(0,255,154,0.05); }
+  .pill-bot.stopped { color: var(--red);   border-color: rgba(255,77,106,0.3); background: rgba(255,77,106,0.06); }
+  .pill-pnl-pos { color: var(--green); }
+  .pill-pnl-neg { color: var(--red); }
+
+  /* ── How It Works accordion ── */
+  .how-it-works { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+  .how-toggle { width: 100%; background: transparent; border: none; color: var(--text); font-size: 13px; font-weight: 700; padding: 12px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+  .how-toggle:hover { background: rgba(255,255,255,0.02); }
+  .how-arrow { transition: transform 0.2s; opacity: 0.6; font-size: 10px; }
+  .how-it-works.open .how-arrow { transform: rotate(180deg); }
+  .how-body { display: none; padding: 0 18px 16px; font-size: 13px; line-height: 1.7; color: var(--muted); }
+  .how-it-works.open .how-body { display: block; animation: slideDown 0.25s ease-out; }
+  @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 500px; } }
+  .how-section { margin-bottom: 12px; }
+  .how-section:last-child { margin-bottom: 0; }
+  .how-section ul { padding-left: 18px; margin: 6px 0; }
+  .how-section li { margin: 3px 0; }
+
+  /* ── Last Decision Panel ── */
+  .last-decision { padding: 18px 22px !important; margin-bottom: 20px; }
+  .last-decision-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .last-decision-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700; }
+  .last-decision-time { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .last-decision-body { display: flex; flex-direction: column; gap: 6px; }
+  .last-decision-result { display: flex; align-items: center; gap: 10px; }
+  .last-decision-icon { font-size: 22px; }
+  .last-decision-text { font-size: 16px; font-weight: 700; color: var(--text); }
+  .last-decision-reason { font-size: 13px; color: var(--muted); padding-left: 32px; }
+
   /* ── Mode Banner ── */
   .mode-banner { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; line-height: 1.4; border: 1px solid; transition: all 0.3s; }
   .mode-banner-icon { font-size: 18px; }
@@ -1923,6 +1974,55 @@ const HTML = `<!DOCTYPE html>
 </div>
 
 <main>
+
+  <!-- Compact Status Bar — single source of truth -->
+  <div class="status-bar">
+    <span class="pill pill-mode" id="pill-mode">🔒 PAPER MODE</span>
+    <span class="pill pill-symbol" id="pill-symbol">XRP <strong id="pill-price">$—</strong> <span id="pill-arrow">—</span></span>
+    <span class="pill pill-regime" id="pill-regime">— REGIME</span>
+    <span class="pill pill-score" id="pill-score">Score: —</span>
+    <span class="pill pill-bot" id="pill-bot">Bot: —</span>
+    <span class="pill pill-risk" id="pill-risk">Risk: —%</span>
+    <span class="pill pill-pnl" id="pill-pnl">P&L: —</span>
+  </div>
+
+  <!-- "How the system works" collapsible -->
+  <div class="how-it-works" id="how-it-works">
+    <button class="how-toggle" onclick="toggleHowItWorks()">
+      <span>📘 How the system works</span>
+      <span class="how-arrow">▼</span>
+    </button>
+    <div class="how-body" id="how-body">
+      <div class="how-section">
+        <strong>Every 5 minutes</strong> the bot scores 4 conditions:
+        <ul>
+          <li><strong>EMA(8) Uptrend</strong> — price above moving average → <span style="color:var(--green)">+30 pts</span></li>
+          <li><strong>RSI(3) Dip</strong> — momentum oversold (smooth 0–30 partial credit) → <span style="color:var(--green)">+30 pts</span></li>
+          <li><strong>VWAP Support</strong> — buyers in control → <span style="color:var(--green)">+20 pts</span></li>
+          <li><strong>Not Overextended</strong> — price within 1.5% of VWAP → <span style="color:var(--green)">+20 pts</span></li>
+        </ul>
+        Score ≥ 75/100 triggers a buy. Exits at -1.25% (stop loss) or +2% (take profit).
+      </div>
+      <div class="how-section">
+        <strong>Active Strategy:</strong> RSI Dip (only). Reversal logic is disabled. Max 1 open position, 3 trades/day, 5% drawdown kill switch.
+      </div>
+    </div>
+  </div>
+
+  <!-- Last Decision — prominent single-decision focus -->
+  <div class="last-decision card" id="last-decision">
+    <div class="last-decision-header">
+      <span class="last-decision-label">Last Decision</span>
+      <span class="last-decision-time" id="ld-time">—</span>
+    </div>
+    <div class="last-decision-body">
+      <div class="last-decision-result">
+        <span class="last-decision-icon" id="ld-icon">⏳</span>
+        <span class="last-decision-text" id="ld-result">Loading…</span>
+      </div>
+      <div class="last-decision-reason" id="ld-reason">—</div>
+    </div>
+  </div>
 
   <!-- Hero Live Ticker -->
   <div class="hero-ticker">
@@ -3439,6 +3539,118 @@ const HTML = `<!DOCTYPE html>
     if (title) title.classList.toggle("collapsed", !hidden);
   }
 
+  function toggleHowItWorks() {
+    document.getElementById("how-it-works").classList.toggle("open");
+  }
+
+  function renderStatusBar(data) {
+    if (!data) return;
+    const { latest, control, position } = data;
+    const ctrl = control || {};
+
+    // Mode pill
+    const pillMode = document.getElementById("pill-mode");
+    if (pillMode) {
+      const live = ctrl.paperTrading === false;
+      pillMode.textContent = live ? "🔴 LIVE MODE" : "🔒 PAPER MODE";
+      pillMode.className = "pill pill-mode" + (live ? " live" : "");
+    }
+
+    // Price + arrow (uses livePrice for instant updates)
+    const pillPrice = document.getElementById("pill-price");
+    const pillArrow = document.getElementById("pill-arrow");
+    const price = livePrice || latest?.price;
+    if (pillPrice && price) pillPrice.textContent = "$" + price.toFixed(4);
+    if (pillArrow && prevTickerPrice !== null && price) {
+      pillArrow.textContent = price > prevTickerPrice ? "▲" : price < prevTickerPrice ? "▼" : "—";
+      pillArrow.style.color = price > prevTickerPrice ? "var(--green)" : price < prevTickerPrice ? "var(--red)" : "var(--muted)";
+    }
+
+    // Regime
+    const pillRegime = document.getElementById("pill-regime");
+    if (pillRegime && latest?.volatility?.regime) {
+      const r = latest.volatility.regime;
+      const icons = { TRENDING: "📈", RANGE: "↔", VOLATILE: "⚡", VOLATILE_HIGH: "⚡" };
+      pillRegime.textContent = (icons[r] || "—") + " " + r;
+      pillRegime.className = "pill pill-regime " + r.toLowerCase();
+    }
+
+    // Score
+    const pillScore = document.getElementById("pill-score");
+    if (pillScore && latest?.signalScore !== undefined) {
+      const s = latest.signalScore;
+      pillScore.textContent = "Score: " + s.toFixed(0) + "/100";
+      pillScore.className = "pill " + (s >= 75 ? "pill-score-high" : s >= 50 ? "pill-score-mid" : "pill-score-low");
+    }
+
+    // Bot status
+    const pillBot = document.getElementById("pill-bot");
+    if (pillBot) {
+      const stopped = ctrl.stopped, paused = ctrl.paused;
+      const text = stopped ? "STOPPED" : paused ? "PAUSED" : "RUNNING";
+      pillBot.textContent = "Bot: " + text;
+      pillBot.className = "pill pill-bot " + (stopped ? "stopped" : "running");
+    }
+
+    // Risk
+    const pillRisk = document.getElementById("pill-risk");
+    if (pillRisk) pillRisk.textContent = "Risk: " + (ctrl.riskPct ?? 1) + "%";
+
+    // P&L (unrealized + realized combined)
+    const pillPnl = document.getElementById("pill-pnl");
+    if (pillPnl) {
+      const realized   = parseFloat(data.portfolioState?.realizedPnl || 0);
+      const unrealized = position?.open && price ? ((price - position.entryPrice) / position.entryPrice * position.tradeSize) : 0;
+      const totalPnl   = realized + unrealized;
+      const pct        = (totalPnl / 100) * 100;
+      const sign = totalPnl >= 0 ? "+" : "";
+      pillPnl.textContent = "P&L: " + sign + pct.toFixed(2) + "%";
+      pillPnl.className = "pill " + (totalPnl > 0 ? "pill-pnl-pos" : totalPnl < 0 ? "pill-pnl-neg" : "");
+    }
+  }
+
+  function renderLastDecision(latest) {
+    if (!latest) return;
+    const ld = {
+      time:   document.getElementById("ld-time"),
+      icon:   document.getElementById("ld-icon"),
+      result: document.getElementById("ld-result"),
+      reason: document.getElementById("ld-reason"),
+    };
+    if (!ld.time) return;
+    ld.time.textContent = "Run " + timeAgo(latest.timestamp);
+
+    if (latest.allPass && latest.orderPlaced) {
+      ld.icon.textContent   = "✅";
+      ld.result.textContent = "Bought";
+      ld.result.style.color = "var(--green)";
+      ld.reason.textContent = "All signals aligned — bought XRP at $" + (latest.price?.toFixed(4) ?? "?") + " (score " + (latest.signalScore?.toFixed(0) ?? "?") + "/100)";
+    } else if (latest.type === "EXIT") {
+      const pnl = parseFloat(latest.pnlUSD || 0);
+      ld.icon.textContent   = pnl >= 0 ? "🎯" : "🛑";
+      ld.result.textContent = "Closed: " + (latest.exitReason || "EXIT").replace("_", " ");
+      ld.result.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";
+      ld.reason.textContent = "P&L: " + (pnl >= 0 ? "+" : "") + "$" + pnl.toFixed(2) + " (" + latest.pct + "%)";
+    } else if (latest.holding) {
+      ld.icon.textContent   = "⏸";
+      ld.result.textContent = "Holding";
+      ld.result.style.color = "var(--blue)";
+      ld.reason.textContent = "Position open — monitoring SL/TP";
+    } else {
+      const failed = (latest.conditions || []).filter(c => !c.pass);
+      const f = failed[0]?.label || "";
+      ld.icon.textContent   = "⛔";
+      ld.result.textContent = "Skipped";
+      ld.result.style.color = "var(--muted)";
+      let reason = "Conditions not aligned";
+      if (f.includes("Daily")) reason = "Daily limit reached (3/3 trades)";
+      else if (f.includes("Liquidation")) reason = "Liquidation safety triggered";
+      else if (f.includes("Volatility") || f.includes("Regime")) reason = "Volatile market — no trade allowed";
+      else if (latest.signalScore !== undefined) reason = "Score " + latest.signalScore.toFixed(0) + "/75 (below threshold)";
+      ld.reason.textContent = reason;
+    }
+  }
+
   function renderCheckLog(allLogs) {
     const el = document.getElementById("check-log");
     if (!el || !allLogs?.length) return;
@@ -4084,6 +4296,8 @@ const HTML = `<!DOCTYPE html>
     safe("rsiHistory", () => renderRSIHistory(data.allLogs));
     safe("checkLog",   () => renderCheckLog(data.allLogs));
     safe("heatmap",    () => renderHeatmap(data.allLogs));
+    safe("statusBar",     () => renderStatusBar(data));
+    safe("lastDecision",  () => renderLastDecision(data.latest));
   }
 
   // ── SSE live stream ────────────────────────────────────────────────────────
@@ -4151,7 +4365,10 @@ const HTML = `<!DOCTYPE html>
 
     // Update open position P&L + bar live
     if (lastRenderData?.position?.open) renderPosition(lastRenderData.position, price);
-    if (lastRenderData) renderPortfolioPanel(lastRenderData.portfolioState, lastRenderData.perfState, lastRenderData.position, price);
+    if (lastRenderData) {
+      renderPortfolioPanel(lastRenderData.portfolioState, lastRenderData.perfState, lastRenderData.position, price);
+      renderStatusBar(lastRenderData);
+    }
 
     // Push to sparkline history (keep last 60 ticks)
     priceHistory.push(price);
