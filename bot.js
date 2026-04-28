@@ -79,6 +79,27 @@ function checkOnboarding() {
   );
 }
 
+// ─── Discord Notifications (one-way webhook) ────────────────────────────────
+
+async function notifyDiscord(message) {
+  const webhook = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhook) return; // no webhook configured -> silent no-op
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    await fetch(webhook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: message.slice(0, 1900) }),
+      signal: ctl.signal,
+    });
+    clearTimeout(timer);
+  } catch (err) {
+    console.log(`[discord] notification failed: ${err.message}`);
+    // never let Discord failures block the bot
+  }
+}
+
 // ─── Config ────────────────────────────────────────────────────────────────
 
 const CONFIG = {
@@ -1022,6 +1043,12 @@ async function run() {
       saveLog(log);
       writeTradeCsv(exitEntry);
 
+      notifyDiscord(
+        `${parseFloat(exitUSD) >= 0 ? "✅" : "🔻"} EXIT · ${CONFIG.symbol} · ${exit.reason}\n` +
+        `Entry $${position.entryPrice.toFixed(4)} → Exit $${price.toFixed(4)}\n` +
+        `P&L: ${exit.pct}% ($${exitUSD})${CONFIG.paperTrading ? " · paper" : " · live"}`
+      );
+
       // Update cooldown + consecutive loss tracking
       const isLoss = parseFloat(exitEntry.pnlUSD) < 0;
       ctrl.lastTradeTime     = new Date().toISOString();
@@ -1034,6 +1061,10 @@ async function run() {
         ctrl.updatedBy = "AUTO_PAUSE_LOSSES";
         saveControl(ctrl);
         console.log(`\n⚠️  ${ctrl.consecutiveLosses} consecutive losses — trading auto-paused.`);
+        notifyDiscord(
+          `⏸ AUTO-PAUSE · ${ctrl.consecutiveLosses} consecutive losses\n` +
+          `Resume from the dashboard once you've reviewed.`
+        );
       }
 
       console.log(`\nPosition closed. Decision log saved → ${LOG_FILE}`);
@@ -1134,6 +1165,10 @@ async function run() {
     saveControl(ctrl);
     console.log("🚨 Kill switch triggered — bot halted. Go to dashboard to reset.");
     console.log("═══════════════════════════════════════════════════════════\n");
+    notifyDiscord(
+      `🚨 KILL SWITCH · drawdown ${ks.drawdownPct.toFixed(2)}% ≥ ${CONFIG.killSwitchDrawdownPct}%\n` +
+      `Bot halted. Reset from the dashboard once you've reviewed.`
+    );
     return;
   }
 
@@ -1332,6 +1367,13 @@ async function run() {
       ctrl.consecutiveLosses = 0;
       ctrl.updatedAt         = new Date().toISOString();
       saveControl(ctrl);
+
+      notifyDiscord(
+        `${CONFIG.paperTrading ? "📋 PAPER" : "🟢 LIVE"} ENTRY · ${CONFIG.symbol}\n` +
+        `Entry $${price.toFixed(4)} · Size $${tradeSize.toFixed(2)} · ${vol.leverage}x\n` +
+        `SL $${stopLoss.toFixed(4)} (-${vol.slPct}%) · TP $${takeProfit.toFixed(4)} (+${vol.tpPct}%)\n` +
+        `Score ${signal.score.toFixed(0)}/100 · Regime ${vol.regime || "—"}`
+      );
     }
   }
 
