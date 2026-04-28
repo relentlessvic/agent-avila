@@ -6,6 +6,13 @@ import crypto from "crypto";
 
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
 
+// Structured logger — appears in Railway console, browser fetch errors, and local stdout
+const log = {
+  info:  (src, msg, ...x) => console.log(`[${new Date().toISOString()}] [INFO]  [${src}]`,  msg, ...x),
+  warn:  (src, msg, ...x) => console.warn(`[${new Date().toISOString()}] [WARN]  [${src}]`,  msg, ...x),
+  error: (src, msg, ...x) => console.error(`[${new Date().toISOString()}] [ERROR] [${src}]`, msg, ...x),
+};
+
 // ─── Bot Log / CSV ────────────────────────────────────────────────────────────
 
 function loadLog() {
@@ -103,12 +110,27 @@ const INTERVAL_MAP = {
   "1H": 60, "4H": 240, "1D": 1440, "1W": 10080,
 };
 
+// Retry helper — Kraken occasionally rate-limits or times out. 2 retries with 500ms backoff.
+async function fetchWithRetry(url, opts, label) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const r = await fetch(url, opts);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r;
+    } catch (e) {
+      console.error("[" + (label || "fetch") + "] attempt " + attempt + " failed:", e.message);
+      if (attempt === 3) throw e;
+      await new Promise(res => setTimeout(res, 500 * attempt));
+    }
+  }
+}
+
 async function fetchCandlesForChart(symbol, timeframe) {
   const pair = PAIR_MAP[symbol] || symbol;
   const interval = INTERVAL_MAP[timeframe] || 5;
   const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Kraken API error: ${res.status}`);
+  const res = await fetchWithRetry(url, undefined, "kraken-ohlc");
+  if (!res.ok) throw new Error(`Kraken OHLC error: ${res.status}`);
   const data = await res.json();
   if (data.error?.length) throw new Error(data.error.join(", "));
   const pairKey = Object.keys(data.result).find(k => k !== "last");
@@ -4567,18 +4589,43 @@ const server = createServer(async (req, res) => {
   // ── Public health endpoint (no auth required) ────────────────────────────
   if (req.url === "/api/health") {
     const t0 = Date.now();
+    const errors = [];
     let krakenOk = false; let krakenLatency = 0;
-    try { const r = await fetch("https://api.kraken.com/0/public/Time"); krakenLatency = Date.now() - t0; krakenOk = r.ok; } catch {}
-    let lastRunAge = null;
+    try {
+      const r = await fetch("https://api.kraken.com/0/public/Time", { signal: AbortSignal.timeout(5000) });
+      krakenLatency = Date.now() - t0; krakenOk = r.ok;
+      if (!r.ok) errors.push({ source: "kraken", message: "HTTP " + r.status });
+    } catch (e) {
+      errors.push({ source: "kraken", message: e.message });
+    }
+    let lastRun = null; let lastRunAge = null; let bot = "stopped";
     try {
       if (existsSync("safety-check-log.json")) {
         const log = JSON.parse(readFileSync("safety-check-log.json", "utf8"));
         const last = log.trades[log.trades.length - 1];
-        if (last) lastRunAge = Math.round((Date.now() - new Date(last.timestamp).getTime()) / 60000);
+        if (last) {
+          lastRun    = last.timestamp;
+          lastRunAge = Math.round((Date.now() - new Date(last.timestamp).getTime()) / 60000);
+          bot        = lastRunAge <= 15 ? "running" : "stale";
+        }
       }
-    } catch {}
+    } catch (e) {
+      errors.push({ source: "log-file", message: e.message });
+    }
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-    res.end(JSON.stringify({ krakenOk, krakenLatency, lastRunAge, serverTime: Date.now() }));
+    res.end(JSON.stringify({
+      success: errors.length === 0,
+      kraken:    krakenOk ? "online" : "offline",
+      websocket: "client-managed", // client tracks WS state; included for API consistency
+      bot,
+      lastRun,
+      lastRunAge,
+      krakenLatency,
+      serverTime: Date.now(),
+      errors,
+      // legacy fields kept for backwards compat with existing UI
+      krakenOk,
+    }));
     return;
   }
 
@@ -4877,10 +4924,10 @@ server.listen(PORT, () => {
 // On local Mac, the cron job already runs the bot, so we skip this to avoid duplicates.
 if (process.env.RAILWAY_ENVIRONMENT) {
   const runBot = () => {
-    console.log("[bot-runner] Starting bot.js…");
+    log.info("bot-runner", "Starting bot.js…");
     const proc = spawn("node", ["bot.js"], { stdio: "inherit" });
-    proc.on("exit", code => console.log(`[bot-runner] bot.js exited with code ${code}`));
-    proc.on("error", err => console.log(`[bot-runner] error: ${err.message}`));
+    proc.on("exit", code => log.info("bot-runner", "bot.js exited", { code }));
+    proc.on("error", err => log.error("bot-runner", err.message));
   };
   // First run after 10 seconds (let server warm up)
   setTimeout(runBot, 10000);
