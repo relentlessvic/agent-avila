@@ -2898,15 +2898,36 @@ const HTML = `<!DOCTYPE html>
         ? \`<div class="decision-banner decision-fail">⏳ Waiting — not the right entry point yet</div>\`
         : \`<div class="decision-banner decision-fail">⛔ \${block.text}\${block.type === "SIGNAL" && latest.signalScore !== undefined ? " (\" + latest.signalScore.toFixed(0) + \"/75)" : ""}</div>\`);
 
+    // Map each condition to its max possible score
+    const condMaxScore = (label) => {
+      if (label.includes("EMA"))         return 30;
+      if (label.includes("RSI"))         return 30;
+      if (label.includes("VWAP"))        return 20;
+      if (label.includes("Overextended")) return 20;
+      return 0;
+    };
+
     const condHtml = conditions.length === 0
       ? \`<div class="empty-state">No conditions evaluated</div>\`
       : conditions.map(c => {
           const note = simple ? simpleCondNote(c) : "";
+          const score = c.score !== undefined ? c.score : (c.pass ? condMaxScore(c.label) : 0);
+          const maxS  = condMaxScore(c.label) || 30;
+          const pct   = maxS > 0 ? (score / maxS) : 0;
+          let icon, badge, badgeColor;
+          if (pct >= 0.95)      { icon = "✅"; badge = "full confidence";    badgeColor = "var(--green)"; }
+          else if (pct >= 0.5)  { icon = "🟡"; badge = "high confidence";    badgeColor = "var(--green)"; }
+          else if (pct > 0)     { icon = "⚠️"; badge = "partial confidence"; badgeColor = "var(--yellow)"; }
+          else                  { icon = "🚫"; badge = "no signal";          badgeColor = "var(--red)"; }
+          const cls = pct >= 0.5 ? "cond-pass" : "cond-fail";
           return \`
-          <div class="condition \${c.pass ? "cond-pass" : "cond-fail"}">
-            <span class="cond-icon">\${c.pass ? "✅" : "🚫"}</span>
+          <div class="condition \${cls}">
+            <span class="cond-icon">\${icon}</span>
             <div class="cond-text">
-              <div class="cond-label">\${simple ? simpleCondLabel(c.label) : c.label}</div>
+              <div class="cond-label" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+                <span>\${simple ? simpleCondLabel(c.label) : c.label}</span>
+                <span style="font-family:ui-monospace,monospace;font-size:12px;font-weight:700;color:\${badgeColor}">+\${score.toFixed(0)} / \${maxS} <span style="font-size:10px;font-weight:500;opacity:0.8">(\${badge})</span></span>
+              </div>
               \${simple
                 ? (note ? \`<div class="cond-detail">\${note}</div>\` : "")
                 : \`<div class="cond-detail">Required: \${c.required} &nbsp;·&nbsp; Actual: \${c.actual}</div>\`}

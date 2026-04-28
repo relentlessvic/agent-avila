@@ -644,7 +644,16 @@ function evalSignal(price, ema8, vwap, rsi3, threshold = 75) {
   const distVWAP    = Math.abs((price - vwap) / vwap) * 100;
 
   const emaScore  = price > ema8 ? 30 : 0;
-  const rsiScore  = rsi3 < 35    ? Math.max(0, (35 - rsi3) / 35) * 30 : 0;
+  // Partial-confidence RSI scoring:
+  //   RSI ≤ 20 → 30pts (full dip)
+  //   RSI 35  → 15pts (threshold)
+  //   RSI 50  → 7pts  (neutral)
+  //   RSI ≥ 70 → 0pts  (overbought, no buy)
+  const rsiScore = rsi3 <= 20 ? 30
+                 : rsi3 <= 35 ? 30 - ((rsi3 - 20) / 15) * 15
+                 : rsi3 <= 50 ? 15 - ((rsi3 - 35) / 15) * 8
+                 : rsi3 <= 70 ? 7  - ((rsi3 - 50) / 20) * 7
+                 : 0;
   const vwapScore = price > vwap ? 20 : 0;
   const extScore  = distVWAP < 1.5 ? 20 : 0;
 
