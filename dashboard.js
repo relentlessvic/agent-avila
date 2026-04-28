@@ -768,7 +768,7 @@ function loginPage(error = "") {
     </div>
     <div class="row">
       <label class="checkbox-wrap">
-        <input type="checkbox" name="remember" checked> Remember me
+        <input type="checkbox" name="rememberMe" id="rememberMe"> Remember me
       </label>
       <a href="#" class="forgot" onclick="alert('Reset via .env DASHBOARD_PASSWORD or backup phrase'); return false">Forgot password?</a>
     </div>
@@ -795,11 +795,15 @@ function loginPage(error = "") {
       err.textContent = "⚠ " + msg;
       card.insertBefore(err, form);
     }
+    function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
     async function handleLoginSubmit(e) {
       e.preventDefault();
       var email = document.getElementById("email").value.trim();
       var pw    = document.getElementById("password").value;
-      if (!email || !pw) { showLoginError("Please fill in all fields."); return false; }
+      var rememberMe = document.getElementById("rememberMe")?.checked || false;
+
+      if (!email || !pw)        { showLoginError("Email and password are required"); return false; }
+      if (!isValidEmail(email)) { showLoginError("Invalid email format");            return false; }
 
       var btn = document.getElementById("login-submit");
       var txt = document.getElementById("login-btn-text");
@@ -810,25 +814,39 @@ function loginPage(error = "") {
         var res = await fetch("/api/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email, password: pw }),
+          body: JSON.stringify({ email: email, password: pw, rememberMe: rememberMe }),
         });
         var data;
         try { data = await res.json(); }
         catch { throw new Error("Server returned invalid response"); }
 
-        if (res.ok && data.success) {
-          window.location.href = data.redirect || "/2fa";
-          return false;
-        }
-        showLoginError(data.error || "Login failed.");
+        if (!data.success) throw new Error(data.error || "Login failed");
+
+        // Store optional token (HTTP-only cookie still primary auth mechanism)
+        if (data.token)    localStorage.setItem("token", data.token);
+        if (rememberMe)    localStorage.setItem("avila_email", email);
+        else                localStorage.removeItem("avila_email");
+
+        window.location.href = data.redirect || "/2fa";
+        return false;
       } catch (err) {
-        showLoginError("Connection error: " + err.message);
+        showLoginError(err.message || "Network error");
       }
 
       btn.disabled = false;
       txt.textContent = "Sign in →";
       return false;
     }
+    // Auto-restore email on page load if previously remembered
+    (function() {
+      var saved = localStorage.getItem("avila_email");
+      if (saved) {
+        var emailInput = document.getElementById("email");
+        var rememberInput = document.getElementById("rememberMe");
+        if (emailInput && !emailInput.value) emailInput.value = saved;
+        if (rememberInput) rememberInput.checked = true;
+      }
+    })();
   </script>
 </div>
 </body>
@@ -4977,13 +4995,17 @@ const server = createServer(async (req, res) => {
   if (req.url === "/api/login" && req.method === "POST") {
     try {
       const body = await readBody(req);
-      let email = "", password = "";
+      let email = "", password = "", rememberMe = false;
       try {
         const j = JSON.parse(body);
-        email = j.email || ""; password = j.password || "";
+        email = j.email || "";
+        password = j.password || "";
+        rememberMe = !!(j.rememberMe || j.remember);
       } catch {
         const p = new URLSearchParams(body);
-        email = p.get("email") || ""; password = p.get("password") || "";
+        email = p.get("email") || "";
+        password = p.get("password") || "";
+        rememberMe = !!(p.get("rememberMe") || p.get("remember"));
       }
       if (
         email    === (process.env.DASHBOARD_EMAIL    || "") &&
@@ -4991,12 +5013,14 @@ const server = createServer(async (req, res) => {
       ) {
         const pending = generateToken();
         pendingSessions.add(pending);
+        const cookieMaxAge = rememberMe ? "; Max-Age=2592000" : ""; // 30 days when remembered
         res.writeHead(200, {
           "Content-Type": "application/json",
-          "Set-Cookie": `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/`,
+          "Set-Cookie": `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/${cookieMaxAge}`,
         });
-        res.end(JSON.stringify({ success: true, redirect: "/2fa" }));
+        res.end(JSON.stringify({ success: true, redirect: "/2fa", rememberMe }));
       } else {
+        log.warn("/api/login", `failed login attempt for "${email.slice(0,40)}"`);
         res.writeHead(401, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ success: false, error: "Invalid email or password." }));
       }
