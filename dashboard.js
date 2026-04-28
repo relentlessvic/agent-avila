@@ -896,8 +896,20 @@ const HTML = `<!DOCTYPE html>
     border-color: rgba(0,212,255,0.18) !important;
   }
 
-  /* ── Compact Status Bar (single source of truth) ── */
-  .status-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; align-items: center; }
+  /* ── Compact Status Bar (sticky, single source of truth) ── */
+  .status-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin: -24px -24px 16px;
+    padding: 10px 24px;
+    background: rgba(11,15,26,0.92);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 50;
+  }
+  @media (max-width: 768px) {
+    .status-bar { padding: 8px 14px; margin: -12px -12px 12px; gap: 6px; }
+    .pill { font-size: 11px; padding: 4px 9px; }
+  }
   .pill {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 6px 12px; font-size: 12px; font-weight: 700;
@@ -946,6 +958,13 @@ const HTML = `<!DOCTYPE html>
   .last-decision-icon { font-size: 22px; }
   .last-decision-text { font-size: 16px; font-weight: 700; color: var(--text); }
   .last-decision-reason { font-size: 13px; color: var(--muted); padding-left: 32px; }
+  .next-trade-block { margin-top: 12px; padding: 12px 14px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(0,212,255,0.12); }
+  .next-trade-label { font-size: 10px; color: var(--blue); text-transform: uppercase; letter-spacing: 1.2px; font-weight: 700; margin-bottom: 8px; }
+  .next-trade-list { list-style: none; padding: 0; margin: 0; }
+  .next-trade-list li { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 5px 0; color: var(--muted); border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .next-trade-list li:last-child { border-bottom: none; }
+  .next-trade-list li.cond-pass { color: var(--green); }
+  .next-trade-list li .cond-status { font-size: 12px; min-width: 16px; }
 
   /* ── Mode Banner ── */
   .mode-banner { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; line-height: 1.4; border: 1px solid; transition: all 0.3s; }
@@ -1204,6 +1223,18 @@ const HTML = `<!DOCTYPE html>
   .balance-total-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 4px; }
   .balance-total-value { font-size: 26px; font-weight: 700; color: var(--green); }
   .balance-updated { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  /* ── Bot Mode Presets ── */
+  .bot-modes { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; }
+  .bot-modes-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin-bottom: 10px; }
+  .bot-modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .bot-mode-btn { padding: 10px 12px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; text-align: center; font-family: inherit; }
+  .bot-mode-btn:hover { border-color: rgba(0,212,255,0.4); transform: translateY(-1px); }
+  .bot-mode-btn.active { border-color: rgba(0,212,255,0.5); background: rgba(0,212,255,0.06); box-shadow: 0 0 12px rgba(0,212,255,0.1); }
+  .mode-icon { font-size: 18px; margin-bottom: 4px; }
+  .mode-name { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+  .mode-detail { font-size: 10px; color: var(--muted); line-height: 1.3; }
+  @media (max-width: 600px) { .bot-modes-grid { grid-template-columns: 1fr; } }
 
   /* ── Trading Terminal ── */
   .trade-terminal { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-bottom:24px; }
@@ -2021,6 +2052,10 @@ const HTML = `<!DOCTYPE html>
         <span class="last-decision-text" id="ld-result">Loading…</span>
       </div>
       <div class="last-decision-reason" id="ld-reason">—</div>
+      <div class="next-trade-block" id="next-trade-block" style="display:none">
+        <div class="next-trade-label">Next Trade Requires</div>
+        <ul class="next-trade-list" id="next-trade-list"></ul>
+      </div>
     </div>
   </div>
 
@@ -2277,6 +2312,26 @@ const HTML = `<!DOCTYPE html>
   <!-- Bot Controls -->
   <div class="section-title" id="section-controls">Bot Controls</div>
   <div class="ctrl-panel">
+    <div class="bot-modes">
+      <div class="bot-modes-label">⚙️ Quick Mode Preset:</div>
+      <div class="bot-modes-grid">
+        <button class="bot-mode-btn" id="mode-preset-conservative" onclick="applyBotMode('conservative')">
+          <div class="mode-icon">🛡</div>
+          <div class="mode-name">Conservative</div>
+          <div class="mode-detail">Risk 0.5% · Threshold 85 · 1× lev</div>
+        </button>
+        <button class="bot-mode-btn active" id="mode-preset-balanced" onclick="applyBotMode('balanced')">
+          <div class="mode-icon">⚖️</div>
+          <div class="mode-name">Balanced</div>
+          <div class="mode-detail">Risk 1% · Threshold 75 · 2× lev</div>
+        </button>
+        <button class="bot-mode-btn" id="mode-preset-aggressive" onclick="applyBotMode('aggressive')">
+          <div class="mode-icon">🔥</div>
+          <div class="mode-name">Aggressive</div>
+          <div class="mode-detail">Risk 2% · Threshold 65 · 3× lev</div>
+        </button>
+      </div>
+    </div>
     <div class="ctrl-status-row" id="ctrl-status-row">
       <span class="ctrl-badge ctrl-badge-muted" id="ctrl-badge-running">—</span>
       <span class="ctrl-badge ctrl-badge-muted" id="ctrl-badge-mode">—</span>
@@ -3217,6 +3272,42 @@ const HTML = `<!DOCTYPE html>
     if (ok) tradeCmd(command);
   }
 
+  // ── Bot Mode Presets ────────────────────────────────────────────────────
+  const BOT_MODE_PRESETS = {
+    conservative: { riskPct: 0.5, leverage: 1, label: "Conservative" },
+    balanced:     { riskPct: 1.0, leverage: 2, label: "Balanced" },
+    aggressive:   { riskPct: 2.0, leverage: 3, label: "Aggressive" },
+  };
+
+  async function applyBotMode(mode) {
+    const preset = BOT_MODE_PRESETS[mode];
+    if (!preset) return;
+    if (mode === "aggressive") {
+      const ok = await showModal({
+        icon: "🔥", title: "Switch to Aggressive mode?",
+        msg: "<strong style='color:var(--red)'>This increases risk to 2% per trade and leverage to 3×.</strong> Use only after validating in paper mode.",
+        confirmText: "Apply Aggressive"
+      });
+      if (!ok) return;
+    }
+    document.querySelectorAll(".bot-mode-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("mode-preset-" + mode)?.classList.add("active");
+    sendCmd("SET_RISK", String(preset.riskPct));
+    setTimeout(() => sendCmd("SET_LEVERAGE", String(preset.leverage)), 300);
+    showToast("⚙️ Mode preset applied: " + preset.label, "success");
+  }
+
+  function highlightActiveBotMode(ctrl) {
+    if (!ctrl) return;
+    document.querySelectorAll(".bot-mode-btn").forEach(b => b.classList.remove("active"));
+    const r = parseFloat(ctrl.riskPct), l = parseInt(ctrl.leverage);
+    let mode = null;
+    if (r === 0.5 && l === 1) mode = "conservative";
+    else if (r === 1   && l === 2) mode = "balanced";
+    else if (r === 2   && l === 3) mode = "aggressive";
+    if (mode) document.getElementById("mode-preset-" + mode)?.classList.add("active");
+  }
+
   function commandSuccessMessage(command, value, ctrl) {
     const messages = {
       START_BOT:               () => "✅ Bot started",
@@ -3358,6 +3449,7 @@ const HTML = `<!DOCTYPE html>
     setActive("btn-resume",     !ctrl.paused,  "green");
     setActive("btn-mode-paper",  ctrl.paperTrading !== false, "blue");
     setActive("btn-mode-live",   ctrl.paperTrading === false, "red");
+    highlightActiveBotMode(ctrl);
   }
 
   // Restore control state from localStorage immediately on page load (before SSE arrives)
@@ -3643,12 +3735,45 @@ const HTML = `<!DOCTYPE html>
       ld.result.textContent = "Skipped";
       ld.result.style.color = "var(--muted)";
       let reason = "Conditions not aligned";
-      if (f.includes("Daily")) reason = "Daily limit reached (3/3 trades)";
+      if (f.includes("Daily")) {
+        // Calculate countdown to midnight UTC (when daily limit resets)
+        const now = new Date();
+        const nextMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+        const remainMs = nextMidnight - now;
+        const hrs = Math.floor(remainMs / 3600000);
+        const mins = Math.floor((remainMs % 3600000) / 60000);
+        reason = "Daily limit reached (3/3) — Resets in " + hrs + "h " + mins + "m";
+      }
       else if (f.includes("Liquidation")) reason = "Liquidation safety triggered";
       else if (f.includes("Volatility") || f.includes("Regime")) reason = "Volatile market — no trade allowed";
       else if (latest.signalScore !== undefined) reason = "Score " + latest.signalScore.toFixed(0) + "/75 (below threshold)";
       ld.reason.textContent = reason;
     }
+
+    // Next Trade Requires — show what's missing for entry
+    const block = document.getElementById("next-trade-block");
+    const list  = document.getElementById("next-trade-list");
+    if (!block || !list) return;
+    const ind = latest.indicators;
+    const failedConds = (latest.conditions || []).filter(c => c.label && !c.pass);
+    if (failedConds.length === 0 || latest.allPass || latest.holding) {
+      block.style.display = "none";
+      return;
+    }
+    const items = failedConds.map(c => {
+      let txt = c.label;
+      const score = c.score ?? 0;
+      const maxS = c.label.includes("EMA") ? 30 : c.label.includes("RSI") ? 30 : 20;
+      if (c.label.includes("EMA") && ind?.ema8)         txt = "EMA(8) trend confirmation — price > $" + ind.ema8.toFixed(4);
+      else if (c.label.includes("RSI"))                  txt = "RSI(3) drop below 35 (now " + (ind?.rsi3?.toFixed(0) ?? "?") + ")";
+      else if (c.label.includes("VWAP"))                 txt = "VWAP reclaim — price > $" + (ind?.vwap?.toFixed(4) ?? "?");
+      else if (c.label.includes("Overext"))              txt = "Price within 1.5% of VWAP";
+      else if (c.label.includes("Daily"))                txt = "Wait for daily limit reset (midnight UTC)";
+      else if (c.label.includes("Volatility") || c.label.includes("Regime")) txt = "Wait for market to calm (currently volatile)";
+      return '<li><span class="cond-status">○</span><span>' + txt + ' <span style="opacity:0.6;font-size:11px;font-family:monospace">+' + score.toFixed(0) + '/' + maxS + '</span></span></li>';
+    }).join("");
+    list.innerHTML = items;
+    block.style.display = "";
   }
 
   function renderCheckLog(allLogs) {
