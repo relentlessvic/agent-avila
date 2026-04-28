@@ -1175,6 +1175,17 @@ const HTML = `<!DOCTYPE html>
     .chat-bubble { bottom:16px; right:16px; }
   }
 
+  /* ── Active Strategies ── */
+  .strategy-row { padding:14px 16px; border:1px solid var(--border); border-radius:8px; transition:all 0.2s; }
+  .strategy-row.strategy-active   { border-color:rgba(0,255,154,0.3); background:rgba(0,255,154,0.04); box-shadow:0 0 12px rgba(0,255,154,0.06); }
+  .strategy-row.strategy-inactive { opacity:0.55; background:rgba(255,255,255,0.02); }
+  .strategy-row.strategy-inactive:hover { opacity:0.85; }
+  .strategy-status { font-size:10px; font-weight:800; letter-spacing:1px; margin-bottom:6px; }
+  .strategy-active   .strategy-status { color:var(--green); }
+  .strategy-inactive .strategy-status { color:var(--muted); }
+  .strategy-name { font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px; }
+  .strategy-desc { font-size:12px; color:var(--muted); line-height:1.5; }
+
   /* ── Portfolio Intelligence ── */
   .portfolio-panel { background:var(--glass-bg); backdrop-filter:blur(20px); border:1px solid var(--border); border-radius:10px; padding:20px 24px; margin-bottom:24px; box-shadow:0 8px 32px rgba(0,0,0,0.4); }
   .portfolio-header-bar { display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; margin-bottom:14px; border-bottom:1px solid var(--border); gap:20px; flex-wrap:wrap; }
@@ -1468,6 +1479,7 @@ const HTML = `<!DOCTYPE html>
     <a class="nav-item" onclick="navTo('section-terminal')"><span class="nav-item-icon">⚡</span>Trading Terminal</a>
     <a class="nav-item" onclick="navTo('section-chart')"><span class="nav-item-icon">📊</span>Live Chart</a>
     <div class="nav-section-label">Performance</div>
+    <a class="nav-item" onclick="navTo('section-strategies')"><span class="nav-item-icon">🎯</span>Active Strategies</a>
     <a class="nav-item" onclick="navTo('section-performance')"><span class="nav-item-icon">📉</span>Performance State</a>
     <a class="nav-item" onclick="navTo('section-paper')"><span class="nav-item-icon">🏦</span>Paper Portfolio</a>
     <div class="nav-section-label">History & Controls</div>
@@ -2049,6 +2061,33 @@ const HTML = `<!DOCTYPE html>
       <span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:8px">ACTIVE %:</span>
       <input class="ctrl-input" id="cap-active-pct" type="number" min="10" max="95" step="5" value="70" style="width:56px">
       <button class="ctrl-btn" onclick="setCapital('SET_ACTIVE_PCT', document.getElementById('cap-active-pct').value)">Set</button>
+    </div>
+  </div>
+
+  <!-- Active Strategies Panel -->
+  <div class="section-title" id="section-strategies">Active Strategies</div>
+  <div class="card" style="padding:18px 22px;margin-bottom:24px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+      <div class="strategy-row strategy-active">
+        <div class="strategy-status">✅ ACTIVE</div>
+        <div class="strategy-name">RSI Dip Strategy</div>
+        <div class="strategy-desc">Buy on RSI &lt; 35 oversold pullback in uptrend (EMA(8) + VWAP confirmed)</div>
+      </div>
+      <div class="strategy-row strategy-inactive">
+        <div class="strategy-status">❌ INACTIVE</div>
+        <div class="strategy-name">RSI Reversal Strategy</div>
+        <div class="strategy-desc">Sell on RSI &gt; 70 overbought reversal in downtrend (requires shorting)</div>
+      </div>
+      <div class="strategy-row strategy-inactive">
+        <div class="strategy-status">❌ INACTIVE</div>
+        <div class="strategy-name">Bollinger Squeeze Breakout</div>
+        <div class="strategy-desc">Buy when BB(20) tightens and price breaks upper band (volatility expansion)</div>
+      </div>
+      <div class="strategy-row strategy-inactive">
+        <div class="strategy-status">❌ INACTIVE</div>
+        <div class="strategy-name">Mean Reversion (BB Lower)</div>
+        <div class="strategy-desc">Buy when price touches lower Bollinger Band with RSI &lt; 30</div>
+      </div>
     </div>
   </div>
 
