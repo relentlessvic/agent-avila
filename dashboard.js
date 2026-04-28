@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, existsSync, appendFileSync } from "fs";
 import { createServer } from "http";
 import { spawn } from "child_process";
 import crypto from "crypto";
+import { buildSystemStatus, runSystemCheck } from "./system-guardian.js";
 
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
 
@@ -5051,71 +5052,11 @@ const server = createServer(async (req, res) => {
   // ── System status (auth-required, broader than /api/health) ────────────
   if (req.url === "/api/system-status") {
     try {
-      // Bot last-run derives from the trade log timestamp (single source of truth)
-      let lastRun = null, lastRunAgeMin = null;
-      if (existsSync("safety-check-log.json")) {
-        try {
-          const blog = JSON.parse(readFileSync("safety-check-log.json", "utf8"));
-          const last = blog.trades?.[blog.trades.length - 1];
-          if (last?.timestamp) {
-            lastRun = last.timestamp;
-            lastRunAgeMin = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
-          }
-        } catch {}
-      }
-
-      // Lock liveness: file exists AND PID inside is alive
-      let lockActive = false, lockPid = null;
-      if (existsSync(".bot.lock")) {
-        try {
-          const pid = parseInt(readFileSync(".bot.lock", "utf8").trim(), 10);
-          if (Number.isFinite(pid)) {
-            lockPid = pid;
-            try { process.kill(pid, 0); lockActive = true; } catch { lockActive = false; }
-          }
-        } catch {}
-      }
-
-      // Bot control flags
-      let ctrl = {};
-      if (existsSync("bot-control.json")) {
-        try { ctrl = JSON.parse(readFileSync("bot-control.json", "utf8")); } catch {}
-      }
-
+      const data = buildSystemStatus({
+        sessionsView: { activeSessions: sessions.size, pendingSessions: pendingSessions.size },
+      });
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-      res.end(JSON.stringify({
-        success: true,
-        data: {
-          auth: {
-            activeSessions:  sessions.size,
-            pendingSessions: pendingSessions.size,
-          },
-          bot: {
-            lastRun,
-            lastRunAgeMin,
-            running: lockActive,
-            lockPid,
-            paperTrading: ctrl.paperTrading !== false,
-            paused:  !!ctrl.paused,
-            stopped: !!ctrl.stopped,
-            killed:  !!ctrl.killed,
-          },
-          execution: {
-            lockActive,
-            lockFile: ".bot.lock",
-          },
-          discord: {
-            enabled: !!process.env.DISCORD_WEBHOOK_URL,
-            lastSummaryDate: ctrl.lastSummaryDate || null,
-          },
-          runtime: {
-            uptimeSec: Math.round(process.uptime()),
-            memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
-            timestamp: Date.now(),
-            railway: !!process.env.RAILWAY_ENVIRONMENT,
-          },
-        },
-      }));
+      res.end(JSON.stringify({ success: true, data }));
     } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: e.message }));
@@ -5413,87 +5354,16 @@ if (process.env.RAILWAY_ENVIRONMENT) {
 }
 
 // ─── Embedded health watchdog — runs every 5 minutes on Railway ─────────────
-// Reads the SAME state sources as /api/system-status (no HTTP, no auth issue),
-// emits Discord alerts on real problems. Per-issue throttle so a sustained
-// outage doesn't spam the channel.
-const _alertCooldown = new Map(); // issueKey -> last-fired timestamp
-const _ALERT_THROTTLE_MS = 60 * 60 * 1000; // 1h per issue type
-
-async function sendWatchdogAlert(issueKey, message) {
-  const webhook = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhook) return;
-  const last = _alertCooldown.get(issueKey) || 0;
-  if (Date.now() - last < _ALERT_THROTTLE_MS) return;
-  _alertCooldown.set(issueKey, Date.now());
-  try {
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 5000);
-    await fetch(webhook, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content: `⚠️ RISK ALERT\nIssue: watchdog · ${message}` }),
-      signal: ctl.signal,
-    });
-    clearTimeout(timer);
-  } catch (e) { log.warn("watchdog", `discord post failed: ${e.message}`); }
-}
-
-function evaluateSystemHealth() {
-  const issues = [];
-
-  // Bot last-run age
-  let lastRunAgeMin = null;
-  if (existsSync("safety-check-log.json")) {
-    try {
-      const blog = JSON.parse(readFileSync("safety-check-log.json", "utf8"));
-      const last = blog.trades?.[blog.trades.length - 1];
-      if (last?.timestamp) lastRunAgeMin = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
-    } catch {}
-  }
-  if (lastRunAgeMin === null) {
-    issues.push(["bot-no-run", "bot has not run yet (no safety-check-log)"]);
-  } else if (lastRunAgeMin > 15) {
-    issues.push(["bot-stale", `bot last ran ${lastRunAgeMin.toFixed(1)} min ago (expected every 5 min)`]);
-  }
-
-  // Stale lock — file present but PID dead. Not a current bug because
-  // acquireBotLock auto-cleans on next attempt, but worth surfacing if it
-  // persists between bot cycles.
-  if (existsSync(".bot.lock")) {
-    try {
-      const pid = parseInt(readFileSync(".bot.lock", "utf8").trim(), 10);
-      let alive = false;
-      try { process.kill(pid, 0); alive = true; } catch {}
-      if (!alive && lastRunAgeMin !== null && lastRunAgeMin > 8) {
-        issues.push(["lock-stale", `bot lockfile present with dead PID ${pid} for >8min — next run will auto-clean`]);
-      }
-    } catch {}
-  }
-
-  // Memory pressure
-  const memMB = Math.round(process.memoryUsage().rss / 1024 / 1024);
-  if (memMB > 700) issues.push(["mem-high", `dashboard memory ${memMB}MB > 700MB threshold`]);
-
-  // Bot disabled by control flags (skip alert if user intentionally paused)
-  let ctrl = {};
-  if (existsSync("bot-control.json")) {
-    try { ctrl = JSON.parse(readFileSync("bot-control.json", "utf8")); } catch {}
-  }
-  if (ctrl.killed) issues.push(["bot-killed", "kill switch is active (drawdown-triggered halt)"]);
-
-  return issues;
-}
-
+// Logic lives in system-guardian.js. Reads file-based state (safety-check-log,
+// .bot.lock, bot-control.json) so this works across the dashboard <-> bot
+// process boundary without shared memory.
 async function runHealthWatchdog() {
   try {
-    const issues = evaluateSystemHealth();
-    for (const [key, msg] of issues) {
-      log.warn("watchdog", `${key}: ${msg}`);
-      await sendWatchdogAlert(key, msg);
-    }
-  } catch (e) {
-    log.error("watchdog", e.message);
-  }
+    const { issues } = await runSystemCheck({
+      sessionsView: { activeSessions: sessions.size, pendingSessions: pendingSessions.size },
+    });
+    for (const [key, msg] of issues) log.warn("watchdog", `${key}: ${msg}`);
+  } catch (e) { log.error("watchdog", e.message); }
 }
 
 if (process.env.RAILWAY_ENVIRONMENT) {
