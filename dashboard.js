@@ -773,6 +773,7 @@ const HTML = `<!DOCTYPE html>
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -2192,33 +2193,29 @@ const HTML = `<!DOCTYPE html>
   </div>
 
   <!-- Live Chart -->
-  <div class="section-title">Live Chart — <span id="chart-symbol-label">Loading...</span></div>
-  <div class="chart-card">
+  <div class="section-header">
+    <div class="section-title" id="section-chart">Live Chart — <span id="chart-symbol-label">XRPUSDT</span></div>
+    <div class="view-toggle">
+      <button class="view-toggle-btn active" id="chart-toggle-tv"  onclick="switchChartView('tv')">📊 TradingView</button>
+      <button class="view-toggle-btn"        id="chart-toggle-lwc" onclick="switchChartView('lwc')">⚡ Bot View</button>
+    </div>
+  </div>
+
+  <!-- TradingView widget (default) -->
+  <div class="chart-card" id="chart-card-tv">
+    <div id="tv_chart" style="width:100%;height:540px"></div>
+  </div>
+
+  <!-- Lightweight charts (Bot view with our markers + live ticks) -->
+  <div class="chart-card" id="chart-card-lwc" style="display:none">
     <div class="chart-header">
       <div class="legend">
-        <div class="legend-item">
-          <div class="legend-line" style="background:linear-gradient(90deg,#3fb950,#f85149)"></div>
-          Candles
-        </div>
-        <div class="legend-item">
-          <div class="legend-line" style="background:var(--purple)"></div>
-          EMA(8)
-        </div>
-        <div class="legend-item">
-          <div class="legend-line" style="background:var(--blue)"></div>
-          VWAP
-        </div>
-        <div class="legend-item">
-          <div class="legend-line" style="background:rgba(255,165,0,0.7);border-top:1px dashed rgba(255,165,0,0.7);height:0"></div>
-          BB(20)
-        </div>
-        <div class="legend-item">
-          <div class="legend-line" style="background:rgba(139,148,158,0.4)"></div>
-          Volume
-        </div>
-        <div class="legend-item" style="color:var(--muted)">
-          RSI(3) below
-        </div>
+        <div class="legend-item"><div class="legend-line" style="background:linear-gradient(90deg,#3fb950,#f85149)"></div>Candles</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--purple)"></div>EMA(8)</div>
+        <div class="legend-item"><div class="legend-line" style="background:var(--blue)"></div>VWAP</div>
+        <div class="legend-item"><div class="legend-line" style="background:rgba(255,165,0,0.7)"></div>BB(20)</div>
+        <div class="legend-item"><div class="legend-line" style="background:rgba(139,148,158,0.4)"></div>Volume</div>
+        <div class="legend-item" style="color:var(--muted)">RSI(3) below</div>
       </div>
       <span style="color:var(--muted);font-size:12px" id="chart-updated">—</span>
     </div>
@@ -4073,6 +4070,50 @@ const HTML = `<!DOCTYPE html>
   // ── Chart refresh (independent, every 30s) ─────────────────────────────────
   initOrUpdateChart().catch(console.error);
   setInterval(() => initOrUpdateChart().catch(console.error), 30000);
+
+  // ── TradingView Widget ────────────────────────────────────────────────────
+  let tvWidget = null;
+  function initTradingViewWidget() {
+    if (typeof TradingView === "undefined") { setTimeout(initTradingViewWidget, 500); return; }
+    if (tvWidget) return;
+    tvWidget = new TradingView.widget({
+      container_id: "tv_chart",
+      symbol: "KRAKEN:XRPUSD",
+      interval: "5",
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      enable_publishing: false,
+      allow_symbol_change: true,
+      autosize: true,
+      hide_side_toolbar: false,
+      toolbar_bg: "#0B0F1A",
+      backgroundColor: "#0B0F1A",
+      gridColor: "rgba(48,54,61,0.3)",
+      studies: ["MAExp@tv-basicstudies", "VWAP@tv-basicstudies", "RSI@tv-basicstudies"],
+      withdateranges: true,
+      hide_volume: false,
+    });
+  }
+  initTradingViewWidget();
+
+  // ── Chart view toggle (TV <-> Bot view) ────────────────────────────────────
+  function switchChartView(view) {
+    const tvCard  = document.getElementById("chart-card-tv");
+    const lwcCard = document.getElementById("chart-card-lwc");
+    const btnTv   = document.getElementById("chart-toggle-tv");
+    const btnLwc  = document.getElementById("chart-toggle-lwc");
+    if (view === "tv") {
+      tvCard.style.display = ""; lwcCard.style.display = "none";
+      btnTv.classList.add("active"); btnLwc.classList.remove("active");
+      initTradingViewWidget();
+    } else {
+      tvCard.style.display = "none"; lwcCard.style.display = "";
+      btnTv.classList.remove("active"); btnLwc.classList.add("active");
+      initOrUpdateChart().catch(console.error);
+    }
+  }
 </script>
 </body>
 </html>`;
