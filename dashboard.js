@@ -1170,6 +1170,7 @@ const HTML = `<!DOCTYPE html>
   .pill-bot.stopped { color: var(--red);   border-color: rgba(255,77,106,0.3); background: rgba(255,77,106,0.06); }
   .pill-pnl-pos { color: var(--green); }
   .pill-pnl-neg { color: var(--red); }
+  .pill-last-trade { color: var(--muted); }
 
   /* ── How It Works accordion ── */
   .how-it-works { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
@@ -2237,6 +2238,7 @@ const HTML = `<!DOCTYPE html>
     <span class="pill pill-bot" id="pill-bot">Bot: —</span>
     <span class="pill pill-risk" id="pill-risk">Risk: —%</span>
     <span class="pill pill-pnl" id="pill-pnl">P&L: —</span>
+    <span class="pill pill-last-trade" id="pill-last-trade">Last trade: —</span>
   </div>
 
   <!-- "How the system works" collapsible -->
@@ -3773,6 +3775,20 @@ const HTML = `<!DOCTYPE html>
       const sign = totalPnl >= 0 ? "+" : "";
       pillPnl.textContent = "P&L: " + sign + pct.toFixed(2) + "%";
       pillPnl.className = "pill " + (totalPnl > 0 ? "pill-pnl-pos" : totalPnl < 0 ? "pill-pnl-neg" : "");
+    }
+
+    // Last trade — most recent execution (entry OR exit), excludes skipped cycles
+    const pillLastTrade = document.getElementById("pill-last-trade");
+    if (pillLastTrade) {
+      const trades = Array.isArray(data.recentTrades) ? data.recentTrades : [];
+      const lastExec = [...trades].reverse().find(t => t.orderPlaced === true);
+      if (lastExec?.timestamp) {
+        const t = new Date(lastExec.timestamp);
+        const isExit = lastExec.type === "EXIT";
+        pillLastTrade.textContent = "Last " + (isExit ? "exit" : "entry") + ": " + t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } else {
+        pillLastTrade.textContent = "Last trade: —";
+      }
     }
   }
 
