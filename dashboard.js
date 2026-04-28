@@ -160,131 +160,6 @@ async function fetchWithRetry(url, opts, label) {
   }
 }
 
-async function fetchCandlesForChart(symbol, timeframe) {
-  const pair = PAIR_MAP[symbol] || symbol;
-  const interval = INTERVAL_MAP[timeframe] || 5;
-  const url = `https://api.kraken.com/0/public/OHLC?pair=${pair}&interval=${interval}`;
-  const res = await fetchWithRetry(url, undefined, "kraken-ohlc");
-  if (!res.ok) throw new Error(`Kraken OHLC error: ${res.status}`);
-  const data = await res.json();
-  if (data.error?.length) throw new Error(data.error.join(", "));
-  const pairKey = Object.keys(data.result).find(k => k !== "last");
-  const seen = new Set();
-  return data.result[pairKey]
-    .map(k => ({
-      time: k[0],
-      open: parseFloat(k[1]),
-      high: parseFloat(k[2]),
-      low: parseFloat(k[3]),
-      close: parseFloat(k[4]),
-      volume: parseFloat(k[6]),
-    }))
-    .filter(c => { if (seen.has(c.time)) return false; seen.add(c.time); return true; });
-}
-
-function calcEMASeries(candles, period) {
-  if (candles.length < period) return [];
-  const mult = 2 / (period + 1);
-  let ema = candles.slice(0, period).reduce((s, c) => s + c.close, 0) / period;
-  const series = [];
-  for (let i = 0; i < candles.length; i++) {
-    if (i < period - 1) continue;
-    if (i === period - 1) { series.push({ time: candles[i].time, value: +ema.toFixed(8) }); continue; }
-    ema = candles[i].close * mult + ema * (1 - mult);
-    series.push({ time: candles[i].time, value: +ema.toFixed(8) });
-  }
-  return series;
-}
-
-function calcVWAPSeries(candles) {
-  const series = [];
-  let cumTPV = 0, cumVol = 0, currentDay = null;
-  for (const c of candles) {
-    const day = Math.floor(c.time / 86400);
-    if (day !== currentDay) { cumTPV = 0; cumVol = 0; currentDay = day; }
-    cumTPV += ((c.high + c.low + c.close) / 3) * c.volume;
-    cumVol += c.volume;
-    if (cumVol > 0) series.push({ time: c.time, value: +(cumTPV / cumVol).toFixed(8) });
-  }
-  return series;
-}
-
-function calcRSISeries(candles, period) {
-  const closes = candles.map(c => c.close);
-  const series = [];
-  for (let i = period; i < candles.length; i++) {
-    let gains = 0, losses = 0;
-    for (let j = i - period + 1; j <= i; j++) {
-      const diff = closes[j] - closes[j - 1];
-      if (diff > 0) gains += diff; else losses -= diff;
-    }
-    const avgGain = gains / period;
-    const avgLoss = losses / period;
-    const rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
-    series.push({ time: candles[i].time, value: +rsi.toFixed(4) });
-  }
-  return series;
-}
-
-function calcBollingerBands(candles, period = 20, mult = 2) {
-  const upper = [], lower = [], middle = [];
-  for (let i = period - 1; i < candles.length; i++) {
-    const slice = candles.slice(i - period + 1, i + 1);
-    const closes = slice.map(c => c.close);
-    const sma = closes.reduce((a, b) => a + b, 0) / period;
-    const std = Math.sqrt(closes.reduce((s, c) => s + (c - sma) ** 2, 0) / period);
-    const time = candles[i].time;
-    upper.push({ time, value: +(sma + mult * std).toFixed(8) });
-    lower.push({ time, value: +(sma - mult * std).toFixed(8) });
-    middle.push({ time, value: +sma.toFixed(8) });
-  }
-  return { upper, lower, middle };
-}
-
-let chartCache = null;
-let chartCacheTime = 0;
-
-async function getChartData() {
-  const now = Date.now();
-  if (chartCache && now - chartCacheTime < 15000) return chartCache;
-
-  const log = loadLog();
-  const latest = log.trades.length ? log.trades[log.trades.length - 1] : null;
-  const symbol = latest?.symbol || "XRPUSDT";
-  const timeframe = latest?.timeframe || "5m";
-  const intervalSecs = (INTERVAL_MAP[timeframe] || 5) * 60;
-
-  const candles = await fetchCandlesForChart(symbol, timeframe);
-
-  const markers = log.trades
-    .filter(t => t.orderPlaced)
-    .map(t => ({
-      time: Math.floor(Math.floor(new Date(t.timestamp).getTime() / 1000) / intervalSecs) * intervalSecs,
-      position: "belowBar",
-      color: "#3fb950",
-      shape: "arrowUp",
-      text: "BUY",
-    }))
-    .sort((a, b) => a.time - b.time);
-
-  chartCache = {
-    symbol, timeframe,
-    candles,
-    ema8: calcEMASeries(candles, 8),
-    vwap: calcVWAPSeries(candles),
-    rsi3: calcRSISeries(candles, 3),
-    bollinger: calcBollingerBands(candles, 20, 2),
-    volume: candles.map(c => ({
-      time: c.time,
-      value: c.volume,
-      color: c.close >= c.open ? "rgba(63,185,80,0.35)" : "rgba(248,81,73,0.35)",
-    })),
-    markers,
-  };
-  chartCacheTime = now;
-  return chartCache;
-}
-
 // ─── Kraken Balance ───────────────────────────────────────────────────────────
 
 const ASSET_LABELS = {
@@ -1138,7 +1013,6 @@ const HTML = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="Agent Avila">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <script src="https://s3.tradingview.com/tv.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1481,20 +1355,6 @@ const HTML = `<!DOCTYPE html>
     overflow: hidden;
     margin-bottom: 24px;
   }
-  .chart-header {
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .legend { display: flex; gap: 20px; font-size: 12px; color: var(--muted); align-items: center; }
-  .legend-item { display: flex; align-items: center; gap: 6px; }
-  .legend-line { width: 16px; height: 2px; border-radius: 1px; }
-  #chart-container { width: 100%; height: 420px; }
-  #rsi-container   { width: 100%; height: 120px; border-top: 1px solid var(--border); }
-  .chart-error { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
-
   /* ── Stats ── */
   .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
   .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; }
@@ -1803,7 +1663,6 @@ const HTML = `<!DOCTYPE html>
     .stats-grid  { grid-template-columns: repeat(2, 1fr); }
     .pnl-grid    { grid-template-columns: repeat(2, 1fr); }
     .mid-grid    { grid-template-columns: 1fr; }
-    #chart-container { height: 300px; }
     nav { padding: 0 14px; }
     main { padding: 14px; }
     .health-strip { padding: 6px 14px; gap: 14px; }
@@ -2786,32 +2645,11 @@ const HTML = `<!DOCTYPE html>
   <!-- Live Chart -->
   <div class="section-header">
     <div class="section-title" id="section-chart">Live Chart — <span id="chart-symbol-label">XRPUSDT</span></div>
-    <div class="view-toggle">
-      <button class="view-toggle-btn active" id="chart-toggle-tv"  onclick="switchChartView('tv')">📊 TradingView</button>
-      <button class="view-toggle-btn"        id="chart-toggle-lwc" onclick="switchChartView('lwc')">⚡ Bot View</button>
-    </div>
   </div>
 
-  <!-- TradingView widget (default) -->
+  <!-- TradingView widget -->
   <div class="chart-card" id="chart-card-tv">
     <div id="tv_chart" style="width:100%;height:540px"></div>
-  </div>
-
-  <!-- Lightweight charts (Bot view with our markers + live ticks) -->
-  <div class="chart-card" id="chart-card-lwc" style="display:none">
-    <div class="chart-header">
-      <div class="legend">
-        <div class="legend-item"><div class="legend-line" style="background:linear-gradient(90deg,#3fb950,#f85149)"></div>Candles</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--purple)"></div>EMA(8)</div>
-        <div class="legend-item"><div class="legend-line" style="background:var(--blue)"></div>VWAP</div>
-        <div class="legend-item"><div class="legend-line" style="background:rgba(255,165,0,0.7)"></div>BB(20)</div>
-        <div class="legend-item"><div class="legend-line" style="background:rgba(139,148,158,0.4)"></div>Volume</div>
-        <div class="legend-item" style="color:var(--muted)">RSI(3) below</div>
-      </div>
-      <span style="color:var(--muted);font-size:12px" id="chart-updated">—</span>
-    </div>
-    <div id="chart-container"></div>
-    <div id="rsi-container"></div>
   </div>
 
   <!-- Balance -->
@@ -3058,9 +2896,6 @@ const HTML = `<!DOCTYPE html>
 </div>
 
 <script>
-  // ── Chart ──────────────────────────────────────────────────────────────────
-  let chartInst = null, candleSeries, emaSeries, vwapSeries, bbUpperSeries, bbLowerSeries, volSeries, rsiInst, rsiSeries;
-
   // Safe JSON fetch — never throws on HTML responses (e.g. session expired → login redirect)
   async function safeJson(url, opts) {
     const res = await fetch(url, opts);
@@ -3071,128 +2906,6 @@ const HTML = `<!DOCTYPE html>
       console.error("[safeJson] Invalid JSON from " + url + ":", text.slice(0, 200));
       throw new Error("Server returned non-JSON response (status " + res.status + ")");
     }
-  }
-
-  async function initOrUpdateChart() {
-    let data;
-    try {
-      data = await safeJson("/api/candles");
-      if (data.error) throw new Error(data.message || data.error);
-      chartHealthy = true;
-    } catch (e) {
-      chartHealthy = false;
-      document.getElementById("chart-container").innerHTML =
-        \`<div class="chart-error">⚠ Chart data failed to load<div style="font-size:11px;color:rgba(139,148,158,0.6);margin-top:6px">\${e.message}</div></div>\`;
-      runHealthCheck();
-      return;
-    }
-
-    const container    = document.getElementById("chart-container");
-    const rsiContainer = document.getElementById("rsi-container");
-    const isFirst = !chartInst;
-
-    if (isFirst) {
-      chartInst = LightweightCharts.createChart(container, {
-        width: container.clientWidth,
-        height: 420,
-        layout: { background: { color: "#0d1117" }, textColor: "#e6edf3", attributionLogo: false },
-        grid:   { vertLines: { color: "rgba(48,54,61,0.6)" }, horzLines: { color: "rgba(48,54,61,0.6)" } },
-        crosshair: { mode: 0 },
-        localization: { timeFormatter: ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) },
-        timeScale: {
-          timeVisible: true, secondsVisible: false, borderColor: "#30363d",
-          tickMarkFormatter: (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
-        },
-        rightPriceScale: { borderColor: "#30363d" },
-        watermark: {
-          visible: true, fontSize: 28, horzAlign: "center", vertAlign: "center",
-          color: "rgba(88,166,255,0.04)", text: "XRPUSDT · 5m",
-        },
-      });
-
-      // Volume histogram (behind candles)
-      volSeries = chartInst.addHistogramSeries({
-        priceFormat: { type: "volume" },
-        priceScaleId: "vol",
-      });
-      chartInst.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
-
-      // Bollinger Bands
-      bbUpperSeries = chartInst.addLineSeries({
-        color: "rgba(255,165,0,0.55)", lineWidth: 1, lineStyle: 2,
-        priceLineVisible: false, lastValueVisible: false, title: "BB Upper",
-      });
-      bbLowerSeries = chartInst.addLineSeries({
-        color: "rgba(255,165,0,0.55)", lineWidth: 1, lineStyle: 2,
-        priceLineVisible: false, lastValueVisible: false, title: "BB Lower",
-      });
-
-      candleSeries = chartInst.addCandlestickSeries({
-        upColor: "#3fb950", downColor: "#f85149",
-        borderUpColor: "#3fb950", borderDownColor: "#f85149",
-        wickUpColor: "#3fb950", wickDownColor: "#f85149",
-      });
-      emaSeries = chartInst.addLineSeries({
-        color: "#bc8cff", lineWidth: 1.5,
-        priceLineVisible: false, lastValueVisible: true, title: "EMA8",
-      });
-      vwapSeries = chartInst.addLineSeries({
-        color: "#58a6ff", lineWidth: 1.5,
-        priceLineVisible: false, lastValueVisible: true, title: "VWAP",
-      });
-
-      rsiInst = LightweightCharts.createChart(rsiContainer, {
-        width: rsiContainer.clientWidth,
-        height: 120,
-        layout: { background: { color: "#0d1117" }, textColor: "#8b949e", attributionLogo: false },
-        grid:   { vertLines: { color: "rgba(48,54,61,0.4)" }, horzLines: { color: "rgba(48,54,61,0.4)" } },
-        timeScale: { visible: false, borderColor: "#30363d" },
-        rightPriceScale: { borderColor: "#30363d", scaleMargins: { top: 0.1, bottom: 0.1 } },
-      });
-      rsiSeries = rsiInst.addAreaSeries({
-        lineColor: "#d29922", lineWidth: 2,
-        topColor: "rgba(210,153,34,0.35)", bottomColor: "rgba(210,153,34,0.0)",
-        priceLineVisible: false, lastValueVisible: true, title: "RSI3",
-      });
-      rsiSeries.createPriceLine({ price: 70, color: "rgba(248,81,73,0.7)",   lineWidth: 1, lineStyle: 2 });
-      rsiSeries.createPriceLine({ price: 50, color: "rgba(139,148,158,0.4)", lineWidth: 1, lineStyle: 4 });
-      rsiSeries.createPriceLine({ price: 30, color: "rgba(63,185,80,0.7)",   lineWidth: 1, lineStyle: 2 });
-
-      let syncing = false;
-      chartInst.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        if (syncing || !range) return;
-        syncing = true;
-        rsiInst.timeScale().setVisibleLogicalRange(range);
-        syncing = false;
-      });
-      rsiInst.timeScale().subscribeVisibleLogicalRangeChange(range => {
-        if (syncing || !range) return;
-        syncing = true;
-        chartInst.timeScale().setVisibleLogicalRange(range);
-        syncing = false;
-      });
-
-      window.addEventListener("resize", () => {
-        chartInst.resize(container.clientWidth, 420);
-        rsiInst.resize(rsiContainer.clientWidth, 120);
-      });
-    }
-
-    if (data.volume)              volSeries.setData(data.volume);
-    if (data.bollinger?.upper)    bbUpperSeries.setData(data.bollinger.upper);
-    if (data.bollinger?.lower)    bbLowerSeries.setData(data.bollinger.lower);
-    candleSeries.setData(data.candles);
-    emaSeries.setData(data.ema8);
-    vwapSeries.setData(data.vwap);
-    rsiSeries.setData(data.rsi3);
-    if (data.markers && data.markers.length) candleSeries.setMarkers(data.markers);
-
-    document.getElementById("chart-symbol-label").textContent =
-      \`\${data.symbol} · \${data.timeframe}\`;
-    document.getElementById("chart-updated").textContent =
-      "Updated " + new Date().toLocaleTimeString();
-
-    if (isFirst) chartInst.timeScale().scrollToRealTime();
   }
 
   // ── Balance ────────────────────────────────────────────────────────────────
@@ -4794,7 +4507,6 @@ const HTML = `<!DOCTYPE html>
   let prevTickerPrice = null;
   let sessionOpenPrice = null;
   let priceHigh = null, priceLow = null;
-  let liveCandle = null; // current 5m candle being built from WS ticks
   let priceHistory = []; // last 60 ticks for sparkline
   let portfolioHistory = []; // last 60 portfolio values for sparkline
   let portfolioOpenValue = null;
@@ -4843,9 +4555,6 @@ const HTML = `<!DOCTYPE html>
     priceHistory.push(price);
     if (priceHistory.length > 60) priceHistory.shift();
     renderSparkline();
-
-    // Update live candle on chart (TradingView-style)
-    updateLiveCandle(price);
 
     // Update portfolio sparkline + hero value
     updatePortfolioLive(price);
@@ -4916,24 +4625,6 @@ const HTML = `<!DOCTYPE html>
     const first = priceHistory[0];
     const color = last >= first ? "#00FF9A" : "#FF4D6A";
     svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  }
-
-  function updateLiveCandle(price) {
-    if (!candleSeries) return;
-    // 5m bucket: floor to 300-second boundary
-    const now = Math.floor(Date.now() / 1000);
-    const bucketTime = Math.floor(now / 300) * 300;
-
-    if (!liveCandle || liveCandle.time !== bucketTime) {
-      // New candle bucket
-      liveCandle = { time: bucketTime, open: price, high: price, low: price, close: price };
-    } else {
-      // Update existing candle
-      liveCandle.high = Math.max(liveCandle.high, price);
-      liveCandle.low  = Math.min(liveCandle.low,  price);
-      liveCandle.close = price;
-    }
-    try { candleSeries.update(liveCandle); } catch {}
   }
 
   function connectTickerWS() {
@@ -5062,10 +4753,6 @@ const HTML = `<!DOCTYPE html>
     } catch (e) { appendMsg("❌ " + e.message, "chat-msg-bot"); }
   }
 
-  // ── Chart refresh (independent, every 30s) ─────────────────────────────────
-  initOrUpdateChart().catch(console.error);
-  setInterval(() => initOrUpdateChart().catch(console.error), 30000);
-
   // ── TradingView Widget ────────────────────────────────────────────────────
   let tvWidget = null;
   function initTradingViewWidget() {
@@ -5092,23 +4779,6 @@ const HTML = `<!DOCTYPE html>
     });
   }
   initTradingViewWidget();
-
-  // ── Chart view toggle (TV <-> Bot view) ────────────────────────────────────
-  function switchChartView(view) {
-    const tvCard  = document.getElementById("chart-card-tv");
-    const lwcCard = document.getElementById("chart-card-lwc");
-    const btnTv   = document.getElementById("chart-toggle-tv");
-    const btnLwc  = document.getElementById("chart-toggle-lwc");
-    if (view === "tv") {
-      tvCard.style.display = ""; lwcCard.style.display = "none";
-      btnTv.classList.add("active"); btnLwc.classList.remove("active");
-      initTradingViewWidget();
-    } else {
-      tvCard.style.display = "none"; lwcCard.style.display = "";
-      btnTv.classList.remove("active"); btnLwc.classList.add("active");
-      initOrUpdateChart().catch(console.error);
-    }
-  }
 </script>
 </body>
 </html>`;
@@ -5452,17 +5122,6 @@ const server = createServer(async (req, res) => {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: e.message }));
     }
-  } else if (req.url === "/api/candles") {
-    try {
-      const data = await getChartData();
-      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-      res.end(JSON.stringify(data));
-    } catch (e) {
-      console.error("[/api/candles] error:", e.message);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: true, message: e.message, source: "kraken-ohlc" }));
-    }
-
   } else if (req.url === "/api/chat" && req.method === "POST") {
     try {
       const { message, history = [] } = JSON.parse(await readBody(req));
