@@ -306,10 +306,21 @@ function buildDecisionLog(signal, regime, adaptations) {
   return lines.join(" | ");
 }
 
+const DEFAULT_CONTROL = {
+  stopped: false, paused: false, killed: false,
+  paperTrading: true, leverage: 2, riskPct: 1,
+  dynamicSizing: true, maxDailyLossPct: 3, cooldownMinutes: 15,
+  killSwitchEnabled: true, killSwitchDrawdownPct: 5, pauseAfterLosses: 3,
+  lastTradeTime: null, consecutiveLosses: 0,
+};
+
 function loadControl() {
-  if (!existsSync(CONTROL_FILE)) return {};
+  if (!existsSync(CONTROL_FILE)) {
+    writeFileSync(CONTROL_FILE, JSON.stringify(DEFAULT_CONTROL, null, 2));
+    return { ...DEFAULT_CONTROL };
+  }
   try { return JSON.parse(readFileSync(CONTROL_FILE, "utf8")); }
-  catch { return {}; }
+  catch { return { ...DEFAULT_CONTROL }; }
 }
 
 // Override CONFIG with any values set via control file

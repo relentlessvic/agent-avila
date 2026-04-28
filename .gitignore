@@ -1,12 +1,13 @@
 # Credentials — NEVER commit
 .env
 
-# Runtime state — local only
+# Runtime state — local only (NOT committed so Railway redeploys don't reset settings)
 safety-check-log.json
 position.json
 performance-state.json
 portfolio-state.json
 capital-state.json
+bot-control.json
 
 # Logs & data
 *.log

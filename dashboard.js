@@ -2758,6 +2758,17 @@ const HTML = `<!DOCTYPE html>
 
   function renderControl(ctrl) {
     if (!ctrl) return;
+
+    // Persist to localStorage for instant UI restore on next page load
+    try { localStorage.setItem("agent_avila_ctrl", JSON.stringify({
+      paperTrading: ctrl.paperTrading,
+      stopped: ctrl.stopped,
+      paused: ctrl.paused,
+      killed: ctrl.killed,
+      leverage: ctrl.leverage,
+      riskPct: ctrl.riskPct,
+    })); } catch {}
+
     const set = (id, text, cls) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -2785,12 +2796,21 @@ const HTML = `<!DOCTYPE html>
       modeLabel.style.color = ctrl.paperTrading !== false ? "var(--blue)" : "var(--red)";
     }
 
-    // Highlight active state buttons
+    // Highlight active state buttons + disable redundant clicks
     const setActive = (id, active, color) => {
       const el = document.getElementById(id);
       if (!el) return;
       ["is-active-green","is-active-red","is-active-yellow","is-active-blue"].forEach(c => el.classList.remove(c));
-      if (active) el.classList.add("is-active-" + color);
+      if (active) {
+        el.classList.add("is-active-" + color);
+        el.disabled = true;
+        el.style.cursor = "default";
+        el.style.opacity = "0.85";
+      } else {
+        el.disabled = false;
+        el.style.cursor = "pointer";
+        el.style.opacity = "1";
+      }
     };
     setActive("btn-start",      !ctrl.stopped, "green");
     setActive("btn-stop",        ctrl.stopped, "red");
@@ -2799,6 +2819,12 @@ const HTML = `<!DOCTYPE html>
     setActive("btn-mode-paper",  ctrl.paperTrading !== false, "blue");
     setActive("btn-mode-live",   ctrl.paperTrading === false, "red");
   }
+
+  // Restore control state from localStorage immediately on page load (before SSE arrives)
+  try {
+    const cached = JSON.parse(localStorage.getItem("agent_avila_ctrl") || "null");
+    if (cached) renderControl(cached);
+  } catch {}
 
   // ── Nav Drawer ────────────────────────────────────────────────────────────
   function toggleNav() {
