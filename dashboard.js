@@ -5182,10 +5182,14 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.url === "/logout") {
-    const token = parseCookies(req.headers.cookie).session;
-    if (token) sessions.delete(token);
+    const cookies = parseCookies(req.headers.cookie);
+    if (cookies.session)     sessions.delete(cookies.session);
+    if (cookies.pending_2fa) pendingSessions.delete(cookies.pending_2fa);
     res.writeHead(302, {
-      "Set-Cookie": "session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+      "Set-Cookie": [
+        "session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+        "pending_2fa=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+      ],
       Location: "/login",
     });
     res.end();
@@ -5325,6 +5329,21 @@ const server = createServer(async (req, res) => {
       errors,
       // legacy fields kept for backwards compat with existing UI
       krakenOk,
+    }));
+    return;
+  }
+
+  // ── /api/me — session check, returns own 401 instead of redirect ─────────
+  if (req.url === "/api/me") {
+    if (!isAuthenticated(req)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Not authenticated" }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({
+      success: true,
+      data: { user: { email: process.env.DASHBOARD_EMAIL || null }, authenticated: true },
     }));
     return;
   }
