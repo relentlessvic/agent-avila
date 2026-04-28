@@ -2224,7 +2224,10 @@ const HTML = `<!DOCTYPE html>
   </div>
 
   <!-- Balance -->
-  <div class="section-title">Kraken Balance</div>
+  <div class="section-header">
+    <div class="section-title">Kraken Balance</div>
+    <span class="ctrl-badge ctrl-badge-yellow" id="balance-mode-badge" style="font-size:10px">🔴 LIVE EXCHANGE DATA · NOT USED IN PAPER MODE</span>
+  </div>
   <div class="balance-card">
     <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap;flex:1">
       <div class="balance-assets" id="balance-content">
@@ -3017,6 +3020,18 @@ const HTML = `<!DOCTYPE html>
     if (modeLabel) {
       modeLabel.textContent = ctrl.paperTrading !== false ? "📋 PAPER MODE" : "🔴 LIVE MODE";
       modeLabel.style.color = ctrl.paperTrading !== false ? "var(--blue)" : "var(--red)";
+    }
+
+    // Kraken Balance badge — make it clear what data the bot uses
+    const balBadge = document.getElementById("balance-mode-badge");
+    if (balBadge) {
+      if (ctrl.paperTrading === false) {
+        balBadge.textContent = "🟢 LIVE TRADING ACTIVE · BOT USES THIS BALANCE";
+        balBadge.className = "ctrl-badge ctrl-badge-green";
+      } else {
+        balBadge.textContent = "🔴 LIVE EXCHANGE DATA · NOT USED IN PAPER MODE";
+        balBadge.className = "ctrl-badge ctrl-badge-yellow";
+      }
     }
 
     // Highlight active state buttons + disable redundant clicks
