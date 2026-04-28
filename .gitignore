@@ -8,6 +8,8 @@ performance-state.json
 portfolio-state.json
 capital-state.json
 bot-control.json
+sessions-store.json
+.bot.lock
 
 # Logs & data
 *.log

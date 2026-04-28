@@ -428,7 +428,24 @@ async function fetchKrakenBalance() {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-const sessions = new Set();
+// File-backed session store. Persists across Railway redeploys so users with
+// valid cookies stay logged in. Single-writer (only this process), atomic via
+// fs.writeFileSync. Two Sets serialized to one JSON file.
+const SESSIONS_FILE = "sessions-store.json";
+function loadPersistedSessions() {
+  if (!existsSync(SESSIONS_FILE)) return { sessions: [], pending: [] };
+  try {
+    const raw = JSON.parse(readFileSync(SESSIONS_FILE, "utf8"));
+    return { sessions: Array.isArray(raw.sessions) ? raw.sessions : [], pending: Array.isArray(raw.pending) ? raw.pending : [] };
+  } catch { return { sessions: [], pending: [] }; }
+}
+function persistSessions() {
+  try {
+    writeFileSync(SESSIONS_FILE, JSON.stringify({ sessions: [...sessions], pending: [...pendingSessions] }));
+  } catch (e) { log.warn("sessions", `persist failed: ${e.message}`); }
+}
+const _persisted = loadPersistedSessions();
+const sessions = new Set(_persisted.sessions);
 
 function generateToken() {
   return crypto.randomBytes(32).toString("hex");
@@ -811,7 +828,7 @@ function loginPage(error = "") {
 </html>`;
 }
 
-const pendingSessions = new Set();
+const pendingSessions = new Set(_persisted.pending);
 const loginAttempts = new Map(); // ip -> { count, first } — sliding 5-min window
 
 // ── Canonical login response envelope ─────────────────────────────────────
@@ -877,6 +894,7 @@ async function processLogin(req, res) {
       loginAttempts.delete(ip);
       const pending = generateToken();
       pendingSessions.add(pending);
+      persistSessions();
       const cookieMaxAge = rememberMe ? "; Max-Age=2592000" : "";
       const setCookie = `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/${cookieMaxAge}`;
       if (wantsJson) {
@@ -3621,7 +3639,7 @@ const HTML = `<!DOCTYPE html>
   // ── System Health Monitor ─────────────────────────────────────────────────
   let wsConnected = false;
 
-  function updateHealthPanel(krakenOk, krakenLatency, lastRunAge, wsOk, chartOk = true) {
+  function updateHealthPanel(krakenOk, krakenLatency, lastRunAge, wsOk) {
     const set = (id, text, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = text; el.className = "health-check-status " + cls; };
     // Standard status badges: 🟢 DATA OK / 🟡 PARTIAL / 🔴 ERROR
     set("hc-api", krakenOk ? "🟢 DATA OK" : "🔴 ERROR", krakenOk ? "health-ok" : "health-fail");
@@ -3654,7 +3672,6 @@ const HTML = `<!DOCTYPE html>
     }
   }
 
-  let chartHealthy = true; // tracked when chart errors/loads
   async function runHealthCheck() {
     try {
       const data = await safeJson("/api/health");
@@ -3663,16 +3680,16 @@ const HTML = `<!DOCTYPE html>
       if (lastRenderData?.latest?.timestamp) {
         ageMin = (Date.now() - new Date(lastRenderData.latest.timestamp).getTime()) / 60000;
       }
-      updateHealthPanel(data.krakenOk, data.krakenLatency, ageMin, wsConnected, chartHealthy);
+      updateHealthPanel(data.krakenOk, data.krakenLatency, ageMin, wsConnected);
       // Self-heal: if data is stale (> 6 min), trigger a bot run to wake Railway from sleep
       if (ageMin !== null && ageMin > 6) {
         console.log("[self-heal] Data is " + ageMin.toFixed(1) + " min stale — triggering bot run");
         try {
           const r = await safeJson("/api/run-bot", { method: "POST" });
-          if (r.triggered) showToast("Bot was sleeping — woke it up", "info");
+          if (r?.data?.triggered || r?.triggered) showToast("Bot was sleeping — woke it up", "info");
         } catch {}
       }
-    } catch { updateHealthPanel(false, 0, null, wsConnected, chartHealthy); }
+    } catch { updateHealthPanel(false, 0, null, wsConnected); }
   }
   runHealthCheck();
   setInterval(runHealthCheck, 30000);
@@ -4832,10 +4849,13 @@ const server = createServer(async (req, res) => {
       try { email = (JSON.parse(body).email || "").toString(); }
       catch { email = (new URLSearchParams(body).get("email") || ""); }
       const isAccount = !!email && email === (process.env.DASHBOARD_EMAIL || "");
+      // Don't echo arbitrary email values into logs (avoids log injection from
+      // attacker-supplied input). Log a non-PII fingerprint instead.
+      const emailFp = email ? `len=${email.length}` : "empty";
       if (isAccount) {
-        log.info("/api/forgot-password", `recovery request for "${email.slice(0,40)}"`);
+        log.info("/api/forgot-password", `recovery request for known account (${emailFp})`);
       } else {
-        log.warn("/api/forgot-password", `recovery request for unknown email "${email.slice(0,40)}"`);
+        log.warn("/api/forgot-password", `recovery request for unknown email (${emailFp})`);
       }
       // Same response either way — never leak whether the account exists
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -4855,6 +4875,7 @@ const server = createServer(async (req, res) => {
     const cookies = parseCookies(req.headers.cookie);
     if (cookies.session)     sessions.delete(cookies.session);
     if (cookies.pending_2fa) pendingSessions.delete(cookies.pending_2fa);
+    persistSessions();
     res.writeHead(302, {
       "Set-Cookie": [
         "session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
@@ -4885,6 +4906,7 @@ const server = createServer(async (req, res) => {
         pendingSessions.delete(pending);
         const token = generateToken();
         sessions.add(token);
+        persistSessions();
         res.writeHead(302, {
           "Set-Cookie": [
             `session=${token}; HttpOnly; SameSite=Strict; Path=/`,
@@ -4904,34 +4926,6 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-
-  // ── Bot run trigger (rate-limited, no auth — wakes Railway from sleep) ──
-  if (req.url === "/api/run-bot" && req.method === "POST") {
-    try {
-      let lastRunAge = null;
-      if (existsSync("safety-check-log.json")) {
-        const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
-        const last = log.trades[log.trades.length - 1];
-        if (last) lastRunAge = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
-      }
-      // Only run if stale (>4 min) to prevent abuse
-      if (lastRunAge !== null && lastRunAge < 4) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true, skipped: true, reason: "Last run was " + lastRunAge.toFixed(1) + " min ago" }));
-        return;
-      }
-      console.log("[run-bot] Triggered via API (last run age: " + (lastRunAge?.toFixed(1) ?? "n/a") + " min)");
-      const proc = spawn("node", ["bot.js"], { stdio: "inherit" });
-      proc.on("exit", code => console.log("[run-bot] bot.js exited with code " + code));
-      proc.on("error", err => console.log("[run-bot] error: " + err.message));
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: true, triggered: true }));
-    } catch (e) {
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ ok: false, error: e.message }));
-    }
-    return;
-  }
 
   // ── PWA assets (no auth required) ────────────────────────────────────────
   if (req.url === "/manifest.json") {
@@ -5018,10 +5012,39 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // ── Auth guard ──────────────────────────────────────────────────────────────
+  // ── Auth guard (catch-all). NOTE: any new endpoint that needs to return ─
+  // its OWN 401 instead of a redirect (e.g. /api/me) MUST be placed ABOVE
+  // this gate. Anything below is auth-required and will redirect to /login.
   if (!isAuthenticated(req)) {
     res.writeHead(302, { Location: "/login" });
     res.end();
+    return;
+  }
+
+  // ── Bot run trigger (auth-required; dashboard self-heal calls this) ─────
+  if (req.url === "/api/run-bot" && req.method === "POST") {
+    try {
+      let lastRunAge = null;
+      if (existsSync("safety-check-log.json")) {
+        const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+        const last = log.trades[log.trades.length - 1];
+        if (last) lastRunAge = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
+      }
+      if (lastRunAge !== null && lastRunAge < 4) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: true, data: { skipped: true, reason: "Last run was " + lastRunAge.toFixed(1) + " min ago" } }));
+        return;
+      }
+      console.log("[run-bot] Triggered via API (last run age: " + (lastRunAge?.toFixed(1) ?? "n/a") + " min)");
+      const proc = spawn("node", ["bot.js"], { stdio: "inherit" });
+      proc.on("exit", code => console.log("[run-bot] bot.js exited with code " + code));
+      proc.on("error", err => console.log("[run-bot] error: " + err.message));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: true, data: { triggered: true } }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+    }
     return;
   }
 

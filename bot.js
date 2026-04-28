@@ -10,9 +10,38 @@
  */
 
 import "dotenv/config";
-import { readFileSync, writeFileSync, existsSync, appendFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, appendFileSync, unlinkSync } from "fs";
 import crypto from "crypto";
 import { execSync } from "child_process";
+
+// ─── Single-instance lock ─────────────────────────────────────────────────────
+// Prevents duplicate bot.js processes from running concurrently. Three
+// triggers can spawn this script (Railway cron, dashboard embedded runner,
+// /api/run-bot endpoint); without a lock they could double-execute trades.
+const LOCK_FILE = ".bot.lock";
+
+function acquireBotLock() {
+  if (existsSync(LOCK_FILE)) {
+    const raw = readFileSync(LOCK_FILE, "utf8").trim();
+    const pid = parseInt(raw, 10);
+    if (Number.isFinite(pid)) {
+      try { process.kill(pid, 0); return false; } // process alive -> lock held
+      catch { /* stale lock, fall through and overwrite */ }
+    }
+  }
+  writeFileSync(LOCK_FILE, String(process.pid));
+  return true;
+}
+function releaseBotLock() {
+  try {
+    const raw = existsSync(LOCK_FILE) ? readFileSync(LOCK_FILE, "utf8").trim() : "";
+    if (raw === String(process.pid)) unlinkSync(LOCK_FILE);
+  } catch {}
+}
+// Always release on any exit path (clean, signal, uncaught throw)
+process.on("exit",   releaseBotLock);
+process.on("SIGINT", () => { releaseBotLock(); process.exit(130); });
+process.on("SIGTERM",() => { releaseBotLock(); process.exit(143); });
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 
@@ -97,20 +126,21 @@ function describeSignalReason(signal, vol, rsi3) {
 
 async function notifyDiscord(message) {
   const webhook = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhook) return; // no webhook configured -> silent no-op
+  if (!webhook) return false; // no webhook configured -> not delivered
   try {
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 5000);
-    await fetch(webhook, {
+    const res = await fetch(webhook, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: message.slice(0, 1900) }),
       signal: ctl.signal,
     });
     clearTimeout(timer);
+    return res.ok; // Discord returns 204 on success
   } catch (err) {
     console.log(`[discord] notification failed: ${err.message}`);
-    // never let Discord failures block the bot
+    return false; // never let Discord failures block the bot
   }
 }
 
@@ -135,7 +165,7 @@ async function maybeSendDailySummary(log, ctrl) {
   const winRate = exits.length ? `${Math.round((wins.length / exits.length) * 100)}%` : "—";
   const pnlStr  = pnlUsd >= 0 ? `+$${pnlUsd.toFixed(2)}` : `-$${Math.abs(pnlUsd).toFixed(2)}`;
 
-  await notifyDiscord(
+  const delivered = await notifyDiscord(
     `📊 DAILY SUMMARY · ${yesterday}\n` +
     `Asset: ${CONFIG.symbol}\n` +
     `Trades: ${entries.length} entries · ${exits.length} exits (${wins.length}W / ${losses.length}L · ${winRate})\n` +
@@ -143,8 +173,12 @@ async function maybeSendDailySummary(log, ctrl) {
     `Peak score: ${peakScore.toFixed(0)}/100 · ${skips} skipped cycles`
   );
 
-  ctrl.lastSummaryDate = todayUtc;
-  saveControl(ctrl);
+  if (delivered) {
+    ctrl.lastSummaryDate = todayUtc;
+    saveControl(ctrl);
+  } else {
+    console.log("[summary] Discord delivery failed — will retry next cycle");
+  }
 }
 
 // ─── Config ────────────────────────────────────────────────────────────────
@@ -981,6 +1015,10 @@ function generateTaxSummary() {
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function run() {
+  if (!acquireBotLock()) {
+    console.log("[lock] another bot.js process is running — skipping this cycle");
+    return;
+  }
   checkOnboarding();
   initCsv();
 
