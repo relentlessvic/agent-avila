@@ -196,29 +196,41 @@ function loadPerfState() {
 }
 
 function updatePerfState(log) {
-  const exits = log.trades.filter(t => t.type === "EXIT" && t.pnlUSD !== undefined);
-  if (!exits.length) return loadPerfState();
+  // Only count REAL exits — exclude internal re-entry mechanics (REENTRY_SIGNAL)
+  // and only count exits where the position actually closed for a P&L
+  const realExits = log.trades.filter(t =>
+    t.type === "EXIT" &&
+    t.pnlUSD !== undefined &&
+    t.exitReason !== "REENTRY_SIGNAL"
+  );
+  if (!realExits.length) return loadPerfState();
 
-  const wins   = exits.filter(t => parseFloat(t.pnlUSD) > 0);
-  const losses = exits.filter(t => parseFloat(t.pnlUSD) <= 0);
-  const totalTrades    = exits.length;
-  const winRate        = totalTrades > 0 ? wins.length / totalTrades : 0;
-  const avgProfit      = wins.length   > 0 ? wins.reduce((s, t)   => s + parseFloat(t.pnlUSD), 0) / wins.length   : 0;
-  const avgLoss        = losses.length > 0 ? losses.reduce((s, t) => s + Math.abs(parseFloat(t.pnlUSD)), 0) / losses.length : 0;
-  const grossProfit    = wins.reduce((s, t) => s + parseFloat(t.pnlUSD), 0);
-  const grossLoss      = losses.reduce((s, t) => s + Math.abs(parseFloat(t.pnlUSD)), 0);
-  const profitFactor   = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999 : 0;
-  const totalPnL       = exits.reduce((s, t) => s + parseFloat(t.pnlUSD), 0);
-  const drawdown       = totalPnL < 0 ? Math.abs(totalPnL) / CONFIG.paperStartingBalance * 100 : 0;
+  const wins      = realExits.filter(t => parseFloat(t.pnlUSD) > 0);
+  const losses    = realExits.filter(t => parseFloat(t.pnlUSD) < 0);
+  const breakeven = realExits.filter(t => parseFloat(t.pnlUSD) === 0);
 
-  // Consecutive wins/losses
+  const totalTrades  = realExits.length;
+  // Win rate excludes breakeven trades from denominator (decisive trades only)
+  const decisive     = wins.length + losses.length;
+  const winRate      = decisive > 0 ? wins.length / decisive : 0;
+  const avgProfit    = wins.length   > 0 ? wins.reduce((s, t)   => s + parseFloat(t.pnlUSD), 0) / wins.length   : 0;
+  const avgLoss      = losses.length > 0 ? losses.reduce((s, t) => s + Math.abs(parseFloat(t.pnlUSD)), 0) / losses.length : 0;
+  const grossProfit  = wins.reduce((s, t) => s + parseFloat(t.pnlUSD), 0);
+  const grossLoss    = losses.reduce((s, t) => s + Math.abs(parseFloat(t.pnlUSD)), 0);
+  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999 : 0;
+  const totalPnL     = realExits.reduce((s, t) => s + parseFloat(t.pnlUSD), 0);
+  const drawdown     = totalPnL < 0 ? Math.abs(totalPnL) / CONFIG.paperStartingBalance * 100 : 0;
+
+  // Consecutive wins/losses (skip breakeven)
   let consecutiveWins = 0, consecutiveLosses = 0;
-  for (let i = exits.length - 1; i >= 0; i--) {
-    if (parseFloat(exits[i].pnlUSD) > 0) { if (consecutiveLosses === 0) consecutiveWins++; else break; }
-    else                                  { if (consecutiveWins === 0)   consecutiveLosses++; else break; }
+  for (let i = realExits.length - 1; i >= 0; i--) {
+    const pnl = parseFloat(realExits[i].pnlUSD);
+    if (pnl === 0) continue;
+    if (pnl > 0) { if (consecutiveLosses === 0) consecutiveWins++; else break; }
+    else         { if (consecutiveWins === 0)   consecutiveLosses++; else break; }
   }
 
-  const perf = { totalTrades, wins: wins.length, losses: losses.length, winRate, avgProfit, avgLoss, profitFactor, drawdown, consecutiveWins, consecutiveLosses, adaptedThreshold: 75, adaptedRiskMultiplier: 1.0, leverageDisabledUntil: null, updatedAt: new Date().toISOString() };
+  const perf = { totalTrades, wins: wins.length, losses: losses.length, breakeven: breakeven.length, winRate, avgProfit, avgLoss, profitFactor, drawdown, consecutiveWins, consecutiveLosses, adaptedThreshold: 75, adaptedRiskMultiplier: 1.0, leverageDisabledUntil: null, updatedAt: new Date().toISOString() };
   writeFileSync(PERF_STATE_FILE, JSON.stringify(perf, null, 2));
   return perf;
 }
