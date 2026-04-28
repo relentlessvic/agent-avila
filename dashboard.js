@@ -1309,7 +1309,7 @@ const HTML = `<!DOCTYPE html>
     box-shadow: 0 0 20px var(--glow-red), 0 8px 32px rgba(0,0,0,0.4) !important;
   }
 
-  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  main { padding: 24px; padding-bottom: 96px; max-width: 1400px; margin: 0 auto; }
 
   /* ── Mobile responsive ── */
   @media (max-width: 768px) {
@@ -1374,6 +1374,10 @@ const HTML = `<!DOCTYPE html>
     border-radius: 8px;
     overflow: hidden;
     margin-bottom: 24px;
+  }
+  .chart-card iframe { min-height: 420px; }
+  @media (max-width: 768px) {
+    .chart-card iframe { min-height: 320px; }
   }
   /* ── Stats ── */
   .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
@@ -1520,7 +1524,7 @@ const HTML = `<!DOCTYPE html>
   .chat-suggest-btn:hover { background:rgba(0,212,255,0.15); }
   @media(max-width:768px) {
     .chat-panel { bottom:0; right:0; left:0; width:100%; max-height:85vh; border-radius:20px 20px 0 0; border-bottom:none; }
-    .chat-bubble { bottom:16px; right:16px; }
+    .chat-bubble { bottom:12px; right:12px; transform:scale(0.92); }
   }
 
   /* ── Active Strategies ── */
