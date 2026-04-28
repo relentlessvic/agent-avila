@@ -2495,7 +2495,7 @@ const HTML = `<!DOCTYPE html>
       chartInst = LightweightCharts.createChart(container, {
         width: container.clientWidth,
         height: 420,
-        layout: { background: { color: "#0d1117" }, textColor: "#e6edf3" },
+        layout: { background: { color: "#0d1117" }, textColor: "#e6edf3", attributionLogo: false },
         grid:   { vertLines: { color: "rgba(48,54,61,0.6)" }, horzLines: { color: "rgba(48,54,61,0.6)" } },
         crosshair: { mode: 0 },
         localization: { timeFormatter: ts => new Date(ts * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }) },
@@ -2544,7 +2544,7 @@ const HTML = `<!DOCTYPE html>
       rsiInst = LightweightCharts.createChart(rsiContainer, {
         width: rsiContainer.clientWidth,
         height: 120,
-        layout: { background: { color: "#0d1117" }, textColor: "#8b949e" },
+        layout: { background: { color: "#0d1117" }, textColor: "#8b949e", attributionLogo: false },
         grid:   { vertLines: { color: "rgba(48,54,61,0.4)" }, horzLines: { color: "rgba(48,54,61,0.4)" } },
         timeScale: { visible: false, borderColor: "#30363d" },
         rightPriceScale: { borderColor: "#30363d", scaleMargins: { top: 0.1, bottom: 0.1 } },
