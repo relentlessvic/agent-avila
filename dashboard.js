@@ -2527,7 +2527,7 @@ const HTML = `<!DOCTYPE html>
       if (data.error) throw new Error(data.error);
     } catch (e) {
       document.getElementById("chart-container").innerHTML =
-        \`<div class="chart-error">Chart unavailable: \${e.message}</div>\`;
+        \`<div class="chart-error">⚠ Chart data failed to load<div style="font-size:11px;color:rgba(139,148,158,0.6);margin-top:6px">\${e.message}</div></div>\`;
       return;
     }
 
@@ -3305,20 +3305,21 @@ const HTML = `<!DOCTYPE html>
 
   function updateHealthPanel(krakenOk, krakenLatency, lastRunAge, wsOk) {
     const set = (id, text, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = text; el.className = "health-check-status " + cls; };
-    set("hc-api", krakenOk ? "✅ Online" : "❌ Offline", krakenOk ? "health-ok" : "health-fail");
+    // Standard status badges: 🟢 DATA OK / 🟡 PARTIAL / 🔴 ERROR
+    set("hc-api", krakenOk ? "🟢 DATA OK" : "🔴 ERROR", krakenOk ? "health-ok" : "health-fail");
     const latEl = document.getElementById("hc-api-latency");
-    if (latEl) latEl.textContent = krakenOk ? krakenLatency + "ms" : "—";
-    set("hc-ws",  wsOk ? "✅ Connected" : "⚠️ Reconnecting", wsOk ? "health-ok" : "health-warn");
+    if (latEl) latEl.textContent = krakenOk ? krakenLatency + "ms" : "Connection failed";
+    set("hc-ws",  wsOk ? "🟢 DATA OK" : "🟡 PARTIAL", wsOk ? "health-ok" : "health-warn");
     const wsDetail = document.getElementById("hc-ws-detail");
-    if (wsDetail) wsDetail.textContent = wsOk ? "Real-time feed active" : "Attempting reconnect...";
+    if (wsDetail) wsDetail.textContent = wsOk ? "Real-time feed active" : "Reconnecting...";
     const fresh = lastRunAge !== null;
-    set("hc-data", fresh ? (lastRunAge <= 10 ? "✅ Fresh" : lastRunAge <= 30 ? "⚠️ Delayed" : "❌ Stale") : "—", fresh ? (lastRunAge <= 10 ? "health-ok" : lastRunAge <= 30 ? "health-warn" : "health-fail") : "");
+    set("hc-data", fresh ? (lastRunAge <= 10 ? "🟢 DATA OK" : lastRunAge <= 30 ? "🟡 PARTIAL" : "🔴 ERROR") : "🟡 PARTIAL", fresh ? (lastRunAge <= 10 ? "health-ok" : lastRunAge <= 30 ? "health-warn" : "health-fail") : "health-warn");
     const ageEl = document.getElementById("hc-data-age");
-    if (ageEl) ageEl.textContent = fresh ? lastRunAge + " min ago" : "No data";
+    if (ageEl) ageEl.textContent = fresh ? lastRunAge + " min ago" : "No data yet";
     const botOk = fresh && lastRunAge <= 15;
-    set("hc-bot", botOk ? "✅ Running" : "⚠️ Check cron", botOk ? "health-ok" : "health-warn");
+    set("hc-bot", botOk ? "🟢 DATA OK" : fresh ? "🟡 PARTIAL" : "🔴 ERROR", botOk ? "health-ok" : fresh ? "health-warn" : "health-fail");
     const botDetail = document.getElementById("hc-bot-detail");
-    if (botDetail) botDetail.textContent = botOk ? "On schedule (5m)" : "Last run > 15m ago";
+    if (botDetail) botDetail.textContent = botOk ? "On schedule (5m)" : fresh ? "Last run > 15m ago" : "Bot has not run yet";
     const navDot = document.getElementById("nav-drawer-health-dot");
     if (navDot) { const allOk = krakenOk && wsOk && botOk; navDot.style.background = allOk ? "var(--green)" : "var(--yellow)"; }
   }
@@ -4200,7 +4201,26 @@ const HTML = `<!DOCTYPE html>
         const cmd = data.commands[0].cmd;
         const confirmDiv = document.createElement("div");
         confirmDiv.className = "chat-msg chat-msg-confirm";
-        confirmDiv.innerHTML = \`⚠️ This command requires confirmation: <strong>\${cmd}</strong><div class="chat-confirm-btns"><button class="chat-confirm-yes" onclick="confirmChatCmd('\${cmd}', this)">✅ Confirm</button><button class="chat-confirm-no" onclick="this.closest('.chat-msg').remove()">❌ Cancel</button></div>\`;
+        const friendly = (() => {
+          const parts = cmd.split(" ");
+          const c = parts[0]; const v = parts.slice(1).join(" ");
+          const map = {
+            SET_RISK:        "Reduce risk to " + v + "%",
+            SET_LEVERAGE:    "Change leverage to " + v + "×",
+            SET_MAX_DAILY_LOSS: "Set max daily loss to " + v + "%",
+            SET_COOLDOWN:    "Set cooldown to " + v + " min",
+            PAUSE_TRADING:   "Pause all trading",
+            RESUME_TRADING:  "Resume trading",
+            STOP_BOT:        "Stop the bot",
+            START_BOT:       "Start the bot",
+            SET_MODE_LIVE:   "Switch to LIVE trading mode",
+            SET_MODE_PAPER:  "Switch to PAPER trading mode",
+            CLOSE_POSITION:  "Close the open position",
+            SELL_ALL:        "Sell ALL XRP holdings",
+          };
+          return map[c] || cmd;
+        })();
+        confirmDiv.innerHTML = \`⚠ About to execute: <strong>\${friendly}</strong><div class="chat-confirm-btns"><button class="chat-confirm-yes" onclick="confirmChatCmd('\${cmd}', this)">Confirm</button><button class="chat-confirm-no" onclick="this.closest('.chat-msg').remove()">Cancel</button></div>\`;
         document.getElementById("chat-messages").appendChild(confirmDiv);
         document.getElementById("chat-messages").scrollTop = 999999;
       }
