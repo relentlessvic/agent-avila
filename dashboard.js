@@ -3158,10 +3158,20 @@ const HTML = `<!DOCTYPE html>
     try {
       const data = await fetch("/api/health").then(r => r.json());
       updateHealthPanel(data.krakenOk, data.krakenLatency, data.lastRunAge, wsConnected);
+      // Self-heal: if data is stale (> 6 min), trigger a bot run to wake Railway from sleep
+      if (data.lastRunAge !== null && data.lastRunAge > 6) {
+        console.log("[self-heal] Data is " + data.lastRunAge + " min stale — triggering bot run");
+        try {
+          const r = await fetch("/api/run-bot", { method: "POST" }).then(x => x.json());
+          if (r.triggered) showToast("Bot was sleeping — woke it up", "info");
+        } catch {}
+      }
     } catch { updateHealthPanel(false, 0, null, wsConnected); }
   }
   runHealthCheck();
   setInterval(runHealthCheck, 30000);
+  // Re-check when tab becomes visible (user comes back to the page)
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) runHealthCheck(); });
 
   function toggleRsiHistory() {
     const body  = document.getElementById("rsi-section-body");
@@ -4158,6 +4168,34 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+
+  // ── Bot run trigger (rate-limited, no auth — wakes Railway from sleep) ──
+  if (req.url === "/api/run-bot" && req.method === "POST") {
+    try {
+      let lastRunAge = null;
+      if (existsSync("safety-check-log.json")) {
+        const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+        const last = log.trades[log.trades.length - 1];
+        if (last) lastRunAge = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
+      }
+      // Only run if stale (>4 min) to prevent abuse
+      if (lastRunAge !== null && lastRunAge < 4) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, skipped: true, reason: "Last run was " + lastRunAge.toFixed(1) + " min ago" }));
+        return;
+      }
+      console.log("[run-bot] Triggered via API (last run age: " + (lastRunAge?.toFixed(1) ?? "n/a") + " min)");
+      const proc = spawn("node", ["bot.js"], { stdio: "inherit" });
+      proc.on("exit", code => console.log("[run-bot] bot.js exited with code " + code));
+      proc.on("error", err => console.log("[run-bot] error: " + err.message));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, triggered: true }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
 
   // ── PWA assets (no auth required) ────────────────────────────────────────
   if (req.url === "/manifest.json") {
