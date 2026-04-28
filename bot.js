@@ -1044,9 +1044,10 @@ async function run() {
       writeTradeCsv(exitEntry);
 
       notifyDiscord(
-        `${parseFloat(exitUSD) >= 0 ? "✅" : "🔻"} EXIT · ${CONFIG.symbol} · ${exit.reason}\n` +
-        `Entry $${position.entryPrice.toFixed(4)} → Exit $${price.toFixed(4)}\n` +
-        `P&L: ${exit.pct}% ($${exitUSD})${CONFIG.paperTrading ? " · paper" : " · live"}`
+        `📉 SELL XRP SIGNAL\n` +
+        `Asset: ${CONFIG.symbol}\n` +
+        `Price: ${price.toFixed(4)}\n` +
+        `Reason: ${exit.reason.toLowerCase().replace(/_/g, " ")} · P&L ${exit.pct}% ($${exitUSD})${CONFIG.paperTrading ? " · paper" : ""}`
       );
 
       // Update cooldown + consecutive loss tracking
@@ -1062,8 +1063,8 @@ async function run() {
         saveControl(ctrl);
         console.log(`\n⚠️  ${ctrl.consecutiveLosses} consecutive losses — trading auto-paused.`);
         notifyDiscord(
-          `⏸ AUTO-PAUSE · ${ctrl.consecutiveLosses} consecutive losses\n` +
-          `Resume from the dashboard once you've reviewed.`
+          `⚠️ RISK ALERT\n` +
+          `Issue: system pause · ${ctrl.consecutiveLosses} consecutive losses on ${CONFIG.symbol}`
         );
       }
 
@@ -1159,16 +1160,19 @@ async function run() {
   // Kill switch — drawdown check
   const ks = checkKillSwitch(ctrl, log);
   if (ks.triggered) {
+    const wasAlreadyKilled = ctrl.killed === true;
     ctrl.killed = true;
     ctrl.updatedAt = new Date().toISOString();
     ctrl.updatedBy = "KILL_SWITCH_AUTO";
     saveControl(ctrl);
     console.log("🚨 Kill switch triggered — bot halted. Go to dashboard to reset.");
     console.log("═══════════════════════════════════════════════════════════\n");
-    notifyDiscord(
-      `🚨 KILL SWITCH · drawdown ${ks.drawdownPct.toFixed(2)}% ≥ ${CONFIG.killSwitchDrawdownPct}%\n` +
-      `Bot halted. Reset from the dashboard once you've reviewed.`
-    );
+    if (!wasAlreadyKilled) {
+      notifyDiscord(
+        `⚠️ RISK ALERT\n` +
+        `Issue: kill switch · drawdown ${ks.drawdownPct?.toFixed(2)}% ≥ ${CONFIG.killSwitchDrawdownPct}% on ${CONFIG.symbol}`
+      );
+    }
     return;
   }
 
@@ -1369,10 +1373,10 @@ async function run() {
       saveControl(ctrl);
 
       notifyDiscord(
-        `${CONFIG.paperTrading ? "📋 PAPER" : "🟢 LIVE"} ENTRY · ${CONFIG.symbol}\n` +
-        `Entry $${price.toFixed(4)} · Size $${tradeSize.toFixed(2)} · ${vol.leverage}x\n` +
-        `SL $${stopLoss.toFixed(4)} (-${vol.slPct}%) · TP $${takeProfit.toFixed(4)} (+${vol.tpPct}%)\n` +
-        `Score ${signal.score.toFixed(0)}/100 · Regime ${vol.regime || "—"}`
+        `📈 BUY XRP SIGNAL\n` +
+        `Asset: ${CONFIG.symbol}\n` +
+        `Price: ${price.toFixed(4)}\n` +
+        `Reason: ${vol.regime || "stable"} regime · score ${signal.score.toFixed(0)}/100 · ${vol.leverage}x${CONFIG.paperTrading ? " · paper" : ""}`
       );
     }
   }
