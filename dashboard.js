@@ -636,13 +636,15 @@ function loginPage(error = "") {
   button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   /* Show/hide password toggle */
   .password-wrap { position: relative; }
+  .password-wrap input { padding-right: 48px !important; }
   .password-toggle {
-    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
     background: none; border: none; color: var(--muted); cursor: pointer;
-    font-size: 12px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
-    transition: color 0.15s, background 0.15s;
+    font-size: 18px; padding: 6px 8px; border-radius: 6px; line-height: 1;
+    transition: opacity 0.15s, background 0.15s;
+    opacity: 0.7;
   }
-  .password-toggle:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+  .password-toggle:hover { opacity: 1; background: rgba(255,255,255,0.05); }
   /* Loading spinner */
   .btn-spinner {
     display: inline-block; width: 14px; height: 14px;
@@ -690,7 +692,7 @@ function loginPage(error = "") {
       <label for="password">Password</label>
       <div class="password-wrap">
         <input id="password" type="password" name="password" placeholder="••••••••" autocomplete="current-password" required>
-        <button type="button" class="password-toggle" onclick="togglePassword()" id="pw-toggle">Show</button>
+        <button type="button" class="password-toggle" onclick="togglePassword()" id="pw-toggle" aria-label="Toggle password visibility">👁</button>
       </div>
     </div>
     <div class="row">
@@ -701,13 +703,16 @@ function loginPage(error = "") {
     </div>
     <button type="submit" id="login-submit"><span id="login-btn-text">Sign in →</span></button>
   </form>
-  <div class="footer-text">Protected by 2FA · <a href="https://github.com/relentlessvic/agent-avila">github.com/relentlessvic/agent-avila</a></div>
+  <div class="footer-text">
+    <p style="margin-bottom:4px">Secured by encrypted session · 2FA ready</p>
+    <a href="https://github.com/relentlessvic/agent-avila" style="text-decoration:underline">github.com/relentlessvic/agent-avila</a>
+  </div>
   <script>
     function togglePassword() {
       var pw = document.getElementById("password");
       var btn = document.getElementById("pw-toggle");
-      if (pw.type === "password") { pw.type = "text"; btn.textContent = "Hide"; }
-      else { pw.type = "password"; btn.textContent = "Show"; }
+      if (pw.type === "password") { pw.type = "text"; btn.textContent = "🙈"; }
+      else { pw.type = "password"; btn.textContent = "👁"; }
     }
     function showLoginError(msg) {
       var existing = document.querySelector(".error");
