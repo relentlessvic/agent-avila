@@ -1172,6 +1172,16 @@ async function run() {
   const withinLimits = checkTradeLimits(log);
   if (!withinLimits) {
     console.log("\nBot stopping — trade limits reached for today.");
+    const limitEntry = {
+      timestamp: new Date().toISOString(), symbol: CONFIG.symbol, timeframe: CONFIG.timeframe, price,
+      indicators: { ema8, vwap, rsi3 },
+      conditions: [{ label: "Daily trade limit", required: `< ${CONFIG.maxTradesPerDay}`, actual: `${countTodaysTrades(log)}/${CONFIG.maxTradesPerDay}`, pass: false }],
+      allPass: false, orderPlaced: false, paperTrading: CONFIG.paperTrading,
+      decisionLog: `⛔ DAILY LIMIT REACHED | Trades today: ${countTodaysTrades(log)}/${CONFIG.maxTradesPerDay} | Resets at midnight UTC`,
+    };
+    log.trades.push(limitEntry);
+    saveLog(log);
+    writeTradeCsv(limitEntry);
     return;
   }
 
