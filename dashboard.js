@@ -4852,7 +4852,10 @@ const server = createServer(async (req, res) => {
       log.warn("/login", "deprecated POST /login — routing to /api/login");
       return processLogin(req, res);
     }
-    res.writeHead(200, { "Content-Type": "text/html" });
+    res.writeHead(200, {
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store, must-revalidate",
+    });
     res.end(loginPage());
     return;
   }
@@ -4942,7 +4945,10 @@ const server = createServer(async (req, res) => {
       }
       return;
     }
-    res.writeHead(200, { "Content-Type": "text/html" });
+    res.writeHead(200, {
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store, must-revalidate",
+    });
     res.end(twoFaPage());
     return;
   }
@@ -5323,7 +5329,10 @@ RULES:
     }
 
   } else {
-    res.writeHead(200, { "Content-Type": "text/html" });
+    res.writeHead(200, {
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store, must-revalidate",
+    });
     res.end(HTML);
   }
 });
