@@ -2065,7 +2065,6 @@ const HTML = `<!DOCTYPE html>
     </button>
     <span class="nav-title">Agent Avila</span>
     <span class="badge badge-symbol" id="nav-symbol">—</span>
-    <span class="badge" id="nav-mode">—</span>
   </div>
   <div class="nav-right">
     <span id="last-updated">Loading...</span>
@@ -2439,9 +2438,6 @@ const HTML = `<!DOCTYPE html>
   </div>
   <div class="health-item" id="discord-status-item" style="margin-left:auto">
     <span class="discord-status discord-status-unknown" id="discord-status">Discord: ? unknown</span>
-  </div>
-  <div class="health-item">
-    <span id="live-mode-bar" style="font-size:11px;font-weight:600;color:var(--muted)">📋 PAPER · 5m · XRPUSDT</span>
   </div>
 </div>
 
@@ -2829,8 +2825,8 @@ const HTML = `<!DOCTYPE html>
       <div>
         <div class="ctrl-group-label">Trading Mode</div>
         <div class="ctrl-btns">
-          <button class="ctrl-btn ctrl-btn-warn"    id="btn-mode-live"  onclick="confirmLive()">🔴 SET_MODE_LIVE</button>
-          <button class="ctrl-btn ctrl-btn-success" id="btn-mode-paper" onclick="sendCmd('SET_MODE_PAPER')">📋 SET_MODE_PAPER</button>
+          <button class="ctrl-btn ctrl-btn-warn"    id="btn-mode-live"  onclick="confirmLive()">🔴 Switch to Live</button>
+          <button class="ctrl-btn ctrl-btn-success" id="btn-mode-paper" onclick="sendCmd('SET_MODE_PAPER')">📋 Switch to Paper</button>
         </div>
         <div class="ctrl-group-label" style="margin-top:12px">Resets</div>
         <div class="ctrl-btns">
@@ -4700,9 +4696,7 @@ const HTML = `<!DOCTYPE html>
       if (levBadge) levBadge.textContent = "⚡ " + effLev + "x";
     }
 
-    // Mode bar
-    const modeBar = document.getElementById("live-mode-bar");
-    if (modeBar) modeBar.textContent = (isPaper ? "📋 PAPER" : "🔴 LIVE") + " · 5m · XRPUSDT";
+    // (live-mode-bar removed — mode now shown in trading-status banner + pill-mode)
   }
 
   function switchTab(tab) {
@@ -4962,12 +4956,7 @@ const HTML = `<!DOCTYPE html>
 
     if (latest) {
       document.getElementById("nav-symbol").textContent = latest.symbol;
-      const modeEl = document.getElementById("nav-mode");
-      if (latest.paperTrading) {
-        modeEl.textContent = "Paper"; modeEl.className = "badge badge-paper";
-      } else {
-        modeEl.textContent = "Live";  modeEl.className = "badge badge-live";
-      }
+      // (nav-mode badge removed — mode shown in trading-status banner + pill-mode)
       document.getElementById("last-updated").textContent = "Last run " + timeAgo(latest.timestamp);
     }
 
