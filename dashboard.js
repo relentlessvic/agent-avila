@@ -160,6 +160,19 @@ function modeScopedSummary(wantPaper) {
   const losses = exits.filter(t => parseFloat(t.pnlUSD) < 0).length;
   const totalPnL = exits.reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
 
+  // Phase 4 — most recent bot decision in this mode (BUY / EXIT / BLOCKED).
+  // Picked from the same paper/live-filtered list so we never show the wrong
+  // mode's decision.
+  const last = trades.length ? trades[trades.length - 1] : null;
+  const latestDecision = last ? {
+    type: last.type || null,
+    timestamp: last.timestamp,
+    price: last.price ?? null,
+    exitReason: last.exitReason || null,
+    orderPlaced: last.orderPlaced === true,
+    allPass: last.allPass === true,
+  } : null;
+
   let control = {};
   try { if (existsSync("bot-control.json")) control = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
   let position = { open: false };
@@ -185,6 +198,7 @@ function modeScopedSummary(wantPaper) {
     positionUnavailableReason: !isActive
       ? `Bot currently in ${botInPaperMode ? "PAPER" : "LIVE"} mode — ${wantPaper ? "paper" : "live"} position not active`
       : (position.open ? null : "No open position"),
+    latestDecision,
     recentTrades: trades.slice(-30).reverse(),
     control: {
       stopped: !!control.stopped,
@@ -5664,6 +5678,12 @@ function modePage(mode) {
   .balances-list .row:last-child { border-bottom:0; }
   .full { grid-column:1/-1; }
   .empty { color:var(--muted); font-style:italic; padding:14px 0; }
+  details.advanced { max-width:1100px; margin:24px auto 0; background:var(--card); border:1px solid var(--line); border-radius:12px; }
+  details.advanced > summary { padding:14px 18px; cursor:pointer; font-size:13px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; user-select:none; outline:none; }
+  details.advanced > summary:hover { color:var(--text); }
+  details.advanced[open] > summary { border-bottom:1px solid var(--line); }
+  details.advanced .adv-body { padding:18px; display:flex; flex-direction:column; gap:24px; }
+  .adv-section-title { font-size:11px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -5689,9 +5709,9 @@ function modePage(mode) {
   </div>
 
   <div class="card">
-    <div class="card-title">${pnlLabel}</div>
-    <div id="pnl-stat" class="stat unavail">Loading…</div>
-    <div id="pnl-sub" class="stat-sub"></div>
+    <div class="card-title">${mode} Open Position</div>
+    <div id="pos-stat" class="stat unavail">Loading…</div>
+    <div id="pos-sub" class="stat-sub"></div>
   </div>
 
   <div class="card">
@@ -5701,32 +5721,45 @@ function modePage(mode) {
   </div>
 
   <div class="card">
-    <div class="card-title">${mode} Position</div>
-    <div id="pos-stat" class="stat unavail">Loading…</div>
-    <div id="pos-sub" class="stat-sub"></div>
+    <div class="card-title">${pnlLabel}</div>
+    <div id="pnl-stat" class="stat unavail">Loading…</div>
+    <div id="pnl-sub" class="stat-sub"></div>
   </div>
 
-  <div class="card full">
-    <div class="card-title">${tradesLabel}</div>
-    <div id="trades-body"><div class="empty">Loading…</div></div>
-  </div>
-
-  <div class="card full">
-    <div class="card-title">${ctrlLabel}</div>
-    <div id="ctrl-note" class="stat-sub" style="margin-bottom:10px"></div>
-    <div class="ctrl-row">
-      <button onclick="ctrl('START_BOT')">Start Bot</button>
-      <button onclick="ctrl('STOP_BOT')">Stop Bot</button>
-      <button onclick="ctrl('PAUSE_TRADING')">Pause</button>
-      <button onclick="ctrl('RESUME_TRADING')">Resume</button>
-      <button onclick="ctrl('RESET_KILL_SWITCH')" class="danger">Reset Kill Switch</button>
-      <button onclick="ctrl('RESET_LOSSES')">Reset Losses</button>
-      <button onclick="ctrl('RESET_COOLDOWN')">Reset Cooldown</button>
-    </div>
-    <div id="ctrl-result" class="stat-sub" style="margin-top:10px"></div>
+  <div class="card">
+    <div class="card-title">Last Bot Decision</div>
+    <div id="dec-stat" class="stat unavail">Loading…</div>
+    <div id="dec-sub" class="stat-sub"></div>
   </div>
 
 </div>
+
+<details class="advanced">
+  <summary>+ Advanced Details</summary>
+  <div class="adv-body">
+
+    <div>
+      <div class="adv-section-title">${tradesLabel} (history)</div>
+      <div id="trades-body"><div class="empty">Loading…</div></div>
+    </div>
+
+    <div>
+      <div class="adv-section-title">${ctrlLabel}</div>
+      <div id="ctrl-note" class="stat-sub" style="margin-bottom:10px"></div>
+      <div class="ctrl-row">
+        <button onclick="ctrl('START_BOT')">Start Bot</button>
+        <button onclick="ctrl('STOP_BOT', true)" class="danger">Stop Bot</button>
+        <button onclick="ctrl('PAUSE_TRADING')">Pause</button>
+        <button onclick="ctrl('RESUME_TRADING')">Resume</button>
+        <button onclick="ctrl('RESET_KILL_SWITCH', true)" class="danger">Reset Kill Switch</button>
+        <button onclick="ctrl('RESET_LOSSES')">Reset Losses</button>
+        <button onclick="ctrl('RESET_COOLDOWN')">Reset Cooldown</button>
+      </div>
+      <div id="ctrl-result" class="stat-sub" style="margin-top:10px"></div>
+    </div>
+
+  </div>
+</details>
 
 <script>
 const MODE = ${JSON.stringify(mode)};
@@ -5815,6 +5848,28 @@ function render(d) {
     posSub.textContent  = d.positionUnavailableReason || "—";
   }
 
+  // Last Bot Decision
+  const decStat = document.getElementById("dec-stat");
+  const decSub  = document.getElementById("dec-sub");
+  if (!d.latestDecision) {
+    decStat.textContent = "Unavailable";
+    decStat.className   = "stat unavail";
+    decSub.textContent  = "No " + MODE + " decisions logged yet";
+  } else {
+    const ld = d.latestDecision;
+    let label, cls = "stat";
+    if (ld.type === "EXIT")               { label = "EXIT"; cls = "stat pos-bad"; }
+    else if (ld.type === "BUY" || ld.type === "BUY_REENTRY" || ld.type === "MANUAL_BUY") { label = ld.type; cls = "stat pos-good"; }
+    else if (ld.type)                     { label = ld.type; }
+    else                                  { label = ld.allPass ? "PASS" : "BLOCKED"; cls = "stat unavail"; }
+    decStat.textContent = label;
+    decStat.className   = cls;
+    const when = ld.timestamp ? ld.timestamp.slice(0, 16).replace("T", " ") : "";
+    const px   = ld.price !== null && ld.price !== undefined ? "$" + Number(ld.price).toFixed(4) : "";
+    const reason = ld.exitReason ? " · " + ld.exitReason : "";
+    decSub.textContent = [when, px].filter(Boolean).join(" · ") + reason;
+  }
+
   // Trades
   const body = document.getElementById("trades-body");
   if (!d.recentTrades.length) {
@@ -5844,8 +5899,17 @@ function render(d) {
   }
 }
 
-async function ctrl(command) {
+async function ctrl(command, danger) {
   const out = document.getElementById("ctrl-result");
+  if (danger) {
+    const friendly = command === "STOP_BOT" ? "stop the bot"
+                  : command === "RESET_KILL_SWITCH" ? "reset the kill switch (re-enables trading after a forced halt)"
+                  : "run " + command;
+    if (!window.confirm("Are you sure you want to " + friendly + "?")) {
+      out.textContent = command + " cancelled.";
+      return;
+    }
+  }
   out.textContent = "Sending " + command + "…";
   try {
     const r = await fetch("/api/control", {
