@@ -7012,8 +7012,12 @@ connectTickerWS();
 // Live direction requires user to type CONFIRM (matches /dashboard pattern).
 async function switchMode(toLive) {
   if (toLive) {
+    // NOTE: this lives inside a backtick template literal in modePage(). \n
+    // would decode to a real newline on the wire and break the JS string
+    // literal at parse time. \\n stays escaped so the browser sees a normal
+    // string-newline.
     const typed = window.prompt(
-      "Switch to LIVE mode?\n\nReal money will be used. Bot's next trade will place a real order on Kraken. Type CONFIRM to proceed:"
+      "Switch to LIVE mode?\\n\\nReal money will be used. Bot's next trade will place a real order on Kraken. Type CONFIRM to proceed:"
     );
     if (typed !== "CONFIRM") {
       setCtrlMsg("Mode switch cancelled.");
