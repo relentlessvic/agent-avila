@@ -4404,6 +4404,11 @@ const HTML = `<!DOCTYPE html>
 
   // ── System Health Monitor ─────────────────────────────────────────────────
   let wsConnected = false;
+  // Vestigial flag referenced by updateHealthPanel below — its declaration
+  // was removed in an earlier refactor but two read sites stayed. Default
+  // to true so the existing "downgrade health when chart fails" branch
+  // stays inert (matches behavior pre-bug, since the throw used to skip it).
+  let chartOk = true;
 
   function updateHealthPanel(krakenOk, krakenLatency, lastRunAge, wsOk) {
     const set = (id, text, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = text; el.className = "health-check-status " + cls; };
