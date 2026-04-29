@@ -1234,6 +1234,10 @@ const HTML = `<!DOCTYPE html>
   .pill-pnl-pos { color: var(--green); }
   .pill-pnl-neg { color: var(--red); }
   .pill-last-trade { color: var(--muted); }
+  .pill-daily-loss-ok     { color: var(--muted); }
+  .pill-daily-loss-warn   { color: var(--yellow); border-color: rgba(255,181,71,0.4); background: rgba(255,181,71,0.06); }
+  .pill-daily-loss-danger { color: var(--red);    border-color: rgba(255,77,106,0.4); background: rgba(255,77,106,0.08); }
+  .pill-daily-loss-na     { color: var(--muted); opacity: 0.7; }
 
   /* ── Trading Status banner ── single READY/BLOCKED answer at the top */
   .trading-status {
@@ -2343,6 +2347,7 @@ const HTML = `<!DOCTYPE html>
     <span class="pill pill-bot" id="pill-bot">Bot: —</span>
     <span class="pill pill-risk" id="pill-risk">Risk: —%</span>
     <span class="pill pill-pnl" id="pill-pnl">P&L: —</span>
+    <span class="pill pill-daily-loss" id="pill-daily-loss">Daily: —</span>
     <span class="pill pill-last-trade" id="pill-last-trade">Last trade: —</span>
   </div>
 
@@ -3996,6 +4001,32 @@ const HTML = `<!DOCTYPE html>
       const sign = totalPnl >= 0 ? "+" : "";
       pillPnl.textContent = "P&L: " + sign + pct.toFixed(2) + "%";
       pillPnl.className = "pill " + (totalPnl > 0 ? "pill-pnl-pos" : totalPnl < 0 ? "pill-pnl-neg" : "");
+    }
+
+    // Daily loss vs configured cap. Shows USD used + % of cap. Style escalates:
+    //   <50%  -> ok (muted), 50-90% -> warn (yellow), >=100% -> danger (red).
+    // If maxDailyLossPct or recentTrades are missing, falls back to "unavailable".
+    const pillDailyLoss = document.getElementById("pill-daily-loss");
+    if (pillDailyLoss) {
+      const maxPct = ctrl.maxDailyLossPct;
+      const recent = Array.isArray(data.recentTrades) ? data.recentTrades : null;
+      if (!Number.isFinite(maxPct) || maxPct <= 0 || recent === null) {
+        pillDailyLoss.textContent = "Daily loss: unavailable";
+        pillDailyLoss.className   = "pill pill-daily-loss pill-daily-loss-na";
+      } else {
+        // Realized loss today (REENTRY mechanics excluded)
+        const today = new Date().toISOString().slice(0, 10);
+        const realizedToday = recent
+          .filter(t => t.type === "EXIT" && t.timestamp && t.timestamp.slice(0,10) === today && t.exitReason !== "REENTRY_SIGNAL")
+          .reduce((s, t) => s + parseFloat(t.pnlUSD || 0), 0);
+        const lossUSD = realizedToday < 0 ? -realizedToday : 0; // positive number = loss magnitude
+        const startBalance = parseFloat(data.portfolioState?.totalBalanceUSD) || 100;
+        const capUSD = startBalance * (maxPct / 100);
+        const usedPct = capUSD > 0 ? (lossUSD / capUSD) * 100 : 0;
+        const tier = usedPct >= 100 ? "danger" : usedPct >= 50 ? "warn" : "ok";
+        pillDailyLoss.textContent = "Daily: -$" + lossUSD.toFixed(2) + " / -$" + capUSD.toFixed(2) + " (" + Math.min(usedPct, 999).toFixed(0) + "%)";
+        pillDailyLoss.className   = "pill pill-daily-loss pill-daily-loss-" + tier;
+      }
     }
 
     // Last trade — most recent execution (entry OR exit), excludes skipped cycles
