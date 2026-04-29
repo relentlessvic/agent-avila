@@ -893,9 +893,52 @@ function signKraken(path, nonce, postData) {
     .digest("base64");
 }
 
+// Poll Kraken QueryOrders for a given txid. Returns { status, filledVolume,
+// filledPrice }. Market orders settle within tens-of-ms but network +
+// matching-engine latency can leave them "open" for ~1s. We wait briefly and
+// re-check once. Throws only on transport/auth failure — an "open" or
+// "canceled" status returns normally so the caller can decide.
+async function queryKrakenOrder(orderId) {
+  const tryOnce = async () => {
+    const nonce = Date.now().toString();
+    const path = "/0/private/QueryOrders";
+    const postData = new URLSearchParams({ nonce, txid: orderId }).toString();
+    const signature = signKraken(path, nonce, postData);
+    const res = await fetch(`${CONFIG.kraken.baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "API-Key": CONFIG.kraken.apiKey,
+        "API-Sign": signature,
+      },
+      body: postData,
+    });
+    const data = await res.json();
+    if (data.error?.length) throw new Error(`QueryOrders: ${data.error.join(", ")}`);
+    const ord = data.result?.[orderId];
+    if (!ord) throw new Error(`QueryOrders: txid ${orderId} not in response`);
+    return {
+      status: ord.status,                              // pending / open / closed / canceled / expired
+      filledVolume: parseFloat(ord.vol_exec || "0"),
+      filledPrice:  parseFloat(ord.price    || "0"),   // weighted-avg fill price for closed orders
+    };
+  };
+  let r;
+  try { r = await tryOnce(); }
+  catch (e) { return { status: "unknown", filledVolume: 0, filledPrice: 0, error: e.message }; }
+  // If still settling, wait 1.2s and re-check once
+  if (r.status === "pending" || r.status === "open") {
+    await new Promise(res => setTimeout(res, 1200));
+    try { r = await tryOnce(); }
+    catch (e) { return { status: "unknown", filledVolume: 0, filledPrice: 0, error: e.message }; }
+  }
+  return r;
+}
+
 async function placeKrakenOrder(symbol, side, sizeUSD, price, leverage = 1) {
   const krakenPair = mapToKrakenPair(symbol);
   const volume = (sizeUSD / price).toFixed(8);
+  const requestedVolume = parseFloat(volume);
   const nonce = Date.now().toString();
   const path = "/0/private/AddOrder";
 
@@ -920,7 +963,25 @@ async function placeKrakenOrder(symbol, side, sizeUSD, price, leverage = 1) {
     throw new Error(`Kraken order failed: ${data.error.join(", ")}`);
   }
 
-  return { orderId: data.result.txid[0] };
+  const orderId = data.result.txid[0];
+
+  // Confirm the order actually filled. Kraken accepting an order is NOT the
+  // same as Kraken filling it — partial fills, post-only rejects, and
+  // accepted-then-canceled orders all return a txid here.
+  const fill = await queryKrakenOrder(orderId);
+  const fullyFilled = fill.status === "closed" && fill.filledVolume >= requestedVolume * 0.99;
+  if (!fullyFilled) {
+    const detail = `status=${fill.status} filled=${fill.filledVolume}/${requestedVolume}` +
+                   (fill.error ? ` (${fill.error})` : "");
+    throw new Error(`Kraken order not confirmed filled — ${detail}`);
+  }
+
+  return {
+    orderId,
+    requestedVolume,
+    filledVolume: fill.filledVolume,
+    filledPrice: fill.filledPrice,
+  };
 }
 
 // ─── Tax CSV Logging ─────────────────────────────────────────────────────────
@@ -1197,15 +1258,17 @@ async function run() {
         try {
           const order = await placeKrakenOrder(position.symbol, "sell", position.tradeSize, price);
           exitEntry.orderId = order.orderId;
+          exitEntry.filledVolume = order.filledVolume;
+          exitEntry.filledPrice = order.filledPrice;
           exitEntry.orderPlaced = true;
-          console.log(`  ✅ SELL ORDER PLACED — ${order.orderId}`);
+          console.log(`  ✅ SELL FILLED — ${order.orderId} | ${order.filledVolume.toFixed(6)} @ $${order.filledPrice.toFixed(4)}`);
         } catch (err) {
           console.log(`  ❌ SELL ORDER FAILED — ${err.message}`);
           console.log(`  ⚠️  Position kept OPEN — bot will retry exit on next cycle.`);
           exitEntry.error = err.message;
           notifyDiscord(
             `⚠️ RISK ALERT\n` +
-            `Issue: live SELL order FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
+            `Issue: live SELL not confirmed filled on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
             `Position kept OPEN; bot will retry exit next cycle. Reconcile manually if Kraken position differs.`
           );
         }
@@ -1287,6 +1350,8 @@ async function run() {
           try {
             const o = await placeKrakenOrder(position.symbol, "sell", position.tradeSize, price);
             reexitEntry.orderId = o.orderId;
+            reexitEntry.filledVolume = o.filledVolume;
+            reexitEntry.filledPrice = o.filledPrice;
             reexitEntry.orderPlaced = true;
           } catch (err) {
             reexitEntry.error = err.message;
@@ -1294,7 +1359,7 @@ async function run() {
             console.log(`  ⚠️  Position kept OPEN — re-entry aborted.`);
             notifyDiscord(
               `⚠️ RISK ALERT\n` +
-              `Issue: live REENTRY-SELL FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
+              `Issue: live REENTRY-SELL not confirmed filled on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
               `Position kept OPEN; re-entry aborted. Reconcile manually if Kraken position differs.`
             );
           }
@@ -1316,21 +1381,39 @@ async function run() {
             const sl2 = price * (1 - vol2.slPct / 100);
             const tp2 = price * (1 + vol2.tpPct / 100);
             let reorderId = CONFIG.paperTrading ? `PAPER-REENTRY-${Date.now()}` : null;
+            // Paper auto-fills; live must be confirmed via QueryOrders.
+            let buyFilled = !!CONFIG.paperTrading;
+            let filledVol = null, filledPx = null;
             if (!CONFIG.paperTrading) {
               try {
                 const o = await placeKrakenOrder(position.symbol, "buy", ts2, price, vol2.leverage);
                 reorderId = o.orderId;
-              } catch (err) { console.log(`  ❌ Re-entry order failed: ${err.message}`); }
+                buyFilled = true;
+                filledVol = o.filledVolume;
+                filledPx  = o.filledPrice;
+              } catch (err) {
+                console.log(`  ❌ Re-entry BUY failed: ${err.message}`);
+                console.log(`  ⚠️  Position NOT marked open — re-entry aborted.`);
+                notifyDiscord(
+                  `⚠️ RISK ALERT\n` +
+                  `Issue: live REENTRY-BUY not confirmed filled on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
+                  `Position NOT marked open. Reconcile manually if Kraken position differs.`
+                );
+              }
             }
-            savePosition({
-              open: true, side: "long", symbol: CONFIG.symbol,
-              entryPrice: price, entryTime: new Date().toISOString(),
-              quantity: (ts2 * vol2.leverage) / price, tradeSize: ts2,
-              leverage: vol2.leverage, effectiveSize: ts2 * vol2.leverage,
-              orderId: reorderId, stopLoss: sl2, takeProfit: tp2,
-              entrySignalScore: newSig.score, volatilityLevel: vol2.level,
-            });
-            console.log(`  ✅ Re-entered — SL $${sl2.toFixed(4)} | TP $${tp2.toFixed(4)} | score ${newSig.score.toFixed(0)}`);
+            // Only mark position open when the BUY is confirmed filled.
+            if (buyFilled) {
+              savePosition({
+                open: true, side: "long", symbol: CONFIG.symbol,
+                entryPrice: filledPx || price, entryTime: new Date().toISOString(),
+                quantity: (ts2 * vol2.leverage) / price, tradeSize: ts2,
+                leverage: vol2.leverage, effectiveSize: ts2 * vol2.leverage,
+                orderId: reorderId, stopLoss: sl2, takeProfit: tp2,
+                entrySignalScore: newSig.score, volatilityLevel: vol2.level,
+                filledVolume: filledVol, filledPrice: filledPx,
+              });
+              console.log(`  ✅ Re-entered — SL $${sl2.toFixed(4)} | TP $${tp2.toFixed(4)} | score ${newSig.score.toFixed(0)}`);
+            }
           }
         } else {
           // Failed live close — record attempt for visibility, no csv, position retained.
@@ -1554,13 +1637,16 @@ async function run() {
         const order = await placeKrakenOrder(CONFIG.symbol, "buy", tradeSize, price, vol.leverage);
         logEntry.orderPlaced = true;
         logEntry.orderId = order.orderId;
-        console.log(`✅ ORDER PLACED — ${order.orderId}`);
+        logEntry.filledVolume = order.filledVolume;
+        logEntry.filledPrice = order.filledPrice;
+        console.log(`✅ BUY FILLED — ${order.orderId} | ${order.filledVolume.toFixed(6)} @ $${order.filledPrice.toFixed(4)}`);
       } catch (err) {
         console.log(`❌ ORDER FAILED — ${err.message}`);
         logEntry.error = err.message;
         notifyDiscord(
           `⚠️ RISK ALERT\n` +
-          `Issue: live BUY order FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}`
+          `Issue: live BUY not confirmed filled on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
+          `Position NOT marked open.`
         );
       }
     }
