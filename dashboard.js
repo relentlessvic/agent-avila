@@ -662,32 +662,36 @@ function loginPage(error = "") {
 <title>Sign in — Agent Avila</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  /* Phase 9a — palette aligned with Phase 8 (cyan + magenta accents). */
   :root {
-    --bg: #0B0F1A; --card: #121A2A; --border: rgba(0,212,255,0.12);
-    --text: #E6EDF3; --muted: #8B98A5; --blue: #00D4FF; --purple: #7C5CFF;
+    --bg: #0A0F1A; --bg-deep: #040711; --card: #121A2A;
+    --border: rgba(0,212,255,0.12);
+    --text: #E6EDF3; --muted: #8B98A5;
+    --cyan: #00D4FF; --magenta: #FF00C8;
     --red: #FF4D6A; --green: #00FF9A;
   }
   html, body { height: 100%; }
   body {
-    background: var(--bg);
-    background-image:
-      radial-gradient(ellipse 600px 400px at 25% 30%, rgba(0,212,255,0.08), transparent 70%),
-      radial-gradient(ellipse 600px 500px at 80% 80%, rgba(124,92,255,0.08), transparent 70%);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
     display: flex; align-items: center; justify-content: center;
     min-height: 100vh; padding: 20px;
     overflow: hidden;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%,    rgba(0,212,255,0.06)  0%, transparent 60%),
+      radial-gradient(ellipse 80% 50% at 50% 100%,  rgba(255,0,200,0.05)  0%, transparent 60%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    background-attachment: fixed;
   }
-  /* Animated background grid */
+  /* Subtle blueprint grid behind content. */
   body::before {
     content: ""; position: fixed; inset: 0;
     background-image:
-      linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
-    -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+      linear-gradient(rgba(255,255,255,0.020) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.020) 1px, transparent 1px);
+    background-size: 50px 50px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
     pointer-events: none;
   }
   .card {
@@ -706,29 +710,29 @@ function loginPage(error = "") {
     from { opacity: 0; transform: translateY(20px) scale(0.97); }
     to   { opacity: 1; transform: translateY(0)    scale(1); }
   }
-  /* Gradient border accent */
+  /* Gradient border accent (cyan → magenta). */
   .card::before {
     content: ""; position: absolute; inset: -1px; border-radius: 20px;
-    background: linear-gradient(135deg, rgba(0,212,255,0.5), rgba(124,92,255,0.5), transparent 60%);
+    background: linear-gradient(135deg, rgba(0,212,255,0.5), rgba(255,0,200,0.5), transparent 60%);
     z-index: -1; opacity: 0.4;
   }
   .logo-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 32px; }
   .logo {
     width: 56px; height: 56px; border-radius: 16px;
-    background: linear-gradient(135deg, var(--blue), var(--purple));
+    background: linear-gradient(135deg, var(--cyan), var(--magenta));
     display: flex; align-items: center; justify-content: center;
     font-size: 26px; font-weight: 900; color: #fff;
-    box-shadow: 0 8px 24px rgba(0,212,255,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+    box-shadow: 0 8px 24px rgba(0,212,255,0.30), inset 0 1px 0 rgba(255,255,255,0.2);
     margin-bottom: 16px;
     animation: logoPulse 3s ease-in-out infinite;
   }
   @keyframes logoPulse {
-    0%,100% { box-shadow: 0 8px 24px rgba(0,212,255,0.35), inset 0 1px 0 rgba(255,255,255,0.2); }
-    50%     { box-shadow: 0 8px 32px rgba(0,212,255,0.55), inset 0 1px 0 rgba(255,255,255,0.2); }
+    0%,100% { box-shadow: 0 8px 24px rgba(0,212,255,0.30), inset 0 1px 0 rgba(255,255,255,0.2); }
+    50%     { box-shadow: 0 8px 32px rgba(255,0,200,0.40), inset 0 1px 0 rgba(255,255,255,0.2); }
   }
   h1 {
     font-size: 24px; font-weight: 800; letter-spacing: -0.02em;
-    background: linear-gradient(90deg, var(--blue), var(--purple));
+    background: linear-gradient(90deg, var(--cyan), var(--magenta));
     -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     background-clip: text;
   }
@@ -750,7 +754,7 @@ function loginPage(error = "") {
     color: rgba(139,152,165,0.5);
   }
   input[type="email"]:focus, input[type="password"]:focus {
-    border-color: var(--blue);
+    border-color: var(--cyan);
     background: rgba(0,212,255,0.04);
     box-shadow: 0 0 0 4px rgba(0,212,255,0.12);
   }
@@ -759,21 +763,21 @@ function loginPage(error = "") {
     margin-bottom: 24px; font-size: 12px;
   }
   .checkbox-wrap { display: flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; user-select: none; }
-  .checkbox-wrap input { width: 14px; height: 14px; accent-color: var(--blue); cursor: pointer; }
-  .forgot { color: var(--blue); text-decoration: none; font-weight: 500; transition: opacity 0.15s; }
+  .checkbox-wrap input { width: 14px; height: 14px; accent-color: var(--cyan); cursor: pointer; }
+  .forgot { color: var(--cyan); text-decoration: none; font-weight: 500; transition: opacity 0.15s; }
   .forgot:hover { opacity: 0.75; }
   button[type="submit"] {
     width: 100%; padding: 14px;
-    background: linear-gradient(135deg, var(--blue), var(--purple));
+    background: linear-gradient(135deg, var(--cyan), var(--magenta));
     color: #fff; border: none; border-radius: 12px;
     font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
     cursor: pointer; transition: all 0.2s;
-    box-shadow: 0 4px 14px rgba(0,212,255,0.3);
+    box-shadow: 0 4px 14px rgba(0,212,255,0.25);
     font-family: inherit;
   }
   button[type="submit"]:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 8px 22px rgba(0,212,255,0.45);
+    box-shadow: 0 8px 22px rgba(255,0,200,0.35);
   }
   button[type="submit"]:active:not(:disabled) { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,212,255,0.3); }
   button[type="submit"]:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
@@ -810,7 +814,7 @@ function loginPage(error = "") {
     margin-top: 24px; padding-top: 20px;
     border-top: 1px solid rgba(255,255,255,0.04);
   }
-  .footer-text a { color: var(--blue); text-decoration: none; }
+  .footer-text a { color: var(--cyan); text-decoration: none; }
   @media (max-width: 480px) {
     .card { padding: 32px 24px; border-radius: 16px; }
     h1 { font-size: 22px; }
@@ -1199,43 +1203,173 @@ function twoFaPage(error = "") {
 <title>2FA — Agent Avila</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --blue: #58a6ff; --red: #f85149; --yellow: #d29922; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; width: 380px; }
-  h1 { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
-  .sub { color: var(--muted); font-size: 13px; margin-bottom: 28px; }
-  label { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px; }
-  .totp-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 22px; letter-spacing: 6px; text-align: center; padding: 12px; outline: none; margin-bottom: 16px; transition: border-color 0.15s; }
-  .phrase-input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; padding: 10px 12px; outline: none; margin-bottom: 16px; transition: border-color 0.15s; }
-  input:focus { border-color: var(--blue); }
-  .btn-primary { width: 100%; background: var(--blue); color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; padding: 11px; cursor: pointer; transition: opacity 0.15s; }
-  .btn-primary:hover { opacity: 0.85; }
-  .error { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--red); border-radius: 6px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; }
-  .divider { display: flex; align-items: center; gap: 12px; margin: 24px 0; color: var(--muted); font-size: 12px; }
-  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
-  .backup-label { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
-  .back { display: block; text-align: center; margin-top: 20px; font-size: 13px; color: var(--muted); text-decoration: none; }
-  .back:hover { color: var(--text); }
+  /* Phase 9a — palette aligned with Phase 8 (cyan + magenta accents). */
+  :root {
+    --bg: #0A0F1A; --bg-deep: #040711; --card: #121A2A;
+    --border: rgba(0,212,255,0.12);
+    --text: #E6EDF3; --muted: #8B98A5;
+    --cyan: #00D4FF; --magenta: #FF00C8;
+    --red: #FF4D6A; --green: #00FF9A;
+  }
+  html, body { height: 100%; }
+  body {
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 20px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%,    rgba(0,212,255,0.06)  0%, transparent 60%),
+      radial-gradient(ellipse 80% 50% at 50% 100%,  rgba(255,0,200,0.05)  0%, transparent 60%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    background-attachment: fixed;
+  }
+  /* Subtle blueprint grid behind content. */
+  body::before {
+    content: ""; position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.020) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.020) 1px, transparent 1px);
+    background-size: 50px 50px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+    pointer-events: none;
+  }
+  .card {
+    position: relative; width: 100%; max-width: 420px;
+    background: rgba(18,26,42,0.85);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border); border-radius: 20px;
+    padding: 44px 40px;
+    box-shadow:
+      0 20px 60px rgba(0,0,0,0.5),
+      0 0 40px rgba(0,212,255,0.08),
+      inset 0 1px 0 rgba(255,255,255,0.04);
+    animation: cardIn 0.6s cubic-bezier(0.16,1,0.3,1);
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+  /* Gradient border accent (cyan → magenta). */
+  .card::before {
+    content: ""; position: absolute; inset: -1px; border-radius: 20px;
+    background: linear-gradient(135deg, rgba(0,212,255,0.5), rgba(255,0,200,0.5), transparent 60%);
+    z-index: -1; opacity: 0.4;
+  }
+  .logo-wrap { display: flex; flex-direction: column; align-items: center; margin-bottom: 28px; text-align: center; }
+  .logo {
+    width: 56px; height: 56px; border-radius: 16px;
+    background: linear-gradient(135deg, var(--cyan), var(--magenta));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; color: #fff;
+    box-shadow: 0 8px 24px rgba(0,212,255,0.30), inset 0 1px 0 rgba(255,255,255,0.2);
+    margin-bottom: 16px;
+    animation: logoPulse 3s ease-in-out infinite;
+  }
+  @keyframes logoPulse {
+    0%,100% { box-shadow: 0 8px 24px rgba(0,212,255,0.30), inset 0 1px 0 rgba(255,255,255,0.2); }
+    50%     { box-shadow: 0 8px 32px rgba(255,0,200,0.40), inset 0 1px 0 rgba(255,255,255,0.2); }
+  }
+  h1 {
+    font-size: 22px; font-weight: 800; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--cyan), var(--magenta));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  label {
+    display: block; font-size: 11px; font-weight: 600;
+    color: var(--muted); margin-bottom: 7px;
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .totp-input, .phrase-input {
+    width: 100%; background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text); padding: 13px 16px;
+    outline: none; transition: all 0.2s;
+    font-family: inherit; margin-bottom: 14px;
+  }
+  .totp-input {
+    font-size: 24px; letter-spacing: 8px; text-align: center;
+    font-variant-numeric: tabular-nums; font-weight: 600;
+  }
+  .phrase-input { font-size: 14px; }
+  .totp-input::placeholder, .phrase-input::placeholder { color: rgba(139,152,165,0.5); letter-spacing: normal; }
+  .totp-input:focus, .phrase-input:focus {
+    border-color: var(--cyan);
+    background: rgba(0,212,255,0.04);
+    box-shadow: 0 0 0 4px rgba(0,212,255,0.12);
+  }
+  .btn-primary {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, var(--cyan), var(--magenta));
+    color: #fff; border: none; border-radius: 12px;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.01em;
+    cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 14px rgba(0,212,255,0.25);
+    font-family: inherit;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(255,0,200,0.35); }
+  .btn-primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,212,255,0.25); }
+  .btn-secondary {
+    width: 100%; padding: 12px;
+    background: transparent; color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: border-color 0.2s, background 0.2s;
+    font-family: inherit;
+  }
+  .btn-secondary:hover { border-color: rgba(0,212,255,0.4); background: rgba(0,212,255,0.04); }
+  .error {
+    background: rgba(255,77,106,0.08);
+    border: 1px solid rgba(255,77,106,0.25);
+    color: var(--red); border-radius: 10px;
+    padding: 11px 14px; font-size: 13px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 18px; color: var(--muted); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+  .backup-label { font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+  .footer-text {
+    text-align: center; color: var(--muted); font-size: 12px;
+    margin-top: 22px; padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+  .footer-text a { color: var(--muted); text-decoration: none; transition: color 0.15s; }
+  .footer-text a:hover { color: var(--text); }
+  @media (max-width: 480px) {
+    .card { padding: 32px 24px; border-radius: 16px; }
+    h1 { font-size: 20px; }
+    .logo { width: 48px; height: 48px; font-size: 22px; }
+    .totp-input { font-size: 20px; letter-spacing: 6px; }
+  }
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>Two-Factor Auth</h1>
-  <p class="sub">Enter the 6-digit code from your authenticator app</p>
-  ${error ? `<div class="error">${error}</div>` : ""}
+  <div class="logo-wrap">
+    <div class="logo">⚡</div>
+    <h1>Two-Factor Auth</h1>
+    <p class="sub">Enter the 6-digit code from your authenticator app</p>
+  </div>
+  ${error ? `<div class="error">⚠ ${error}</div>` : ""}
   <form method="POST" action="/2fa">
     <label>Authenticator Code</label>
-    <input class="totp-input" type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" autofocus>
-    <button class="btn-primary" type="submit">Verify</button>
+    <input class="totp-input" type="text" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" autofocus>
+    <button class="btn-primary" type="submit">Verify →</button>
   </form>
-  <div class="divider">or</div>
-  <p class="backup-label">Can't access your authenticator app? Use your backup phrase.</p>
+  <div class="divider">or use backup</div>
+  <p class="backup-label">Can't access your authenticator? Use the backup phrase you saved when 2FA was set up.</p>
   <form method="POST" action="/2fa">
     <label>Backup Phrase</label>
     <input class="phrase-input" type="password" name="backup" autocomplete="off" placeholder="Enter backup phrase">
-    <button class="btn-primary" type="submit">Use Backup Phrase</button>
+    <button class="btn-secondary" type="submit">Use Backup Phrase</button>
   </form>
-  <a href="/login" class="back">← Back to login</a>
+  <div class="footer-text">
+    <a href="/login">← Back to login</a>
+  </div>
 </div>
 </body>
 </html>`;
