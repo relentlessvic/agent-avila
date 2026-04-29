@@ -1234,6 +1234,8 @@ const HTML = `<!DOCTYPE html>
   .pill-pnl-pos { color: var(--green); }
   .pill-pnl-neg { color: var(--red); }
   .pill-last-trade { color: var(--muted); }
+  .pill-max-trade  { color: var(--muted); }
+  .pill-max-trade-na { color: var(--muted); opacity: 0.7; }
   .pill-daily-loss-ok     { color: var(--muted); }
   .pill-daily-loss-warn   { color: var(--yellow); border-color: rgba(255,181,71,0.4); background: rgba(255,181,71,0.06); }
   .pill-daily-loss-danger { color: var(--red);    border-color: rgba(255,77,106,0.4); background: rgba(255,77,106,0.08); }
@@ -2418,6 +2420,7 @@ const HTML = `<!DOCTYPE html>
     <span class="pill pill-score" id="pill-score">Score: —</span>
     <span class="pill pill-bot" id="pill-bot">Bot: —</span>
     <span class="pill pill-risk" id="pill-risk">Risk: —%</span>
+    <span class="pill pill-max-trade" id="pill-max-trade">Max Trade: —</span>
     <span class="pill pill-pnl" id="pill-pnl">P&L: —</span>
     <span class="pill pill-daily-loss" id="pill-daily-loss">Daily: —</span>
     <span class="pill pill-last-trade" id="pill-last-trade">Last trade: —</span>
@@ -4187,6 +4190,29 @@ const HTML = `<!DOCTYPE html>
     // Risk
     const pillRisk = document.getElementById("pill-risk");
     if (pillRisk) pillRisk.textContent = "Risk: " + (ctrl.riskPct ?? 1) + "%";
+
+    // Max trade size — bot writes CONFIG.maxTradeSizeUSD into every safety-
+    // check-log entry under .limits. Read from data.latest first; fall back
+    // to scanning recentTrades for the most recent entry that has it. If
+    // neither path yields a finite number → "unavailable".
+    const pillMaxTrade = document.getElementById("pill-max-trade");
+    if (pillMaxTrade) {
+      let cap = data.latest?.limits?.maxTradeSizeUSD;
+      if (!Number.isFinite(cap)) {
+        const trades = Array.isArray(data.recentTrades) ? data.recentTrades : [];
+        for (let i = trades.length - 1; i >= 0; i--) {
+          const v = trades[i]?.limits?.maxTradeSizeUSD;
+          if (Number.isFinite(v)) { cap = v; break; }
+        }
+      }
+      if (Number.isFinite(cap)) {
+        pillMaxTrade.textContent = "Max Trade: $" + cap.toFixed(0);
+        pillMaxTrade.className   = "pill pill-max-trade";
+      } else {
+        pillMaxTrade.textContent = "Max Trade: unavailable";
+        pillMaxTrade.className   = "pill pill-max-trade pill-max-trade-na";
+      }
+    }
 
     // P&L (unrealized + realized combined)
     const pillPnl = document.getElementById("pill-pnl");
