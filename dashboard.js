@@ -3668,7 +3668,10 @@ const HTML = `<!DOCTYPE html>
     log.insertBefore(div, log.firstChild);
   }
 
-  async function tradeCmd(command, params = {}) {
+  async function tradeCmd(command, params = {}, _btn) {
+    // Phase 5b — button lock. Capture btn synchronously before any await.
+    const release = lockBtn(_btn !== undefined ? _btn : _activeBtn());
+    try {
     // LIVE mode safety gate — every market action requires CONFIRM
     const isPaper = lastRenderData?.control?.paperTrading !== false;
     const liveActions = ["BUY_MARKET", "OPEN_LONG", "CLOSE_POSITION", "SELL_ALL"];
@@ -3705,6 +3708,7 @@ const HTML = `<!DOCTYPE html>
       tradeLog("❌ " + e.message, "err");
       showToast("❌ " + e.message, "error");
     }
+    } finally { release(); }
   }
 
   async function confirmTrade(command, message) {
@@ -3739,10 +3743,17 @@ const HTML = `<!DOCTYPE html>
       });
       if (!ok) return;
     }
+    // Phase 5b — lock all 3 preset buttons for the dual-command window so a
+    // second preset click can't interleave SET_RISK from one preset with
+    // SET_LEVERAGE from another. Pass null to inner sendCmds so they don't
+    // re-lock a stale button.
+    const presetBtns = [...document.querySelectorAll(".bot-mode-btn")];
+    const releases = presetBtns.map(b => lockBtn(b));
     document.querySelectorAll(".bot-mode-btn").forEach(b => b.classList.remove("active"));
     document.getElementById("mode-preset-" + mode)?.classList.add("active");
-    sendCmd("SET_RISK", String(preset.riskPct));
-    setTimeout(() => sendCmd("SET_LEVERAGE", String(preset.leverage)), 300);
+    sendCmd("SET_RISK", String(preset.riskPct), null);
+    setTimeout(() => sendCmd("SET_LEVERAGE", String(preset.leverage), null), 300);
+    setTimeout(() => releases.forEach(r => r()), 1500);
     showToast("⚙️ Mode preset applied: " + preset.label, "success");
   }
 
@@ -3831,7 +3842,9 @@ const HTML = `<!DOCTYPE html>
     if (ok) sendCmd("RESET_KILL_SWITCH");
   }
 
-  async function sendCmd(command, value) {
+  async function sendCmd(command, value, _btn) {
+    // Phase 5b — button lock. Capture btn synchronously before any await.
+    const release = lockBtn(_btn !== undefined ? _btn : _activeBtn());
     try {
       const body = value !== undefined ? { command, value } : { command };
       const res  = await fetch("/api/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -3844,6 +3857,7 @@ const HTML = `<!DOCTYPE html>
       }
       else showToast("Command failed: " + data.error, "error");
     } catch (e) { showToast("Error: " + e.message, "error"); }
+    finally { release(); }
   }
 
   async function confirmLive() {
@@ -4014,6 +4028,23 @@ const HTML = `<!DOCTYPE html>
   }
   function closeModal()         { if (modalAction) modalAction(false); }
   function confirmModalAction() { if (modalAction) modalAction(true);  }
+
+  // Phase 5b — button lock helper. Disables the triggering button while a
+  // request is in flight and releases on settle. _activeBtn() reads
+  // window.event SYNCHRONOUSLY at handler entry (before any await) so async
+  // drift can't lock the wrong target. Callers in chained flows (e.g.
+  // applyBotMode → sendCmd) pass an explicit btn (or null) to override.
+  function lockBtn(btn) {
+    if (!btn || btn.disabled) return () => {};
+    btn.disabled = true;
+    let released = false;
+    return () => { if (!released) { released = true; btn.disabled = false; } };
+  }
+  function _activeBtn() {
+    const e = (typeof window !== "undefined") ? window.event : null;
+    const t = e && (e.currentTarget || e.target);
+    return (t && typeof t === "object" && "disabled" in t) ? t : null;
+  }
   // ESC closes modal
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") {
@@ -4693,10 +4724,14 @@ const HTML = `<!DOCTYPE html>
     s("alloc-risk-label", "Open risk " + openRisk.toFixed(1) + "%");
   }
 
-  async function setCapital(command, value) {
-    const res  = await fetch("/api/control", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ command, value }) });
-    const data = await res.json();
-    if (data.capitalState) renderCapitalPanel(data.capitalState, null);
+  async function setCapital(command, value, _btn) {
+    // Phase 5b — button lock. Capture btn synchronously before any await.
+    const release = lockBtn(_btn !== undefined ? _btn : _activeBtn());
+    try {
+      const res  = await fetch("/api/control", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ command, value }) });
+      const data = await res.json();
+      if (data.capitalState) renderCapitalPanel(data.capitalState, null);
+    } finally { release(); }
   }
 
   async function confirmCapital() {
@@ -5935,7 +5970,25 @@ function render(d) {
   }
 }
 
+// Phase 5b — button lock helper for /paper /live. Disables triggering button
+// while in flight; release on settle. Captures window.event SYNCHRONOUSLY at
+// handler entry (before any await) so async drift can't lock the wrong target.
+function lockBtn(btn) {
+  if (!btn || btn.disabled) return () => {};
+  btn.disabled = true;
+  let released = false;
+  return () => { if (!released) { released = true; btn.disabled = false; } };
+}
+function _activeBtn() {
+  const e = (typeof window !== "undefined") ? window.event : null;
+  const t = e && (e.currentTarget || e.target);
+  return (t && typeof t === "object" && "disabled" in t) ? t : null;
+}
+
 async function ctrl(command, danger) {
+  // Capture the originating button BEFORE window.confirm() (the dialog
+  // doesn't shift window.event but we want btn captured pre-await regardless).
+  const btn = _activeBtn();
   const out = document.getElementById("ctrl-result");
   if (danger) {
     const friendly = command === "STOP_BOT" ? "stop the bot"
@@ -5946,6 +5999,7 @@ async function ctrl(command, danger) {
       return;
     }
   }
+  const release = lockBtn(btn);
   out.textContent = "Sending " + command + "…";
   try {
     const r = await fetch("/api/control", {
@@ -5959,7 +6013,7 @@ async function ctrl(command, danger) {
     if (j.ok) setTimeout(loadSummary, 400);
   } catch (e) {
     out.textContent = "Failed: " + e.message;
-  }
+  } finally { release(); }
 }
 
 loadSummary();
