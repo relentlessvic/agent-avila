@@ -5696,9 +5696,15 @@ const HOMEPAGE_HTML = `<!DOCTYPE html>
     .stats, .buttons { grid-template-columns:1fr; }
     h1 { font-size:28px; }
   }
+  /* Phase 6a — stale-data banner. Non-scary; only appears after 20s without
+     a successful refresh. Yellow at 20–60s ("retrying"), red after 60s. */
+  .stale-banner { position:fixed; top:0; left:0; right:0; padding:8px 16px; text-align:center; font-size:13px; font-weight:500; z-index:1000; }
+  .stale-banner.stale-warn { background:rgba(255,193,7,0.15); color:#ffc107; border-bottom:1px solid rgba(255,193,7,0.4); }
+  .stale-banner.stale-err  { background:rgba(239,68,68,0.18); color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.4); }
 </style>
 </head>
 <body>
+<div id="stale-banner" class="stale-banner" style="display:none"></div>
 <div class="splash">
   <h1>Agent Avila</h1>
   <div class="tagline">XRP/USDT &middot; 5m</div>
@@ -5717,6 +5723,9 @@ const HOMEPAGE_HTML = `<!DOCTYPE html>
   </div>
 </div>
 <script>
+// Phase 6a — refresh reliability state.
+let _lastOk = Date.now(), _inflight = false, _hidden = false;
+
 async function loadHome() {
   try {
     const r = await fetch("/api/data", { credentials: "same-origin" });
@@ -5745,10 +5754,42 @@ async function loadHome() {
     const sEl = document.getElementById("hp-status");
     sEl.textContent = "Unavailable";
     sEl.className   = "stat-value stopped";
+    throw e;
   }
 }
-loadHome();
-setInterval(loadHome, 10000);
+
+async function safePoll() {
+  if (_inflight || _hidden) return;
+  _inflight = true;
+  try { await loadHome(); _lastOk = Date.now(); }
+  catch (e) { /* banner takes over */ }
+  finally { _inflight = false; }
+}
+
+function showStale() {
+  const el = document.getElementById("stale-banner");
+  if (!el) return;
+  const ageMs = Date.now() - _lastOk;
+  if (ageMs < 20000) { el.style.display = "none"; return; }
+  el.style.display = "block";
+  const s = Math.round(ageMs / 1000);
+  if (ageMs < 60000) {
+    el.className = "stale-banner stale-warn";
+    el.textContent = "Last updated " + s + "s ago — retrying…";
+  } else {
+    el.className = "stale-banner stale-err";
+    el.textContent = "Connection issue — last update " + s + "s ago.";
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  _hidden = document.hidden;
+  if (!_hidden) safePoll();
+});
+
+safePoll();
+setInterval(safePoll, 10000);
+setInterval(showStale, 1000);
 </script>
 </body>
 </html>`;
@@ -5814,9 +5855,15 @@ function modePage(mode) {
   details.advanced[open] > summary { border-bottom:1px solid var(--line); }
   details.advanced .adv-body { padding:18px; display:flex; flex-direction:column; gap:24px; }
   .adv-section-title { font-size:11px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+  /* Phase 6a — stale-data banner. Hidden until 20s without a successful
+     refresh. Yellow at 20–60s ("retrying"), red after 60s. */
+  .stale-banner { position:fixed; top:0; left:0; right:0; padding:8px 16px; text-align:center; font-size:13px; font-weight:500; z-index:1000; }
+  .stale-banner.stale-warn { background:rgba(255,193,7,0.15); color:#ffc107; border-bottom:1px solid rgba(255,193,7,0.4); }
+  .stale-banner.stale-err  { background:rgba(239,68,68,0.18); color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.4); }
 </style>
 </head>
 <body>
+<div id="stale-banner" class="stale-banner" style="display:none"></div>
 
 <div class="topbar">
   <div>
@@ -5902,6 +5949,9 @@ function fmtUSD(n) {
 }
 function fmtNum(n, d=2) { return (n === null || n === undefined || isNaN(n)) ? "—" : Number(n).toFixed(d); }
 
+// Phase 6a — refresh reliability state for /paper /live.
+let _lastOk = Date.now(), _inflight = false, _hidden = false;
+
 async function loadSummary() {
   try {
     const r = await fetch(API, { credentials: "same-origin" });
@@ -5913,8 +5963,38 @@ async function loadSummary() {
     document.getElementById("balance-stat").textContent = "Unavailable";
     document.getElementById("balance-sub").textContent  = e.message;
     document.getElementById("trades-body").innerHTML    = '<div class="empty">Unavailable: ' + escapeHtml(e.message) + '</div>';
+    throw e;
   }
 }
+
+async function safePoll() {
+  if (_inflight || _hidden) return;
+  _inflight = true;
+  try { await loadSummary(); _lastOk = Date.now(); }
+  catch (e) { /* banner takes over */ }
+  finally { _inflight = false; }
+}
+
+function showStale() {
+  const el = document.getElementById("stale-banner");
+  if (!el) return;
+  const ageMs = Date.now() - _lastOk;
+  if (ageMs < 20000) { el.style.display = "none"; return; }
+  el.style.display = "block";
+  const s = Math.round(ageMs / 1000);
+  if (ageMs < 60000) {
+    el.className = "stale-banner stale-warn";
+    el.textContent = "Last updated " + s + "s ago — retrying…";
+  } else {
+    el.className = "stale-banner stale-err";
+    el.textContent = "Connection issue — last update " + s + "s ago.";
+  }
+}
+
+document.addEventListener("visibilitychange", () => {
+  _hidden = document.hidden;
+  if (!_hidden) safePoll();
+});
 
 function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
 
@@ -6080,14 +6160,15 @@ async function ctrl(command, danger) {
     });
     const j = await r.json();
     setCtrlMsg(j.ok ? command + " OK" : "Failed: " + (j.error || "unknown"));
-    if (j.ok) setTimeout(loadSummary, 400);
+    if (j.ok) setTimeout(safePoll, 400);
   } catch (e) {
     setCtrlMsg("Failed: " + e.message);
   } finally { release(); }
 }
 
-loadSummary();
-setInterval(loadSummary, 10000);
+safePoll();
+setInterval(safePoll, 10000);
+setInterval(showStale, 1000);
 </script>
 
 </body>
