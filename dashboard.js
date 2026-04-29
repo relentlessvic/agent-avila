@@ -1575,6 +1575,10 @@ const HTML = `<!DOCTYPE html>
   .check-log-line.cl-loss  { color: var(--red); font-weight: 700; }
   .check-log-time { color: rgba(139,148,158,0.55); margin-right: 6px; }
 
+  /* Phase 8b — button spinner injected by lockBtn while a request is in flight. */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-spinner { display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.25); border-top-color:currentColor; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
+
   /* ── Toast Notifications ── */
   .toast-container { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; pointer-events: none; max-width: 360px; }
   .toast { background: rgba(18,26,42,0.95); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 10px; min-width: 240px; pointer-events: all; animation: toastIn 0.3s cubic-bezier(0.16,1,0.3,1); transform-origin: top right; }
@@ -4138,8 +4142,17 @@ const HTML = `<!DOCTYPE html>
   function lockBtn(btn) {
     if (!btn || btn.disabled) return () => {};
     btn.disabled = true;
+    // Phase 8b — visible spinner so the in-flight state is obvious. Save and
+    // restore innerHTML so any inline child (icons, badges, etc) is preserved.
+    const original = btn.innerHTML;
+    btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>' + original;
     let released = false;
-    return () => { if (!released) { released = true; btn.disabled = false; } };
+    return () => {
+      if (released) return;
+      released = true;
+      btn.disabled = false;
+      btn.innerHTML = original;
+    };
   }
   function _activeBtn() {
     const e = (typeof window !== "undefined") ? window.event : null;
@@ -5765,8 +5778,15 @@ const HTML = `<!DOCTYPE html>
 // Shows only: bot status, current mode, XRP price, last decision, and two
 // big buttons to /paper and /live. No trading data is rendered here. The
 // detailed legacy UI is preserved at /dashboard for power users and tests.
+//
+// Phase 8b — homepagePage(initial) embeds initial data inline so the cards
+// render real values on first paint instead of "—". Falls back to fetch if
+// initial is null/undefined or malformed.
 
-const HOMEPAGE_HTML = `<!DOCTYPE html>
+function homepagePage(initial) {
+  // Escape </ inside JSON to keep the closing </script> unambiguous.
+  const initialJson = JSON.stringify(initial || null).replace(/</g, "\\u003c");
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5802,6 +5822,11 @@ const HOMEPAGE_HTML = `<!DOCTYPE html>
   .stale-banner.stale-warn { background:rgba(255,193,7,0.15); color:#ffc107; border-bottom:1px solid rgba(255,193,7,0.4); }
   .stale-banner.stale-err  { background:rgba(239,68,68,0.18); color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.4); }
   body.with-stale-banner { padding-top:56px; }
+  /* Phase 8b — skeleton loaders. Animated shimmer bar that approximates the
+     shape of the eventual content. Hidden once real data lands. */
+  @keyframes skel-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+  .skel { display:inline-block; vertical-align:middle; border-radius:4px; background:linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.14) 50%, rgba(255,255,255,0.05) 100%); background-size:200% 100%; animation:skel-shimmer 1.4s linear infinite; }
+  .skel-line { width:80%; height:1.1em; }
 </style>
 </head>
 <body>
@@ -5810,10 +5835,10 @@ const HOMEPAGE_HTML = `<!DOCTYPE html>
   <h1>Agent Avila</h1>
   <div class="tagline">XRP/USDT &middot; 5m</div>
   <div class="stats">
-    <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="hp-status">&mdash;</div></div>
-    <div class="stat"><div class="stat-label">Mode</div><div class="stat-value" id="hp-mode">&mdash;</div></div>
-    <div class="stat"><div class="stat-label">XRP Price</div><div class="stat-value" id="hp-price">&mdash;</div></div>
-    <div class="stat"><div class="stat-label">Last Decision</div><div class="stat-value" id="hp-decision">&mdash;</div></div>
+    <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="hp-status"><span class="skel skel-line"></span></div></div>
+    <div class="stat"><div class="stat-label">Mode</div><div class="stat-value" id="hp-mode"><span class="skel skel-line"></span></div></div>
+    <div class="stat"><div class="stat-label">XRP Price</div><div class="stat-value" id="hp-price"><span class="skel skel-line"></span></div></div>
+    <div class="stat"><div class="stat-label">Last Decision</div><div class="stat-value" id="hp-decision"><span class="skel skel-line"></span></div></div>
   </div>
   <div class="buttons">
     <a class="big-btn paper" href="/paper">Paper Dashboard &rarr;</a>
@@ -5824,39 +5849,51 @@ const HOMEPAGE_HTML = `<!DOCTYPE html>
   </div>
 </div>
 <script>
+// Phase 8b — inline initial data injected by server. Falsy if unavailable.
+window.__INIT__ = ${initialJson};
+
 // Phase 6a — refresh reliability state.
 let _lastOk = Date.now(), _inflight = false, _hidden = false;
+
+function renderHome(d) {
+  const ctrl = d.control || {};
+  let st = "Running", cls = "running";
+  if (ctrl.killed)        { st = "Killed";  cls = "stopped"; }
+  else if (ctrl.stopped)  { st = "Stopped"; cls = "stopped"; }
+  else if (ctrl.paused)   { st = "Paused";  cls = "paused";  }
+  const sEl = document.getElementById("hp-status");
+  sEl.textContent = st;
+  sEl.className   = "stat-value " + cls;
+  document.getElementById("hp-mode").textContent  = ctrl.paperTrading !== false ? "Paper" : "Live";
+  const px = d.latest && d.latest.price;
+  document.getElementById("hp-price").textContent = px ? "$" + Number(px).toFixed(4) : "Unavailable";
+  let dec = "—";
+  if (d.latest) {
+    const t = d.latest.type;
+    if (t === "EXIT")              dec = "EXIT (" + (d.latest.exitReason || "") + ")";
+    else if (t)                    dec = t;
+    else                           dec = d.latest.allPass ? "PASS" : "BLOCKED";
+  }
+  document.getElementById("hp-decision").textContent = dec;
+}
 
 async function loadHome() {
   try {
     const r = await fetch("/api/home-summary", { credentials: "same-origin" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const d = await r.json();
-    const ctrl = d.control || {};
-    let st = "Running", cls = "running";
-    if (ctrl.killed)        { st = "Killed";  cls = "stopped"; }
-    else if (ctrl.stopped)  { st = "Stopped"; cls = "stopped"; }
-    else if (ctrl.paused)   { st = "Paused";  cls = "paused";  }
-    const sEl = document.getElementById("hp-status");
-    sEl.textContent = st;
-    sEl.className   = "stat-value " + cls;
-    document.getElementById("hp-mode").textContent  = ctrl.paperTrading !== false ? "Paper" : "Live";
-    const px = d.latest && d.latest.price;
-    document.getElementById("hp-price").textContent = px ? "$" + Number(px).toFixed(4) : "Unavailable";
-    let dec = "—";
-    if (d.latest) {
-      const t = d.latest.type;
-      if (t === "EXIT")              dec = "EXIT (" + (d.latest.exitReason || "") + ")";
-      else if (t)                    dec = t;
-      else                           dec = d.latest.allPass ? "PASS" : "BLOCKED";
-    }
-    document.getElementById("hp-decision").textContent = dec;
+    renderHome(d);
   } catch (e) {
     const sEl = document.getElementById("hp-status");
     sEl.textContent = "Unavailable";
     sEl.className   = "stat-value stopped";
     throw e;
   }
+}
+
+// Phase 8b — paint inline data immediately so first frame isn't skeletons.
+if (window.__INIT__) {
+  try { renderHome(window.__INIT__); _lastOk = Date.now(); } catch (e) { console.warn("[__INIT__]", e.message); }
 }
 
 async function safePoll() {
@@ -5899,13 +5936,14 @@ setInterval(showStale, 1000);
 </script>
 </body>
 </html>`;
+}
 
 // ─── Mode pages: /paper and /live (Phase 1 — data separation only) ───────────
 // These are deliberately minimal HTML so the existing main "/" dashboard is
 // untouched. Each page fetches a single mode-scoped JSON endpoint and renders
 // it. Controls reuse the existing /api/control endpoint. No paper/live mixing.
 
-function modePage(mode) {
+function modePage(mode, initial) {
   const isPaper = mode === "paper";
   const title   = isPaper ? "Paper Trading" : "Live Trading";
   const apiUrl  = isPaper ? "/api/paper-summary" : "/api/live-summary";
@@ -5918,6 +5956,8 @@ function modePage(mode) {
   const tradesLabel = isPaper ? "Paper Trades" : "Live Trades";
   const pnlLabel = isPaper ? "Paper P&L" : "Live P&L";
   const ctrlLabel = isPaper ? "Paper Controls" : "Live Controls";
+  // Phase 8b — escape </ inside JSON to keep </script> unambiguous.
+  const initialJson = JSON.stringify(initial || null).replace(/</g, "\\u003c");
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5978,6 +6018,14 @@ function modePage(mode) {
   .mode-switch-btn { padding:4px 10px; border-radius:999px; background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer; font-size:12px; font-weight:500; font-family:inherit; }
   .mode-switch-btn:hover { color:var(--text); border-color:var(--accent); }
   .mode-switch-btn:disabled { opacity:0.4; cursor:not-allowed; }
+  /* Phase 8b — skeleton loaders + button spinner. */
+  @keyframes skel-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+  .skel { display:inline-block; vertical-align:middle; border-radius:4px; background:linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.14) 50%, rgba(255,255,255,0.05) 100%); background-size:200% 100%; animation:skel-shimmer 1.4s linear infinite; }
+  .skel-line { width:80%; height:1.1em; }
+  .skel-stat { width:60%; height:1.6em; }
+  .skel-row { width:100%; height:18px; margin:6px 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .btn-spinner { display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.25); border-top-color:currentColor; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
 </style>
 </head>
 <body>
@@ -6004,31 +6052,31 @@ function modePage(mode) {
 
   <div class="card">
     <div class="card-title">${balLabel}</div>
-    <div id="balance-stat" class="stat unavail">Loading…</div>
+    <div id="balance-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="balance-sub" class="stat-sub"></div>
   </div>
 
   <div class="card">
     <div class="card-title">${mode} Open Position</div>
-    <div id="pos-stat" class="stat unavail">Loading…</div>
+    <div id="pos-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="pos-sub" class="stat-sub"></div>
   </div>
 
   <div class="card">
     <div class="card-title">${wlLabel}</div>
-    <div id="wl-stat" class="stat unavail">Loading…</div>
+    <div id="wl-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="wl-sub" class="stat-sub"></div>
   </div>
 
   <div class="card">
     <div class="card-title">${pnlLabel}</div>
-    <div id="pnl-stat" class="stat unavail">Loading…</div>
+    <div id="pnl-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="pnl-sub" class="stat-sub"></div>
   </div>
 
   <div class="card">
     <div class="card-title">Last Bot Decision</div>
-    <div id="dec-stat" class="stat unavail">Loading…</div>
+    <div id="dec-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="dec-sub" class="stat-sub"></div>
   </div>
 
@@ -6040,7 +6088,7 @@ function modePage(mode) {
 
     <div>
       <div class="adv-section-title">${tradesLabel} (history)</div>
-      <div id="trades-body"><div class="empty">Loading…</div></div>
+      <div id="trades-body"><div class="skel skel-row"></div><div class="skel skel-row"></div><div class="skel skel-row"></div></div>
     </div>
 
     <div>
@@ -6064,6 +6112,8 @@ function modePage(mode) {
 <script>
 const MODE = ${JSON.stringify(mode)};
 const API  = ${JSON.stringify(apiUrl)};
+// Phase 8b — inline initial data injected by server. Falsy if unavailable.
+window.__INIT__ = ${initialJson};
 
 function fmtUSD(n) {
   if (n === null || n === undefined || isNaN(n)) return "—";
@@ -6269,8 +6319,16 @@ function render(d) {
 function lockBtn(btn) {
   if (!btn || btn.disabled) return () => {};
   btn.disabled = true;
+  // Phase 8b — visible spinner during in-flight action. Save+restore innerHTML.
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>' + original;
   let released = false;
-  return () => { if (!released) { released = true; btn.disabled = false; } };
+  return () => {
+    if (released) return;
+    released = true;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
 }
 function _activeBtn() {
   const e = (typeof window !== "undefined") ? window.event : null;
@@ -6320,6 +6378,10 @@ async function ctrl(command, danger) {
   } finally { release(); }
 }
 
+// Phase 8b — paint inline data immediately so first frame has real values.
+if (window.__INIT__) {
+  try { render(window.__INIT__); _lastOk = Date.now(); } catch (e) { console.warn("[__INIT__]", e.message); }
+}
 safePoll();
 setInterval(safePoll, 10000);
 setInterval(showStale, 1000);
@@ -6750,7 +6812,12 @@ const server = createServer(async (req, res) => {
   // ── /paper and /live mode-scoped pages (Phase 1: data separation only) ──
   if (req.url === "/paper" || req.url === "/live") {
     res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
-    res.end(modePage(req.url === "/paper" ? "paper" : "live"));
+    // Phase 8b — inline initial summary so first paint has real values.
+    let initial = null;
+    try {
+      initial = req.url === "/paper" ? getPaperSummary() : await getLiveSummary();
+    } catch {}
+    res.end(modePage(req.url === "/paper" ? "paper" : "live", initial));
     return;
   }
 
@@ -7024,7 +7091,10 @@ RULES:
       "Content-Type": "text/html",
       "Cache-Control": "no-store, must-revalidate",
     });
-    res.end(HOMEPAGE_HTML);
+    // Phase 8b — inline initial summary so first paint has real values.
+    let initial = null;
+    try { initial = getHomeSummary(); } catch {}
+    res.end(homepagePage(initial));
   }
 });
 
