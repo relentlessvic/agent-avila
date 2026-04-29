@@ -132,6 +132,86 @@ function getApiData() {
   return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperStartingBalance, position, control, perfState, capitalState, portfolioState, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
 }
 
+// ─── Mode-scoped data (Paper / Live) ──────────────────────────────────────────
+// Phase 1: data separation only. Each helper filters safety-check-log.json by
+// the .paperTrading flag so paper and live stats never mix. Position and
+// control are shared files; we surface them ONLY when the bot is currently in
+// the matching mode. Otherwise the page shows "Unavailable".
+
+function modeScopedSummary(wantPaper) {
+  const log = loadLog();
+  const trades = log.trades.filter(t => Boolean(t.paperTrading) === wantPaper);
+  const exits  = trades.filter(t => t.type === "EXIT");
+  const fired  = trades.filter(t => t.orderPlaced === true && t.type !== "EXIT").length;
+  const wins   = exits.filter(t => parseFloat(t.pnlUSD) > 0).length;
+  const losses = exits.filter(t => parseFloat(t.pnlUSD) < 0).length;
+  const totalPnL = exits.reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
+
+  let control = {};
+  try { if (existsSync("bot-control.json")) control = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
+  let position = { open: false };
+  try { if (existsSync("position.json")) position = JSON.parse(readFileSync("position.json","utf8")); } catch {}
+  const botInPaperMode = control.paperTrading !== false;
+  const isActive = wantPaper ? botInPaperMode : !botInPaperMode;
+
+  return {
+    mode: wantPaper ? "paper" : "live",
+    isActive,
+    botMode: botInPaperMode ? "paper" : "live",
+    totalTrades: trades.length,
+    fired,
+    exits: exits.length,
+    winLoss: {
+      wins,
+      losses,
+      total: wins + losses,
+      winRate: (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : null,
+    },
+    pnl: { totalUSD: totalPnL, exitCount: exits.length },
+    position: isActive && position.open ? position : null,
+    positionUnavailableReason: !isActive
+      ? `Bot currently in ${botInPaperMode ? "PAPER" : "LIVE"} mode — ${wantPaper ? "paper" : "live"} position not active`
+      : (position.open ? null : "No open position"),
+    recentTrades: trades.slice(-30).reverse(),
+    control: {
+      stopped: !!control.stopped,
+      paused:  !!control.paused,
+      killed:  !!control.killed,
+      riskPct: control.riskPct ?? null,
+      leverage: control.leverage ?? null,
+      maxDailyLossPct: control.maxDailyLossPct ?? null,
+      cooldownMinutes: control.cooldownMinutes ?? null,
+      pauseAfterLosses: control.pauseAfterLosses ?? null,
+      consecutiveLosses: control.consecutiveLosses ?? 0,
+    },
+  };
+}
+
+function getPaperSummary() {
+  const base = modeScopedSummary(true);
+  const startingBalance = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
+  return {
+    ...base,
+    balance: {
+      source: "computed",
+      startingBalance,
+      currentBalance: startingBalance + base.pnl.totalUSD,
+      currency: "USD",
+    },
+  };
+}
+
+async function getLiveSummary() {
+  const base = modeScopedSummary(false);
+  let kraken;
+  try { kraken = await fetchKrakenBalance(); }
+  catch (e) { kraken = { error: e.message }; }
+  const balance = kraken && !kraken.error
+    ? { source: "kraken", totalUSD: kraken.totalUSD, balances: kraken.balances, updatedAt: kraken.updatedAt, currency: "USD" }
+    : { unavailable: true, reason: kraken?.error || "Kraken balance unavailable" };
+  return { ...base, balance };
+}
+
 // ─── Chart Data ───────────────────────────────────────────────────────────────
 
 const PAIR_MAP = {
@@ -5404,6 +5484,267 @@ const HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+// ─── Mode pages: /paper and /live (Phase 1 — data separation only) ───────────
+// These are deliberately minimal HTML so the existing main "/" dashboard is
+// untouched. Each page fetches a single mode-scoped JSON endpoint and renders
+// it. Controls reuse the existing /api/control endpoint. No paper/live mixing.
+
+function modePage(mode) {
+  const isPaper = mode === "paper";
+  const title   = isPaper ? "Paper Trading" : "Live Trading";
+  const apiUrl  = isPaper ? "/api/paper-summary" : "/api/live-summary";
+  const otherRoute = isPaper ? "/live" : "/paper";
+  const otherLabel = isPaper ? "Live" : "Paper";
+  const accent  = isPaper ? "#33c5ff" : "#ff5566";
+  const pillBg  = isPaper ? "rgba(51,197,255,0.12)" : "rgba(255,85,102,0.12)";
+  const wlLabel = isPaper ? "Paper W/L" : "Live W/L";
+  const balLabel = isPaper ? "Paper Balance" : "Kraken Live Balance";
+  const tradesLabel = isPaper ? "Paper Trades" : "Live Trades";
+  const pnlLabel = isPaper ? "Paper P&L" : "Live P&L";
+  const ctrlLabel = isPaper ? "Paper Controls" : "Live Controls";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${title} — Agent Avila</title>
+<style>
+  :root { --bg:#0A0F1A; --card:#0F1525; --line:rgba(255,255,255,0.08); --muted:#7A8499; --text:#E6EAF1; --accent:${accent}; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:24px; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; max-width:1100px; margin:0 auto 24px; flex-wrap:wrap; gap:12px; }
+  .topbar h1 { margin:0; font-size:22px; }
+  .pill { display:inline-block; padding:4px 12px; border-radius:999px; background:${pillBg}; color:var(--accent); font-size:12px; font-weight:600; letter-spacing:0.5px; }
+  .badge-warn { background:rgba(255,193,7,0.12); color:#ffc107; padding:4px 12px; border-radius:999px; font-size:12px; }
+  .nav-links a { color:var(--muted); text-decoration:none; margin-left:14px; font-size:13px; }
+  .nav-links a:hover { color:var(--text); }
+  .grid { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; }
+  .card-title { font-size:11px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+  .stat { font-size:28px; font-weight:700; }
+  .stat-sub { font-size:13px; color:var(--muted); margin-top:4px; }
+  .pos-good { color:#22c55e; } .pos-bad { color:#ef4444; }
+  .unavail { color:var(--muted); font-style:italic; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; }
+  .row-win td { color:#22c55e; } .row-loss td { color:#ef4444; }
+  .ctrl-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .ctrl-row button { background:var(--card); color:var(--text); border:1px solid var(--line); padding:8px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
+  .ctrl-row button:hover { border-color:var(--accent); }
+  .ctrl-row button.danger { border-color:rgba(239,68,68,0.4); color:#ef4444; }
+  .ctrl-row button:disabled { opacity:0.4; cursor:not-allowed; }
+  .balances-list { font-size:13px; }
+  .balances-list .row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--line); }
+  .balances-list .row:last-child { border-bottom:0; }
+  .full { grid-column:1/-1; }
+  .empty { color:var(--muted); font-style:italic; padding:14px 0; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <h1>${title}</h1>
+    <div style="margin-top:6px"><span class="pill">${mode.toUpperCase()} ROUTE</span> <span id="active-badge"></span></div>
+  </div>
+  <div class="nav-links">
+    <a href="/">Main Dashboard</a>
+    <a href="${otherRoute}">${otherLabel} →</a>
+    <a href="/logout">Logout</a>
+  </div>
+</div>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="card-title">${balLabel}</div>
+    <div id="balance-stat" class="stat unavail">Loading…</div>
+    <div id="balance-sub" class="stat-sub"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">${pnlLabel}</div>
+    <div id="pnl-stat" class="stat unavail">Loading…</div>
+    <div id="pnl-sub" class="stat-sub"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">${wlLabel}</div>
+    <div id="wl-stat" class="stat unavail">Loading…</div>
+    <div id="wl-sub" class="stat-sub"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">${mode} Position</div>
+    <div id="pos-stat" class="stat unavail">Loading…</div>
+    <div id="pos-sub" class="stat-sub"></div>
+  </div>
+
+  <div class="card full">
+    <div class="card-title">${tradesLabel}</div>
+    <div id="trades-body"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="card full">
+    <div class="card-title">${ctrlLabel}</div>
+    <div id="ctrl-note" class="stat-sub" style="margin-bottom:10px"></div>
+    <div class="ctrl-row">
+      <button onclick="ctrl('START_BOT')">Start Bot</button>
+      <button onclick="ctrl('STOP_BOT')">Stop Bot</button>
+      <button onclick="ctrl('PAUSE_TRADING')">Pause</button>
+      <button onclick="ctrl('RESUME_TRADING')">Resume</button>
+      <button onclick="ctrl('RESET_KILL_SWITCH')" class="danger">Reset Kill Switch</button>
+      <button onclick="ctrl('RESET_LOSSES')">Reset Losses</button>
+      <button onclick="ctrl('RESET_COOLDOWN')">Reset Cooldown</button>
+    </div>
+    <div id="ctrl-result" class="stat-sub" style="margin-top:10px"></div>
+  </div>
+
+</div>
+
+<script>
+const MODE = ${JSON.stringify(mode)};
+const API  = ${JSON.stringify(apiUrl)};
+
+function fmtUSD(n) {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  const s = (n >= 0 ? "+" : "") + "$" + Math.abs(n).toFixed(2);
+  return n >= 0 ? s.replace("+", "+") : s;
+}
+function fmtNum(n, d=2) { return (n === null || n === undefined || isNaN(n)) ? "—" : Number(n).toFixed(d); }
+
+async function loadSummary() {
+  try {
+    const r = await fetch(API, { credentials: "same-origin" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if (!j.success) throw new Error(j.error || "load failed");
+    render(j.data);
+  } catch (e) {
+    document.getElementById("balance-stat").textContent = "Unavailable";
+    document.getElementById("balance-sub").textContent  = e.message;
+    document.getElementById("trades-body").innerHTML    = '<div class="empty">Unavailable: ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+
+function render(d) {
+  // Active badge
+  const badge = document.getElementById("active-badge");
+  if (d.isActive) {
+    badge.innerHTML = '<span class="pill">BOT ACTIVE IN ${mode.toUpperCase()}</span>';
+  } else {
+    badge.innerHTML = '<span class="badge-warn">BOT IS IN ' + d.botMode.toUpperCase() + ' MODE</span>';
+  }
+
+  // Balance
+  const balStat = document.getElementById("balance-stat");
+  const balSub  = document.getElementById("balance-sub");
+  if (d.balance.unavailable) {
+    balStat.textContent = "Unavailable";
+    balStat.className   = "stat unavail";
+    balSub.textContent  = d.balance.reason || "";
+  } else if (d.balance.source === "computed") {
+    balStat.textContent = "$" + d.balance.currentBalance.toFixed(2);
+    balStat.className   = "stat";
+    balSub.textContent  = "Starting $" + d.balance.startingBalance.toFixed(2) + " + paper P&L";
+  } else if (d.balance.source === "kraken") {
+    balStat.textContent = "$" + d.balance.totalUSD.toFixed(2);
+    balStat.className   = "stat";
+    const pieces = (d.balance.balances || []).slice(0, 4).map(b => b.asset + " " + fmtNum(b.amount, 4)).join(" · ");
+    balSub.textContent  = pieces || "—";
+  }
+
+  // P&L
+  const pnlStat = document.getElementById("pnl-stat");
+  const pnlSub  = document.getElementById("pnl-sub");
+  pnlStat.textContent = fmtUSD(d.pnl.totalUSD);
+  pnlStat.className   = "stat " + (d.pnl.totalUSD > 0 ? "pos-good" : d.pnl.totalUSD < 0 ? "pos-bad" : "");
+  pnlSub.textContent  = "Across " + d.pnl.exitCount + " closed trade" + (d.pnl.exitCount === 1 ? "" : "s");
+
+  // W/L
+  const wlStat = document.getElementById("wl-stat");
+  const wlSub  = document.getElementById("wl-sub");
+  if (d.winLoss.total === 0) {
+    wlStat.textContent = "0 / 0";
+    wlStat.className   = "stat unavail";
+    wlSub.textContent  = "No closed trades yet";
+  } else {
+    wlStat.textContent = d.winLoss.wins + "W / " + d.winLoss.losses + "L";
+    wlStat.className   = "stat";
+    wlSub.textContent  = (d.winLoss.winRate ?? 0).toFixed(1) + "% win rate";
+  }
+
+  // Position
+  const posStat = document.getElementById("pos-stat");
+  const posSub  = document.getElementById("pos-sub");
+  if (d.position) {
+    posStat.textContent = "Open · " + d.position.side.toUpperCase();
+    posStat.className   = "stat";
+    posSub.textContent  = "Entry $" + Number(d.position.entryPrice).toFixed(4) + " · qty " + Number(d.position.quantity).toFixed(4);
+  } else {
+    posStat.textContent = "Unavailable";
+    posStat.className   = "stat unavail";
+    posSub.textContent  = d.positionUnavailableReason || "—";
+  }
+
+  // Trades
+  const body = document.getElementById("trades-body");
+  if (!d.recentTrades.length) {
+    body.innerHTML = '<div class="empty">No ' + MODE + ' trades recorded yet.</div>';
+  } else {
+    const rows = d.recentTrades.map(t => {
+      const pnl = t.pnlUSD !== undefined ? parseFloat(t.pnlUSD) : null;
+      const cls = pnl > 0 ? "row-win" : pnl < 0 ? "row-loss" : "";
+      return '<tr class="' + cls + '">' +
+        '<td>' + escapeHtml(t.timestamp.slice(0, 16).replace("T", " ")) + '</td>' +
+        '<td>' + escapeHtml(t.type || "") + '</td>' +
+        '<td>' + escapeHtml(t.symbol || "") + '</td>' +
+        '<td>' + (t.price !== undefined ? Number(t.price).toFixed(4) : "—") + '</td>' +
+        '<td>' + (pnl !== null ? fmtUSD(pnl) : "—") + '</td>' +
+        '<td>' + escapeHtml(t.exitReason || (t.orderPlaced ? "FILLED" : "—")) + '</td>' +
+        '</tr>';
+    }).join("");
+    body.innerHTML = '<table><thead><tr><th>Time</th><th>Type</th><th>Symbol</th><th>Price</th><th>P&L</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  // Control note
+  const note = document.getElementById("ctrl-note");
+  if (d.isActive) {
+    note.textContent = "Bot is active in " + MODE.toUpperCase() + " mode. Controls below take effect immediately.";
+  } else {
+    note.textContent = "Bot is currently in " + d.botMode.toUpperCase() + " mode. Lifecycle controls still work but apply to whichever mode is active.";
+  }
+}
+
+async function ctrl(command) {
+  const out = document.getElementById("ctrl-result");
+  out.textContent = "Sending " + command + "…";
+  try {
+    const r = await fetch("/api/control", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command }),
+    });
+    const j = await r.json();
+    out.textContent = j.ok ? command + " OK" : "Failed: " + (j.error || "unknown");
+    if (j.ok) setTimeout(loadSummary, 400);
+  } catch (e) {
+    out.textContent = "Failed: " + e.message;
+  }
+}
+
+loadSummary();
+setInterval(loadSummary, 10000);
+</script>
+
+</body>
+</html>`;
+}
+
 // ─── SSE Push ─────────────────────────────────────────────────────────────────
 
 const sseClients = new Set();
@@ -5675,6 +6016,39 @@ const server = createServer(async (req, res) => {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: e.message }));
     }
+    return;
+  }
+
+  // ── Paper-only summary (paper trades, paper P&L, computed paper balance) ─
+  if (req.url === "/api/paper-summary") {
+    try {
+      const data = getPaperSummary();
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ success: true, data }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── Live-only summary (live trades, live P&L, real Kraken balance) ──────
+  if (req.url === "/api/live-summary") {
+    try {
+      const data = await getLiveSummary();
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ success: true, data }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+    return;
+  }
+
+  // ── /paper and /live mode-scoped pages (Phase 1: data separation only) ──
+  if (req.url === "/paper" || req.url === "/live") {
+    res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
+    res.end(modePage(req.url === "/paper" ? "paper" : "live"));
     return;
   }
 
