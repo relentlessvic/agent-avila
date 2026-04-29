@@ -1270,6 +1270,47 @@ const HTML = `<!DOCTYPE html>
   }
   .risk-feed-na { opacity: 0.65; }
 
+  /* ── Strategy V2 Shadow card ── purple-tinted to visually separate from
+     V1's existing surfaces. Shows the latest V2 verdict from safety-check
+     log. Phase 1: read-only, no trade actions. */
+  .v2-shadow {
+    background: rgba(124,92,255,0.04);
+    border: 1px solid rgba(124,92,255,0.22);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+  }
+  .v2-shadow-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; gap: 10px; flex-wrap: wrap;
+  }
+  .v2-shadow-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+    color: var(--purple); text-transform: uppercase;
+  }
+  .v2-shadow-disclaimer {
+    font-size: 11px; color: var(--muted); font-style: italic;
+  }
+  .v2-shadow-body { display: flex; flex-direction: column; gap: 4px; }
+  .v2-shadow-row {
+    display: grid; grid-template-columns: 110px 1fr;
+    gap: 10px; align-items: baseline;
+    font-size: 12px;
+    padding: 2px 0;
+  }
+  .v2-shadow-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .v2-shadow-val   { color: var(--text); font-variant-numeric: tabular-nums; }
+  .v2-shadow-decision { font-weight: 700; }
+  .v2-shadow-decision-trade    { color: var(--green); }
+  .v2-shadow-decision-deferred { color: var(--yellow); }
+  .v2-shadow-decision-skip     { color: var(--muted); }
+  .v2-shadow-empty {
+    font-size: 12px; color: var(--muted); padding: 4px 0; opacity: 0.85;
+  }
+  @media (max-width: 768px) {
+    .v2-shadow-row { grid-template-columns: 90px 1fr; gap: 8px; font-size: 11px; }
+  }
+
   /* ── Discord status indicator (in health-strip) ── */
   .discord-status {
     font-size: 11px; font-weight: 600;
@@ -2434,6 +2475,19 @@ const HTML = `<!DOCTYPE html>
     </div>
     <div class="risk-feed-list" id="risk-feed-list">
       <div class="risk-feed-empty">Loading…</div>
+    </div>
+  </section>
+
+  <!-- Strategy V2 — Shadow Decision card. Read-only view of the latest
+       V2 verdict from safety-check-log.json. V2 is analysis-only in
+       Phase 1 — never places trades. -->
+  <section class="v2-shadow" id="v2-shadow">
+    <div class="v2-shadow-header">
+      <span class="v2-shadow-title">🛰 V2 SHADOW MODE</span>
+      <span class="v2-shadow-disclaimer">Shadow only — no trades placed</span>
+    </div>
+    <div class="v2-shadow-body" id="v2-shadow-body">
+      <div class="v2-shadow-empty">Loading…</div>
     </div>
   </section>
 
@@ -4065,6 +4119,64 @@ const HTML = `<!DOCTYPE html>
     if (count) count.textContent = alerts.length + " event" + (alerts.length === 1 ? "" : "s");
   }
 
+  // ── Strategy V2 Shadow card ────────────────────────────────────────────
+  // Read-only display of the latest V2 verdict pulled from data.latest.strategyV2.
+  // Phase 1 — no trade actions. If no V2 data exists yet (older log entries
+  // pre-shadow-deploy, fetch errors), shows a friendly empty state.
+  function renderV2Shadow(data) {
+    const body = document.getElementById("v2-shadow-body");
+    if (!body) return;
+
+    const v2 = data?.latest?.strategyV2;
+    if (!v2 || typeof v2 !== "object") {
+      body.innerHTML = '<div class="v2-shadow-empty">No V2 shadow data yet.</div>';
+      return;
+    }
+
+    const trendIcon = (t) => t === "bullish" ? "📈" : t === "bearish" ? "📉" : "—";
+    const checkIcon = (b) => b ? "✓" : "✗";
+    const checkColor = (b) => b ? "var(--green)" : "var(--muted)";
+
+    const decision = (v2.decision || "NO_TRADE").toString();
+    let decClass = "v2-shadow-decision-skip";
+    if (decision === "TRADE")                     decClass = "v2-shadow-decision-trade";
+    else if (decision === "NO_TRADE_SHORT_DEFERRED") decClass = "v2-shadow-decision-deferred";
+
+    // Optional sub-details
+    const sweepDepth = (v2.sweep && Number.isFinite(v2.sweep.depthPct))
+      ? " (depth " + v2.sweep.depthPct.toFixed(2) + "%)" : "";
+    const pullbackPct = (v2.pullback && Number.isFinite(v2.pullback.retracementPct))
+      ? " (" + v2.pullback.retracementPct.toFixed(0) + "% retracement)" : "";
+
+    // Escape user-visible text from log content
+    const esc = (s) => String(s == null ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+    const skipLine = v2.skipReason
+      ? '<div class="v2-shadow-row"><span class="v2-shadow-label">Skip reason</span><span class="v2-shadow-val">' + esc(v2.skipReason) + '</span></div>'
+      : "";
+
+    const qualityLine = v2.setupQuality
+      ? '<div class="v2-shadow-row"><span class="v2-shadow-label">Quality</span><span class="v2-shadow-val">' + esc(v2.setupQuality) + '</span></div>'
+      : "";
+
+    body.innerHTML =
+      '<div class="v2-shadow-row"><span class="v2-shadow-label">4H trend</span><span class="v2-shadow-val">' +
+        trendIcon(v2.trend4h) + " " + esc(v2.trend4h || "—") + '</span></div>' +
+      '<div class="v2-shadow-row"><span class="v2-shadow-label">15M trend</span><span class="v2-shadow-val">' +
+        trendIcon(v2.trend15m) + " " + esc(v2.trend15m || "—") + '</span></div>' +
+      '<div class="v2-shadow-row"><span class="v2-shadow-label">Liq sweep</span><span class="v2-shadow-val" style="color:' + checkColor(v2.sweep?.detected) + '">' +
+        checkIcon(v2.sweep?.detected) + (v2.sweep?.detected ? " detected" + sweepDepth : " not detected") + '</span></div>' +
+      '<div class="v2-shadow-row"><span class="v2-shadow-label">5M BOS</span><span class="v2-shadow-val" style="color:' + checkColor(v2.bos?.detected) + '">' +
+        checkIcon(v2.bos?.detected) + (v2.bos?.detected ? " confirmed" : " not confirmed") + '</span></div>' +
+      '<div class="v2-shadow-row"><span class="v2-shadow-label">Pullback</span><span class="v2-shadow-val" style="color:' + checkColor(v2.pullback?.ok) + '">' +
+        checkIcon(v2.pullback?.ok) + (v2.pullback?.ok ? " valid" + pullbackPct : " not valid") + '</span></div>' +
+      '<div class="v2-shadow-row"><span class="v2-shadow-label">Decision</span><span class="v2-shadow-val v2-shadow-decision ' + decClass + '">' +
+        esc(decision) + '</span></div>' +
+      skipLine +
+      qualityLine;
+  }
+
   // ── Discord status indicator ──────────────────────────────────────────────
   // Polls /api/system-status (auth-gated, dashboard cookie auto-attached).
   // If discord.enabled is true → green "Enabled". If false → yellow
@@ -4990,6 +5102,7 @@ const HTML = `<!DOCTYPE html>
     safe("statusBar",     () => renderStatusBar(data));
     safe("tradingStatus", () => renderTradingStatus());
     safe("riskAlertFeed", () => renderRiskAlertFeed(data));
+    safe("v2Shadow",      () => renderV2Shadow(data));
     safe("lastDecision",  () => renderLastDecision(data.latest));
   }
 
