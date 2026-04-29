@@ -1820,28 +1820,28 @@ const HTML = `<!DOCTYPE html>
 <div class="nav-drawer-overlay" id="nav-overlay" onclick="closeNav()"></div>
 
 <!-- Nav Drawer -->
-<div class="nav-drawer" id="nav-drawer">
+<div class="nav-drawer" id="nav-drawer" role="navigation" aria-label="Main menu" aria-hidden="true">
   <div class="nav-drawer-header">
     <div class="nav-drawer-logo">⚡ Agent Avila</div>
     <div class="nav-drawer-sub">Adaptive Quant System · v3.0</div>
   </div>
   <div class="nav-drawer-items">
     <div class="nav-section-label">Overview</div>
-    <a class="nav-item active" onclick="navTo('section-portfolio')"><span class="nav-item-icon">🧠</span>Portfolio Intelligence</a>
-    <a class="nav-item" onclick="navTo('section-capital')"><span class="nav-item-icon">💰</span>Capital Router</a>
-    <a class="nav-item" onclick="navTo('section-health')"><span class="nav-item-icon">🩺</span>System Health</a>
+    <a class="nav-item active" tabindex="0" role="button" onclick="navTo('section-portfolio')"><span class="nav-item-icon">🧠</span>Portfolio Intelligence</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-capital')"><span class="nav-item-icon">💰</span>Capital Router</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-health')"><span class="nav-item-icon">🩺</span>System Health</a>
     <div class="nav-section-label">Trading</div>
-    <a class="nav-item" onclick="navTo('section-position')"><span class="nav-item-icon">📈</span>Open Position</a>
-    <a class="nav-item" onclick="navTo('section-terminal')"><span class="nav-item-icon">⚡</span>Trading Terminal</a>
-    <a class="nav-item" onclick="navTo('section-chart')"><span class="nav-item-icon">📊</span>Live Chart</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-position')"><span class="nav-item-icon">📈</span>Open Position</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-terminal')"><span class="nav-item-icon">⚡</span>Trading Terminal</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-chart')"><span class="nav-item-icon">📊</span>Live Chart</a>
     <div class="nav-section-label">Performance</div>
-    <a class="nav-item" onclick="navTo('section-strategies')"><span class="nav-item-icon">🎯</span>Active Strategies</a>
-    <a class="nav-item" onclick="navTo('section-performance')"><span class="nav-item-icon">📉</span>Performance State</a>
-    <a class="nav-item" onclick="navTo('section-paper')"><span class="nav-item-icon">🏦</span>Paper Portfolio</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-strategies')"><span class="nav-item-icon">🎯</span>Active Strategies</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-performance')"><span class="nav-item-icon">📉</span>Performance State</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-paper')"><span class="nav-item-icon">🏦</span>Paper Portfolio</a>
     <div class="nav-section-label">History & Controls</div>
-    <a class="nav-item" onclick="navTo('section-history')"><span class="nav-item-icon">📜</span>Trade History</a>
-    <a class="nav-item" onclick="navTo('section-controls')"><span class="nav-item-icon">🎛</span>Bot Controls</a>
-    <a class="nav-item" onclick="navTo('section-risk')"><span class="nav-item-icon">🛑</span>Risk Controls</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-history')"><span class="nav-item-icon">📜</span>Trade History</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-controls')"><span class="nav-item-icon">🎛</span>Bot Controls</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-risk')"><span class="nav-item-icon">🛑</span>Risk Controls</a>
   </div>
   <div class="nav-drawer-footer">
     <span style="font-size:11px;color:var(--muted)"><span class="nav-health-dot" id="nav-drawer-health-dot" style="background:var(--green)"></span>System operational</span>
@@ -2594,7 +2594,7 @@ const HTML = `<!DOCTYPE html>
         </div>
       </div>
       <div>
-        <div class="ctrl-group-label">Risk Settings</div>
+        <div class="ctrl-group-label" id="section-risk">Risk Settings</div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-leverage-val" type="number" min="1" max="3" step="1" value="2" placeholder="1–3" title="Leverage 1× to 3× (hard cap)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_LEVERAGE', document.getElementById('ctrl-leverage-val').value)">Leverage ×</button>
@@ -2839,7 +2839,7 @@ const HTML = `<!DOCTYPE html>
 
   <!-- Trade History / Recent Runs -->
   <div class="section-header">
-    <div class="section-title">Trade History — Recent Runs</div>
+    <div class="section-title" id="section-history">Trade History — Recent Runs</div>
     <div class="view-toggle">
       <button class="view-toggle-btn active" id="toggle-simple" onclick="setView('simple')">Simple View</button>
       <button class="view-toggle-btn" id="toggle-advanced" onclick="setView('advanced')">Advanced View</button>
@@ -3635,13 +3635,35 @@ const HTML = `<!DOCTYPE html>
 
   // ── Nav Drawer ────────────────────────────────────────────────────────────
   function toggleNav() {
-    document.getElementById("nav-drawer").classList.toggle("open");
-    document.getElementById("nav-overlay").classList.toggle("open");
+    const drawer = document.getElementById("nav-drawer");
+    const overlay = document.getElementById("nav-overlay");
+    const open = drawer.classList.toggle("open");
+    overlay.classList.toggle("open", open);
+    drawer.setAttribute("aria-hidden", String(!open));
+    if (open) {
+      // Focus first nav item for keyboard users
+      drawer.querySelector(".nav-item")?.focus?.();
+    }
   }
   function closeNav() {
-    document.getElementById("nav-drawer").classList.remove("open");
+    const drawer = document.getElementById("nav-drawer");
+    drawer.classList.remove("open");
     document.getElementById("nav-overlay").classList.remove("open");
+    drawer.setAttribute("aria-hidden", "true");
   }
+  // Escape key closes the drawer when open
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && document.getElementById("nav-drawer")?.classList.contains("open")) {
+      closeNav();
+    }
+  });
+  // Make <a class="nav-item"> elements keyboard-activatable
+  document.addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target?.classList?.contains("nav-item")) {
+      e.preventDefault();
+      e.target.click();
+    }
+  });
   function navTo(sectionId) {
     closeNav();
     // All nav-items target sections inside #dashboard-page. If we're on the

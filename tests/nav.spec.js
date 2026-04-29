@@ -83,6 +83,26 @@ test.describe("Nav drawer on Agent 3.0 tab", () => {
     await expect(page.locator("#nav-drawer")).not.toHaveClass(/open/);
   });
 
+  test("All 12 nav items resolve to a real DOM section (no dead links)", async ({ page }) => {
+    // Targets every nav-item — fails if any sectionId doesn't exist in the DOM.
+    const targets = await page.$$eval(".nav-item[onclick]", els =>
+      els.map(el => el.getAttribute("onclick").match(/navTo\('([^']+)'\)/)?.[1]).filter(Boolean)
+    );
+    expect(targets.length).toBeGreaterThanOrEqual(12);
+
+    for (const id of targets) {
+      const exists = await page.locator("#" + id).count();
+      expect(exists, `nav target #${id} must exist in DOM`).toBeGreaterThan(0);
+    }
+  });
+
+  test("Escape key closes the nav drawer", async ({ page }) => {
+    await page.click(".hamburger");
+    await expect(page.locator("#nav-drawer")).toHaveClass(/open/);
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#nav-drawer")).not.toHaveClass(/open/);
+  });
+
   test("Section actually lands in viewport (full scroll-into-view check)", async ({ page }) => {
     // Set a known viewport so the assertion is deterministic
     await page.setViewportSize({ width: 1280, height: 800 });
