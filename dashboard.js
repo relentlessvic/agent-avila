@@ -1239,6 +1239,35 @@ const HTML = `<!DOCTYPE html>
   .pill-daily-loss-danger { color: var(--red);    border-color: rgba(255,77,106,0.4); background: rgba(255,77,106,0.08); }
   .pill-daily-loss-na     { color: var(--muted); opacity: 0.7; }
 
+  /* ── Risk Alert Feed ── compact persistent list of last 5 risk events */
+  .risk-feed {
+    background: rgba(255,77,106,0.04);
+    border: 1px solid rgba(255,77,106,0.18);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+  }
+  .risk-feed-header {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+    color: var(--red); text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .risk-feed-count { color: var(--muted); font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .risk-feed-list { display: flex; flex-direction: column; gap: 4px; }
+  .risk-feed-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text);
+    padding: 4px 0;
+  }
+  .risk-feed-row .ts { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 56px; font-size: 11px; }
+  .risk-feed-row .icon { font-size: 13px; line-height: 1; min-width: 16px; text-align: center; }
+  .risk-feed-row .msg { flex: 1; }
+  .risk-feed-empty {
+    font-size: 12px; color: var(--muted); padding: 4px 0; opacity: 0.85;
+  }
+  .risk-feed-na { opacity: 0.65; }
+
   /* ── Trading Status banner ── single READY/BLOCKED answer at the top */
   .trading-status {
     display: flex; align-items: center; gap: 10px;
@@ -2350,6 +2379,17 @@ const HTML = `<!DOCTYPE html>
     <span class="pill pill-daily-loss" id="pill-daily-loss">Daily: —</span>
     <span class="pill pill-last-trade" id="pill-last-trade">Last trade: —</span>
   </div>
+
+  <!-- Persistent Risk Alert Feed — last 5 risk events from safety-check-log -->
+  <section class="risk-feed" id="risk-feed">
+    <div class="risk-feed-header">
+      <span>⚠️ Recent Risk Alerts</span>
+      <span class="risk-feed-count" id="risk-feed-count"></span>
+    </div>
+    <div class="risk-feed-list" id="risk-feed-list">
+      <div class="risk-feed-empty">Loading…</div>
+    </div>
+  </section>
 
   <!-- "How the system works" collapsible -->
   <div class="how-it-works" id="how-it-works">
@@ -3895,6 +3935,68 @@ const HTML = `<!DOCTYPE html>
     text.textContent = reason;
   }
 
+  // ── Risk Alert Feed ───────────────────────────────────────────────────────
+  // Classify a single safety-check-log entry as a risk alert. Returns
+  // { icon, text } for risk-relevant entries; null for normal cycles. Uses
+  // ONLY data already in the entry — no new endpoint, no extra fetch.
+  function classifyRiskAlert(t) {
+    if (!t || typeof t !== "object") return null;
+    // 1. Live order failures (M-2 / C-1 path)
+    if (t.error && typeof t.error === "string" && t.error.length) {
+      const trimmed = t.error.length > 70 ? t.error.slice(0, 67) + "…" : t.error;
+      return { icon: "❌", text: "Live order failed — " + trimmed };
+    }
+    // 2. C-1 path: failed live exit, position retained for retry
+    if (typeof t.exitReason === "string" && t.exitReason.indexOf("FAILED_RETRY_PENDING") !== -1) {
+      return { icon: "🔁", text: "Exit retry pending — position kept open" };
+    }
+    // 3. Skip reasons we surface as risk events (regime/liquidation/limit).
+    //    Score-too-low skips intentionally NOT included — they are normal.
+    const cond = (Array.isArray(t.conditions) && t.conditions[0]) || null;
+    const label = (cond && typeof cond.label === "string") ? cond.label.toLowerCase() : "";
+    if (label.indexOf("regime guard") !== -1)        return { icon: "⛔", text: "Volatile market — no trade" };
+    if (label.indexOf("liquidation safety") !== -1)  return { icon: "🚫", text: "Liquidation risk — SL too wide for leverage" };
+    if (label.indexOf("daily trade limit") !== -1)   return { icon: "🛑", text: "Daily trade limit reached" };
+    return null;
+  }
+
+  function renderRiskAlertFeed(data) {
+    const list  = document.getElementById("risk-feed-list");
+    const count = document.getElementById("risk-feed-count");
+    if (!list) return;
+
+    const recent = data && Array.isArray(data.recentTrades) ? data.recentTrades : null;
+    if (recent === null) {
+      list.innerHTML = '<div class="risk-feed-empty risk-feed-na">Risk alerts unavailable</div>';
+      if (count) count.textContent = "";
+      return;
+    }
+
+    // Most-recent-first, classified, limited to 5
+    const alerts = [];
+    for (let i = recent.length - 1; i >= 0 && alerts.length < 5; i--) {
+      const cls = classifyRiskAlert(recent[i]);
+      if (cls) alerts.push({ ...cls, ts: recent[i].timestamp });
+    }
+
+    if (alerts.length === 0) {
+      list.innerHTML = '<div class="risk-feed-empty">No recent risk alerts.</div>';
+      if (count) count.textContent = "";
+      return;
+    }
+
+    list.innerHTML = alerts.map(function (a) {
+      const t = a.ts ? new Date(a.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—:—";
+      // Escape user-visible strings to prevent any HTML injection from log content
+      const safeMsg = String(a.text)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return '<div class="risk-feed-row"><span class="ts">' + t +
+             '</span><span class="icon">' + a.icon +
+             '</span><span class="msg">' + safeMsg + '</span></div>';
+    }).join("");
+    if (count) count.textContent = alerts.length + " event" + (alerts.length === 1 ? "" : "s");
+  }
+
   async function runHealthCheck() {
     try {
       const data = await safeJson("/api/health");
@@ -4766,6 +4868,7 @@ const HTML = `<!DOCTYPE html>
     safe("heatmap",    () => renderHeatmap(data.allLogs));
     safe("statusBar",     () => renderStatusBar(data));
     safe("tradingStatus", () => renderTradingStatus());
+    safe("riskAlertFeed", () => renderRiskAlertFeed(data));
     safe("lastDecision",  () => renderLastDecision(data.latest));
   }
 
