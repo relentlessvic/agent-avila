@@ -452,6 +452,11 @@ function generateToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
+// Append `; Secure` to cookies on Railway (HTTPS-only). Empty in local dev so
+// http://localhost:3000 keeps working — browsers reject Secure cookies over
+// plain HTTP and the user would silently never get a session.
+const COOKIE_SECURE = process.env.RAILWAY_ENVIRONMENT ? "; Secure" : "";
+
 // Constant-time string compare. SHA-256 normalizes both sides to a 32-byte
 // buffer so timingSafeEqual never sees a length mismatch (which would either
 // throw or short-circuit). Non-strings are rejected up front. Empty strings
@@ -927,7 +932,7 @@ async function processLogin(req, res) {
       pendingSessions.add(pending);
       persistSessions();
       const cookieMaxAge = rememberMe ? "; Max-Age=2592000" : "";
-      const setCookie = `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/${cookieMaxAge}`;
+      const setCookie = `pending_2fa=${pending}; HttpOnly; SameSite=Strict; Path=/${cookieMaxAge}${COOKIE_SECURE}`;
       if (wantsJson) {
         res.writeHead(200, { "Content-Type": "application/json", "Set-Cookie": setCookie });
         res.end(authOk({ redirect: "/2fa", rememberMe }));
@@ -4978,8 +4983,8 @@ const server = createServer(async (req, res) => {
     persistSessions();
     res.writeHead(302, {
       "Set-Cookie": [
-        "session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
-        "pending_2fa=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+        "session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0" + COOKIE_SECURE,
+        "pending_2fa=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0" + COOKIE_SECURE,
       ],
       Location: "/login",
     });
@@ -5021,8 +5026,8 @@ const server = createServer(async (req, res) => {
         persistSessions();
         res.writeHead(302, {
           "Set-Cookie": [
-            `session=${token}; HttpOnly; SameSite=Strict; Path=/`,
-            `pending_2fa=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`,
+            `session=${token}; HttpOnly; SameSite=Strict; Path=/${COOKIE_SECURE}`,
+            `pending_2fa=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${COOKIE_SECURE}`,
           ],
           Location: "/",
         });
