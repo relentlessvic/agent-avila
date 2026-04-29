@@ -3580,16 +3580,19 @@ const HTML = `<!DOCTYPE html>
       } else {
         input.style.display = "none"; btn.disabled = false;
       }
-      modalAction = (confirmed) => { closeModal(); resolve(confirmed); };
+      // Single owner: lambda closes the overlay AND resolves the promise.
+      // closeModal/confirmModalAction just delegate. No callbacks back into
+      // closeModal -> avoids the infinite recursion that froze the page.
+      modalAction = (confirmed) => {
+        o.classList.remove("open");
+        modalAction = null;
+        resolve(confirmed);
+      };
       o.classList.add("open");
     });
   }
-  function closeModal() {
-    document.getElementById("modal-overlay").classList.remove("open");
-    if (modalAction) modalAction(false);
-    modalAction = null;
-  }
-  function confirmModalAction() { if (modalAction) modalAction(true); }
+  function closeModal()         { if (modalAction) modalAction(false); }
+  function confirmModalAction() { if (modalAction) modalAction(true);  }
   // ESC closes modal
   document.addEventListener("keydown", e => {
     if (e.key === "Escape") {
