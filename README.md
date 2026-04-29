@@ -1,277 +1,212 @@
-# Claude + TradingView MCP — Automated Trading
+# Agent Avila
 
-> **New to this?** Watch the previous video first — it sets up the TradingView MCP connection this builds on.
+An adaptive, rule-based XRP trading system. Runs a deterministic 4-condition entry signal on 5-minute candles, executes against Kraken (paper or live), and ships with a web dashboard, 2FA-protected auth, Discord alerts, and an embedded health watchdog.
 
-[![How To Connect Claude to TradingView (Insanely Cool)](https://img.youtube.com/vi/vIX6ztULs4U/maxresdefault.jpg)](https://youtu.be/vIX6ztULs4U)
-
-[![Claude Code + TradingView Now Actually Executes Real Trades](https://img.youtube.com/vi/aDWJ6lLemJU/maxresdefault.jpg)](https://www.youtube.com/watch?v=aDWJ6lLemJU)
+> **Not AI for trading decisions.** A statistical adaptive execution engine: parameters (entry threshold, risk multiplier, leverage cap) shift based on measurable performance metrics — win rate, drawdown, market regime, volatility. The strategy itself is fixed in `rules.json`.
 
 ---
 
-## What This Does
+## What it actually does
 
-**Five things you get from this setup:**
-
-1. **Claude connected to your exchange** — reads your TradingView chart and executes trades on BitGet automatically
-2. **A safety check** — every condition in your strategy must pass before a single trade goes through
-3. **24/7 cloud execution** — deploy to Railway and it runs on a schedule, even when your laptop is closed
-4. **Automatic tax accounting** — every trade logged to `trades.csv` with date, price, fees, and net amount, ready for your accountant
-5. **Free** — no email, no course, no upsell. Everything is in this repo.
-
----
-
-## The One-Shot Prompt
-
-> **This is the thing you paste.** Open Claude Code in this directory, paste the entire contents of [`prompts/02-one-shot-trade.md`](prompts/02-one-shot-trade.md), and Claude will do the rest.
-
-Here's what it does when you run it:
-
-| Step | What Claude does |
-|------|-----------------|
-| 1 | Reads your `rules.json` strategy |
-| 2 | Pulls live price + indicator data from TradingView |
-| 3 | Calculates MACD from raw candle data |
-| 4 | Evaluates market bias (bullish / bearish / neutral) |
-| 4b | Checks trade limits — daily cap and max trade size |
-| 5 | Runs the safety check — every entry condition checked |
-| 6 | Executes the trade via BitGet if all conditions pass |
-| 7 | Logs the trade to `trades.csv` — date, price, fees, net amount (tax-ready) |
-| 8 | Saves full decision log to `safety-check-log.json` |
-
-If anything fails the safety check, it stops and tells you exactly which condition failed and the actual values. No trade goes through unless everything lines up.
+| Layer | Behavior |
+|---|---|
+| **Strategy** | EMA(8) + RSI(3) + VWAP + overextension check on XRPUSDT 5m candles. 4-condition signal scored 0–100; trade fires at ≥ 75 (threshold adapts to recent performance). |
+| **Risk** | Stop loss + take profit (volatility-aware), breakeven move, trailing stop, daily trade cap, cooldown after each trade, kill switch on drawdown, auto-pause after consecutive losses. |
+| **Execution** | Kraken spot via HMAC-SHA512 signed REST. PID lock prevents concurrent bot processes (cron + embedded runner can both fire — never overlap). |
+| **Dashboard** | Single-page web UI: live price + position + P&L + status bar with regime/score/bot pills. TradingView widget chart. Bot controls (pause/stop/kill, leverage, SL/TP, daily loss cap). |
+| **Auth** | Email + password + TOTP 2FA, with backup phrase recovery. File-backed sessions survive Railway restarts. 30-day "remember me" cookie. |
+| **Alerts** | Discord webhook: BUY signal, SELL signal (with reason + P&L), RISK alerts (auto-pause / kill switch / failed live order), and a daily summary at first cycle past midnight UTC. |
+| **Watchdog** | Embedded health monitor runs every 5 min on Railway. Detects stale bot, dead PID lock, high memory, kill-switch trips → posts to Discord with 1h per-issue throttle. |
+| **Tests** | 9 Playwright tests covering modal recursion, drawer navigation, scroll-into-view, viewport landing. |
 
 ---
 
-## Getting Started
+## Architecture
 
-### Step 1 — Paste the one-shot prompt into Claude Code
+Three production processes:
 
-Copy the entire contents of [`prompts/02-one-shot-trade.md`](prompts/02-one-shot-trade.md) and paste it into your Claude Code terminal.
+1. **`bot.js`** — single-shot trading engine. Each invocation: acquires PID lock → fetches OHLC from Kraken → calculates indicators → checks safety guards → scores signal → enters/exits if conditions align → writes state files + tax CSV → releases lock and exits.
+2. **`dashboard.js`** — long-running HTTP server. Serves the auth'd web UI, exposes `/api/health`, `/api/me`, `/api/system-status`, `/api/run-bot`, etc. On Railway, also runs an embedded copy of the bot every 5 minutes plus the health watchdog.
+3. **`system-guardian.js`** — pure ESM module. Reads file-based state and reports system status; called by both the dashboard's status endpoint and the watchdog loop.
 
-That's it. Claude acts as your onboarding agent — it clones the repo, walks you through connecting BitGet, sets your trading preferences, connects TradingView, optionally builds a strategy from a YouTube channel, deploys to Railway, and runs the bot for the first time. Every step is interactive. It pauses when it needs something from you and handles everything else automatically.
+State is **file-based**, not in-memory, because `bot.js` and `dashboard.js` are separate processes on Railway and can't share JS-level memory.
 
 ---
 
-## What's Happening Under the Hood
+## File structure
 
-For anyone who wants to understand the steps manually, or troubleshoot a specific part:
+```
+agent-avila/
+├── bot.js                    # Trading engine (entry point for cron + manual)
+├── dashboard.js              # HTTP server + embedded HTML/CSS/JS UI + auth
+├── system-guardian.js        # Health/status logic (ESM module)
+├── rules.json                # Strategy definition (entry rules, thresholds)
+├── run-bot.sh                # Bash wrapper for local cron
+├── railway.json              # Nixpacks build config (minimal)
+├── package.json              # Scripts: start / dashboard / test / deploy
+├── playwright.config.js      # Test runner config
+├── tests/
+│   ├── modal.spec.js         # Confirm-modal recursion / pointer-events
+│   └── nav.spec.js           # Menu drawer + tab switching
+├── docs/
+│   └── exchanges/*.md        # API setup notes per exchange
+├── prompts/                  # Strategy-extraction prompt templates
+├── .env.example              # Placeholder env vars (commit-safe)
+└── .gitignore                # Excludes .env, runtime state, lock files
+```
+
+**Runtime state files** (all gitignored, written by the bot/dashboard at runtime):
+
+| File | Owner | Purpose |
+|---|---|---|
+| `safety-check-log.json` | bot.js | Decision log — every cycle's signal, reasoning, outcome |
+| `position.json` | bot.js | Currently open trade (entry, SL/TP, leverage) |
+| `bot-control.json` | dashboard + bot | Pause / stop / kill / risk knobs (UI-controllable) |
+| `performance-state.json` | bot.js | Adaptive metrics — win rate, drawdown, threshold |
+| `portfolio-state.json` | bot.js | Portfolio health score |
+| `capital-state.json` | bot.js | XRP role + active/reserve split |
+| `sessions-store.json` | dashboard.js | Active + pending 2FA sessions |
+| `.bot.lock` | bot.js | PID lock; auto-released on exit |
+| `.bot-log-state.json` | bot.js | Per-issue log dedup timestamps |
+| `trades.csv` | bot.js | Tax-ready trade record |
+
+---
+
+## Setup
 
 ### Prerequisites
+- Node.js 18+
+- A Kraken API key with **View + Trade** permissions only — **withdrawals OFF**
 
-- **TradingView MCP** must already be set up — built in the [first video](https://youtu.be/vIX6ztULs4U)
-- **Claude Code** installed and running
-- **A BitGet account** — [sign up here]([https://partner.bitget.com/bg/LewisJackson](https://bonus.bitget.com/LewisJackson)) for a $1,000 bonus on your first deposit
-- **Node.js 18+** — check with `node --version`
+### Local install
 
----
-
-### Clone the repo
-
-**Mac / Linux:**
 ```bash
-git clone https://github.com/jackson-video-resources/claude-tradingview-mcp-trading
-cd claude-tradingview-mcp-trading
-```
-
-**Windows:**
-```powershell
-git clone https://github.com/jackson-video-resources/claude-tradingview-mcp-trading
-cd claude-tradingview-mcp-trading
-```
-
----
-
-### Add your BitGet API credentials
-
-**Mac / Linux:**
-```bash
+git clone <repo-url>
+cd agent-avila
+npm install
 cp .env.example .env
+# fill in .env (see Environment variables below)
 ```
 
-**Windows:**
-```powershell
-Copy-Item .env.example .env
-```
+### Run locally
 
-Open `.env` and fill in:
+| Command | What it does |
+|---|---|
+| `node bot.js` | Run one trading cycle (acquires lock, evaluates, exits) |
+| `node dashboard.js` | Start the dashboard at `http://localhost:3000` |
+| `npm test` | Run the Playwright suite (auto-starts dashboard on :3050) |
+| `npm run deploy` | Push current working directory to Railway |
 
-```
-BITGET_API_KEY=your_api_key_here
-BITGET_SECRET_KEY=your_secret_key_here
-BITGET_PASSPHRASE=your_passphrase_here
-PORTFOLIO_VALUE_USD=1000
-MAX_TRADE_SIZE_USD=100
-MAX_TRADES_PER_DAY=3
-```
+The dashboard requires the same `.env` to be present — it reads `DASHBOARD_EMAIL` / `DASHBOARD_PASSWORD` / `DASHBOARD_TOTP_SECRET` for login.
 
-**Getting your API key:**
+### First-time TOTP setup
 
-Step-by-step guides for all supported exchanges:
+`DASHBOARD_TOTP_SECRET` is a base32-encoded secret. To enroll an authenticator app (Authy, Google Authenticator, 1Password, etc.):
 
-| Exchange | Guide |
-|----------|-------|
-| BitGet *(used in the video)* | [docs/exchanges/bitget.md](docs/exchanges/bitget.md) |
-| Binance | [docs/exchanges/binance.md](docs/exchanges/binance.md) |
-| Bybit | [docs/exchanges/bybit.md](docs/exchanges/bybit.md) |
-| OKX | [docs/exchanges/okx.md](docs/exchanges/okx.md) |
-| Coinbase Advanced | [docs/exchanges/coinbase.md](docs/exchanges/coinbase.md) |
-| Kraken | [docs/exchanges/kraken.md](docs/exchanges/kraken.md) |
-| KuCoin | [docs/exchanges/kucoin.md](docs/exchanges/kucoin.md) |
-| Gate.io | [docs/exchanges/gateio.md](docs/exchanges/gateio.md) |
-| MEXC | [docs/exchanges/mexc.md](docs/exchanges/mexc.md) |
-| Bitfinex | [docs/exchanges/bitfinex.md](docs/exchanges/bitfinex.md) |
-
-Two rules that apply to every exchange — **withdrawals OFF, IP whitelist ON**.
+1. Set `DASHBOARD_TOTP_SECRET` to any base32 string of your choosing (or leave it empty and let the dashboard generate one on first boot — check the server log for the value).
+2. Add it to your authenticator app as a manual entry, label `Agent Avila`.
+3. The 6-digit code rotates every 30 seconds.
+4. `DASHBOARD_BACKUP_PHRASE` is a fallback — entering it on the 2FA screen acts as a one-shot recovery if you lose your TOTP device.
 
 ---
 
-### Launch TradingView and connect the MCP
+## Railway deployment
 
-**Mac:**
-```bash
-tv_launch
-tv_health_check
-```
+The project is hosted on Railway as **two services in one project**:
 
-**Windows:** See [docs/setup-windows.md](docs/setup-windows.md)
+| Service | Role |
+|---|---|
+| `agent-avila-dashboard` | Long-running HTTP server (the dashboard URL). Also spawns `bot.js` every 5 min. |
+| `claude-trading-bot` | Cron service that fires `bot.js` on a schedule (redundancy + ensures the bot still runs if the dashboard service is restarting). |
 
-**Linux:** See [docs/setup-linux.md](docs/setup-linux.md)
+The PID lock in `bot.js` prevents the two runners from colliding — whichever process acquires `.bot.lock` first runs; the other exits cleanly.
 
-Verify with `tv_health_check` — should return `cdp_connected: true`.
-
----
-
-### Run the bot manually
+### Deploying
 
 ```bash
-node bot.js
+npm run deploy
 ```
 
----
+This runs `railway up --detach --service agent-avila-dashboard`, which uploads the working directory directly. A direct deploy is used because the GitHub-Railway webhook integration on the linked repo is currently set up manually — auto-deploy is optional, not required.
 
-## Deploy to Railway (Run in the Cloud 24/7)
+### Setting Railway env vars
 
-The local setup runs when your laptop is open. Railway lets the bot check for setups around the clock — even while you sleep.
-
-> **Note:** Cloud mode pulls candle data directly from Binance's free market API instead of TradingView. No TradingView Desktop needed in the cloud. The strategy logic and safety check are identical.
-
-### 1. Deploy
-
-```bash
-npm install -g @railway/cli
-railway login
-railway init
-railway up
-```
-
-### 2. Set your environment variables in Railway
-
-Go to your Railway project → Variables and add everything from `.env.example`:
-
-| Variable | Example |
-|----------|---------|
-| `BITGET_API_KEY` | your key |
-| `BITGET_SECRET_KEY` | your secret |
-| `BITGET_PASSPHRASE` | your passphrase |
-| `PORTFOLIO_VALUE_USD` | 1000 |
-| `MAX_TRADE_SIZE_USD` | 100 |
-| `MAX_TRADES_PER_DAY` | 3 |
-| `PAPER_TRADING` | true (set to false when ready) |
-| `SYMBOL` | BTCUSDT |
-| `TIMEFRAME` | 4H |
-
-### 3. Set a cron schedule
-
-In Railway → Settings → Cron Schedule, set how often the bot runs. Recommended:
-
-| Timeframe | Schedule | What it means |
-|-----------|----------|----------------|
-| 4H chart | `0 */4 * * *` | Every 4 hours |
-| 1D chart | `0 9 * * *` | Once a day at 9am UTC |
-| 1H chart | `0 * * * *` | Every hour |
-
-### 4. Start in paper trading mode
-
-`PAPER_TRADING=true` logs every decision but never places real orders. Watch a few days of paper trades, confirm the logic matches what you expect, then flip it to `false`.
+For each service in the Railway UI → Variables tab, set the same values as `.env`. The `DISCORD_WEBHOOK_URL` should be set on **both** services (dashboard and cron) since both can spawn `bot.js`.
 
 ---
 
-## Build Your Own Strategy (Optional)
+## Environment variables
 
-The example `rules.json` uses the van de Poppe + Tone Vays BTC strategy. To build one from any trader's public videos:
+All values in `.env.example` are placeholders. Real values go in your local `.env` (gitignored) and in Railway → Variables (per service).
 
-1. Go to [Apify](https://apify.com?fpr=3ly3yd) and search the actor store for **YouTube Transcript Scraper** — takes about 30 seconds per channel
-2. Paste the output into `prompts/01-extract-strategy.md`
-3. Run that prompt in Claude Code — it generates a `rules.json` tailored to that trader's methodology
-
----
-
-## Files
-
-| File | What it does |
-|------|-------------|
-| `rules.json` | Your strategy — indicators, entry rules, risk rules |
-| `.env` | Your BitGet credentials (gitignored — never commits) |
-| `prompts/01-extract-strategy.md` | Build rules.json from trader transcripts |
-| `prompts/02-one-shot-trade.md` | **The one-shot prompt — paste this to trade** |
-| `safety-check-log.json` | Auto-generated log of every trade decision |
-| `trades.csv` | Tax-ready trade record — auto-written on every execution |
-| `docs/setup-windows.md` | Windows-specific MCP setup |
-| `docs/setup-linux.md` | Linux-specific MCP setup |
-
----
-
-## Tax Accounting
-
-Every trade the bot places is automatically written to `trades.csv` with the columns your accountant needs:
-
-| Column | Description |
-|--------|-------------|
-| Date | ISO date of the trade |
-| Time | UTC time |
-| Exchange | BitGet |
-| Symbol | e.g. BTCUSDT |
-| Side | Buy / Sell |
-| Quantity | Units traded |
-| Price | Price per unit at execution |
-| Total USD | Gross trade value |
-| Fee (est.) | Estimated exchange fee |
-| Net Amount | Total USD minus fee |
-| Order ID | Exchange reference |
-| Mode | Paper / Live |
-
-At tax time: open the file, hand it to your accountant, or import it directly into your accounting software. Nothing to reconstruct.
-
-For a quick summary of your trading activity, run:
-
-```bash
-node bot.js --tax-summary
-```
-
-This prints total trades, volume, and fees paid.
+| Var | Required | Purpose |
+|---|---|---|
+| `KRAKEN_API_KEY` | yes | Kraken REST API key — **View + Trade only**, withdrawals disabled |
+| `KRAKEN_SECRET_KEY` | yes | Kraken API secret (base64) |
+| `DASHBOARD_EMAIL` | yes | Login email for the web dashboard |
+| `DASHBOARD_PASSWORD` | yes | Login password |
+| `DASHBOARD_TOTP_SECRET` | yes | Base32 secret for TOTP 2FA |
+| `DASHBOARD_BACKUP_PHRASE` | yes | One-shot recovery phrase if TOTP is lost |
+| `SYMBOL` | yes | Symbol in Binance format (e.g. `XRPUSDT`) — bot maps to Kraken pair internally |
+| `TIMEFRAME` | yes | `5m`, `15m`, `1h`, `4h`, `1d` |
+| `PAPER_TRADING` | yes | `true` to log decisions without placing orders, `false` to go live |
+| `PAPER_STARTING_BALANCE` | yes | Virtual USD balance for paper mode |
+| `PORTFOLIO_VALUE_USD` | yes | Used to size positions |
+| `MAX_TRADE_SIZE_USD` | yes | Per-trade cap |
+| `MAX_TRADES_PER_DAY` | yes | Daily entry cap |
+| `LEVERAGE` | yes | Default leverage (1–3) |
+| `STOP_LOSS_PCT` | yes | SL distance from entry |
+| `TAKE_PROFIT_PCT` | yes | TP distance from entry |
+| `TRADE_MODE` | yes | `spot` (Kraken perps not supported here) |
+| `DISCORD_WEBHOOK_URL` | optional | Channel webhook for entry/exit/risk alerts |
+| `ANTHROPIC_API_KEY` | optional | Enables the in-dashboard chat assistant |
 
 ---
 
-## Safety
+## Security
 
-The safety check conditions are not fixed — they come directly from your `rules.json`. If you build a strategy from a YouTube trader's transcripts using the Apify prompt, your safety check will reflect that trader's entry logic. If you use the example strategy, it reflects those conditions. They're yours, not a generic filter.
+- **Withdrawals must be OFF on your Kraken API key.** This is the single most important guardrail. Without it, a leaked key can drain the account.
+- **TOTP 2FA is required** on the dashboard. If `DASHBOARD_TOTP_SECRET` is missing, login is impossible — there is no bypass.
+- **Sessions are HttpOnly + SameSite=Strict cookies.** No JWT tokens exposed to JavaScript.
+- **`/api/run-bot` requires a valid session.** Anonymous bot triggers are not possible.
+- **Rate limit:** 8 failed logins per IP per 5 minutes returns 429.
+- **No browser secrets.** The TradingView API key, Kraken keys, and Discord webhook live only on the server; the browser sees none of them.
+- **`.env` is gitignored.** Verify with `git check-ignore .env`.
 
-Every condition in your `entry_rules` must pass before a trade goes through. One fails — nothing happens. The bot tells you exactly which condition failed and the actual value it saw.
+If a secret is ever leaked (pasted in a transcript, committed by mistake, etc.), **rotate immediately**:
+- Kraken: kraken.com → Security → API → revoke + reissue
+- Discord webhook: channel settings → Integrations → Webhooks → delete + recreate
+- TOTP secret: change `DASHBOARD_TOTP_SECRET` and re-enroll the authenticator
+- Backup phrase: change `DASHBOARD_BACKUP_PHRASE`
 
-Additional guardrails that apply regardless of strategy:
-- Maximum trade size capped at `MAX_TRADE_SIZE_USD` in `.env`
-- Maximum trades per day capped at `MAX_TRADES_PER_DAY` in `.env`
-- Position sizing calculated from your portfolio value — max 1% risk per trade
-- Every decision logged to `safety-check-log.json` with exact indicator values
-- Every executed trade recorded in `trades.csv` for accounting
+---
 
-**This is not financial advice.** Build your strategy properly. Run the backtest. Paper trade before going live. Never put in more than you can afford to lose.
+## Risk disclaimer
+
+**This is not financial advice and there is no guarantee of profit.** Crypto markets are volatile; you can lose your entire balance. Strategy parameters that worked yesterday may fail today. Backtest results do not predict live performance.
+
+The bot enforces hard limits (kill switch, daily cap, trade size cap, cooldown), but no software guarantee replaces capital you can afford to lose. Read the strategy in `rules.json` and the safety code in `bot.js` before risking real money.
+
+---
+
+## Paper trading first — non-negotiable
+
+**Before flipping `PAPER_TRADING=false`:**
+
+1. Run in paper mode for at least one full week of market activity.
+2. Verify every trade in `safety-check-log.json` matches your expectations — entries, exits, P&L, the conditions that fired.
+3. Confirm Discord alerts are firing on entry, exit, pause, and kill switch.
+4. Confirm the kill switch and auto-pause mechanics by inducing them (force a paper drawdown).
+5. Confirm `position.json` and `safety-check-log.json` are being written and the dashboard reflects them.
+6. Watch at least one paper entry → exit lifecycle from your phone — make sure Discord alerts and dashboard pills update as expected.
+
+Only after all six pass should you set `PAPER_TRADING=false`. Even then, **the first live order should be observed end-to-end**. Set a small `MAX_TRADE_SIZE_USD` for the first few cycles.
 
 ---
 
 ## Resources
 
-- [First video — Connect Claude to TradingView](https://youtu.be/vIX6ztULs4U)
-- [TradingView MCP repo (first video)](https://github.com/jackson-video-resources/tradingview-mcp-jackson)
-- [Apify](https://apify.com?fpr=3ly3yd) — search actor store for "YouTube Transcript Scraper"
-- [BitGet — $1,000 bonus on first deposit]([https://partner.bitget.com/bg/LewisJackson](https://bonus.bitget.com/LewisJackson))
+- [Kraken API docs](https://docs.kraken.com/rest/)
+- [Discord webhook docs](https://discord.com/developers/docs/resources/webhook)
+- [Railway docs](https://docs.railway.app/)
+- TOTP reference: [RFC 6238](https://datatracker.ietf.org/doc/html/rfc6238)
