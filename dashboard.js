@@ -831,6 +831,24 @@ function loginPage(error = "") {
 
 const pendingSessions = new Set(_persisted.pending);
 const loginAttempts = new Map(); // ip -> { count, first } — sliding 5-min window
+const twofaAttempts = new Map(); // ip -> { count, first } — POST /2fa
+const forgotAttempts = new Map(); // ip -> { count, first } — POST /api/forgot-password
+
+// Shared sliding-window check — same shape as /api/login uses inline.
+// Returns true if the request is allowed; false if the IP has exceeded `limit`
+// within the trailing `windowMs`. Mutates the bucket in place.
+function rateLimited(bucket, ip, limit = 8, windowMs = 5 * 60 * 1000) {
+  const now = Date.now();
+  const rec = bucket.get(ip) || { count: 0, first: now };
+  if (now - rec.first > windowMs) { rec.count = 0; rec.first = now; }
+  rec.count++;
+  bucket.set(ip, rec);
+  return rec.count > limit;
+}
+function clientIp(req) {
+  return (req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown")
+    .toString().split(",")[0].trim();
+}
 
 // ── Canonical login response envelope ─────────────────────────────────────
 //   success → { success: true,  data: {...} }
@@ -4907,6 +4925,13 @@ const server = createServer(async (req, res) => {
   // ── Forgot password (real action — never confirms account existence) ────
   if (req.url === "/api/forgot-password" && req.method === "POST") {
     try {
+      const ip = clientIp(req);
+      if (rateLimited(forgotAttempts, ip)) {
+        log.warn("/api/forgot-password", `rate-limited ${ip}`);
+        res.writeHead(429, { "Content-Type": "application/json", "Retry-After": "60" });
+        res.end(JSON.stringify({ success: false, error: "Too many attempts. Please try again later." }));
+        return;
+      }
       const body = await readBody(req);
       let email = "";
       try { email = (JSON.parse(body).email || "").toString(); }
@@ -4959,6 +4984,17 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === "POST") {
+      const ip = clientIp(req);
+      if (rateLimited(twofaAttempts, ip)) {
+        log.warn("/2fa", `rate-limited ${ip}`);
+        res.writeHead(429, {
+          "Content-Type": "text/html",
+          "Retry-After": "60",
+          "Cache-Control": "no-store, must-revalidate",
+        });
+        res.end(twoFaPage("Too many attempts. Please try again later."));
+        return;
+      }
       const body = await readBody(req);
       const params = new URLSearchParams(body);
       const code   = params.get("code")   || "";
@@ -4966,6 +5002,7 @@ const server = createServer(async (req, res) => {
       const totpOk   = code   && verifyTotp(process.env.DASHBOARD_TOTP_SECRET, code);
       const backupOk = backup && process.env.DASHBOARD_BACKUP_PHRASE && backup === process.env.DASHBOARD_BACKUP_PHRASE;
       if (totpOk || backupOk) {
+        twofaAttempts.delete(ip); // success resets the counter
         pendingSessions.delete(pending);
         const token = generateToken();
         sessions.add(token);
