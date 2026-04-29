@@ -452,6 +452,18 @@ function generateToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
+// Constant-time string compare. SHA-256 normalizes both sides to a 32-byte
+// buffer so timingSafeEqual never sees a length mismatch (which would either
+// throw or short-circuit). Non-strings are rejected up front. Empty strings
+// still match each other — preserves the existing behavior of the
+// `(process.env.X || "")` fallback in the login compare.
+function safeStringEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const ah = crypto.createHash("sha256").update(a).digest();
+  const bh = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(ah, bh);
+}
+
 function parseCookies(header = "") {
   const cookies = {};
   for (const part of header.split(";")) {
@@ -906,8 +918,8 @@ async function processLogin(req, res) {
     }
 
     const valid =
-      email    === (process.env.DASHBOARD_EMAIL    || "") &&
-      password === (process.env.DASHBOARD_PASSWORD || "");
+      email === (process.env.DASHBOARD_EMAIL || "") &&
+      safeStringEqual(password, process.env.DASHBOARD_PASSWORD || "");
 
     if (valid) {
       loginAttempts.delete(ip);
@@ -5000,7 +5012,7 @@ const server = createServer(async (req, res) => {
       const code   = params.get("code")   || "";
       const backup = params.get("backup") || "";
       const totpOk   = code   && verifyTotp(process.env.DASHBOARD_TOTP_SECRET, code);
-      const backupOk = backup && process.env.DASHBOARD_BACKUP_PHRASE && backup === process.env.DASHBOARD_BACKUP_PHRASE;
+      const backupOk = !!backup && !!process.env.DASHBOARD_BACKUP_PHRASE && safeStringEqual(backup, process.env.DASHBOARD_BACKUP_PHRASE);
       if (totpOk || backupOk) {
         twofaAttempts.delete(ip); // success resets the counter
         pendingSessions.delete(pending);
