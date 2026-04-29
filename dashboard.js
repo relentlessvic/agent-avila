@@ -145,6 +145,36 @@ function getApiData() {
   return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperStartingBalance, position, control, perfState, capitalState, portfolioState, modeWinLoss, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
 }
 
+// ─── Home summary (Phase 6e — slim endpoint for /) ──────────────────────────
+// Homepage only renders 4 fields. /api/data ships ~30 KB; this returns ~250 B.
+function getHomeSummary() {
+  let control = {};
+  try { if (existsSync("bot-control.json")) control = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
+  let latest = null;
+  try {
+    if (existsSync("safety-check-log.json")) {
+      const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+      const t = log.trades.length ? log.trades[log.trades.length - 1] : null;
+      if (t) latest = {
+        timestamp:  t.timestamp,
+        price:      t.price ?? null,
+        type:       t.type || null,
+        exitReason: t.exitReason || null,
+        allPass:    t.allPass === true,
+      };
+    }
+  } catch {}
+  return {
+    control: {
+      paperTrading: control.paperTrading !== false,
+      stopped:      !!control.stopped,
+      paused:       !!control.paused,
+      killed:       !!control.killed,
+    },
+    latest,
+  };
+}
+
 // ─── Mode-scoped data (Paper / Live) ──────────────────────────────────────────
 // Phase 1: data separation only. Each helper filters safety-check-log.json by
 // the .paperTrading flag so paper and live stats never mix. Position and
@@ -5390,26 +5420,31 @@ const HTML = `<!DOCTYPE html>
 
   // ── SSE live stream ────────────────────────────────────────────────────────
   // Phase 6c — track timestamp of last successful SSE event so a 5s checker
-  // can surface a non-scary pill when the stream goes silent. Existing
-  // reconnect behavior is unchanged; this is observation only.
+  // can surface a non-scary pill when the stream goes silent. Phase 6e —
+  // exponential backoff on reconnect (3s → 30s cap, reset on success).
   let _lastSSEEventAt = Date.now();
+  let _sseAttempts = 0;
 
   function connectStream() {
     const es = new EventSource("/api/stream");
 
     es.addEventListener("data", e => {
       _lastSSEEventAt = Date.now();
+      _sseAttempts = 0;
       try { render(JSON.parse(e.data)); } catch {}
     });
 
     es.addEventListener("balance", e => {
       _lastSSEEventAt = Date.now();
+      _sseAttempts = 0;
       try { renderBalance(JSON.parse(e.data)); } catch {}
     });
 
     es.addEventListener("error", () => {
       es.close();
-      setTimeout(connectStream, 3000);
+      _sseAttempts++;
+      const delay = Math.min(3000 * Math.pow(2, _sseAttempts - 1), 30000);
+      setTimeout(connectStream, delay);
     });
   }
   connectStream();
@@ -5560,16 +5595,26 @@ const HTML = `<!DOCTYPE html>
     svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>';
   }
 
+  // Phase 6e — exponential backoff on Kraken WS reconnect (3s → 30s cap).
+  let _wsAttempts = 0;
   function connectTickerWS() {
     const ws = new WebSocket("wss://ws.kraken.com");
     ws.onopen = () => { wsConnected = true; ws.send(JSON.stringify({ event: "subscribe", pair: ["XRP/USD"], subscription: { name: "ticker" } })); };
     ws.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
-        if (Array.isArray(msg) && msg[2] === "ticker") updateLivePrice(parseFloat(msg[1].c[0]));
+        if (Array.isArray(msg) && msg[2] === "ticker") {
+          _wsAttempts = 0;
+          updateLivePrice(parseFloat(msg[1].c[0]));
+        }
       } catch {}
     };
-    ws.onclose = () => { wsConnected = false; setTimeout(connectTickerWS, 3000); };
+    ws.onclose = () => {
+      wsConnected = false;
+      _wsAttempts++;
+      const delay = Math.min(3000 * Math.pow(2, _wsAttempts - 1), 30000);
+      setTimeout(connectTickerWS, delay);
+    };
     ws.onerror  = () => { wsConnected = false; ws.close(); };
   }
   connectTickerWS();
@@ -5781,7 +5826,7 @@ let _lastOk = Date.now(), _inflight = false, _hidden = false;
 
 async function loadHome() {
   try {
-    const r = await fetch("/api/data", { credentials: "same-origin" });
+    const r = await fetch("/api/home-summary", { credentials: "same-origin" });
     if (!r.ok) throw new Error("HTTP " + r.status);
     const d = await r.json();
     const ctrl = d.control || {};
@@ -6013,6 +6058,21 @@ function fmtNum(n, d=2) { return (n === null || n === undefined || isNaN(n)) ? "
 
 // Phase 6a — refresh reliability state for /paper /live.
 let _lastOk = Date.now(), _inflight = false, _hidden = false;
+// Phase 6e — declared early so render() (called via safePoll) can safely
+// write to it before the Phase 6d WS block parses further down the script.
+let _polledPrice = null;
+// Phase 6e — cross-route self-heal. If safety-check log is > 6 min stale,
+// POST /api/run-bot once. Throttled client-side; the server has its own
+// "skipped if last run < 4 min" guard as the source of truth.
+let _lastSelfHealAt = 0;
+function maybeSelfHeal(latestTimestamp) {
+  if (!latestTimestamp) return;
+  const ageMin = (Date.now() - new Date(latestTimestamp).getTime()) / 60000;
+  if (ageMin <= 6) return;
+  if (Date.now() - _lastSelfHealAt < 6 * 60 * 1000) return;
+  _lastSelfHealAt = Date.now();
+  fetch("/api/run-bot", { method: "POST", credentials: "same-origin" }).catch(() => {});
+}
 
 async function loadSummary() {
   try {
@@ -6055,7 +6115,12 @@ function showStale() {
 
 document.addEventListener("visibilitychange", () => {
   _hidden = document.hidden;
-  if (!_hidden) safePoll();
+  if (!_hidden) {
+    safePoll();
+    // Phase 6e — pill setInterval gets browser-throttled while tab is hidden.
+    // Refresh the live-price pill immediately so it reflects state on return.
+    if (typeof renderPricePill === "function") renderPricePill();
+  }
 });
 
 function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
@@ -6064,6 +6129,8 @@ function render(d) {
   // Phase 6d — capture polled price for live-price pill fallback.
   _polledPrice = (d.latestDecision && typeof d.latestDecision.price === "number") ? d.latestDecision.price : _polledPrice;
   if (typeof renderPricePill === "function") renderPricePill();
+  // Phase 6e — wake the bot if its log is stale (server self-throttles).
+  if (d.latestDecision && d.latestDecision.timestamp) maybeSelfHeal(d.latestDecision.timestamp);
 
   // Active badge
   const badge = document.getElementById("active-badge");
@@ -6242,12 +6309,17 @@ setInterval(showStale, 1000);
 let _wsPrice = null;
 let _wsState = "connecting";
 let _lastWSMsgAt = 0;
-let _polledPrice = null;
+// _polledPrice declared earlier (Phase 6e) so render() can write it before
+// this WS block parses; see top of script.
+
+// Phase 6e — exponential backoff on WS reconnect (3s → 30s cap).
+let _wsAttempts = 0;
+function _wsBackoff() { return Math.min(3000 * Math.pow(2, _wsAttempts - 1), 30000); }
 
 function connectTickerWS() {
   let ws;
   try { ws = new WebSocket("wss://ws.kraken.com"); }
-  catch (e) { _wsState = "reconnecting"; renderPricePill(); setTimeout(connectTickerWS, 3000); return; }
+  catch (e) { _wsState = "reconnecting"; renderPricePill(); _wsAttempts++; setTimeout(connectTickerWS, _wsBackoff()); return; }
   ws.onopen = () => {
     try { ws.send(JSON.stringify({ event: "subscribe", pair: ["XRP/USD"], subscription: { name: "ticker" } })); } catch {}
   };
@@ -6258,6 +6330,7 @@ function connectTickerWS() {
         _wsPrice = parseFloat(msg[1].c[0]);
         _wsState = "live";
         _lastWSMsgAt = Date.now();
+        _wsAttempts = 0;
         renderPricePill();
       }
     } catch {}
@@ -6265,7 +6338,8 @@ function connectTickerWS() {
   ws.onclose = () => {
     if (_wsState !== "connecting") _wsState = "reconnecting";
     renderPricePill();
-    setTimeout(connectTickerWS, 3000);
+    _wsAttempts++;
+    setTimeout(connectTickerWS, _wsBackoff());
   };
   ws.onerror = () => { try { ws.close(); } catch {} };
 }
@@ -6648,6 +6722,10 @@ const server = createServer(async (req, res) => {
     const data = getApiData();
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify(data));
+  } else if (req.url === "/api/home-summary") {
+    // Phase 6e — slim endpoint for the homepage. Returns only what / renders.
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify(getHomeSummary()));
   } else if (req.url === "/api/balance") {
     try {
       const data = await fetchKrakenBalance();
