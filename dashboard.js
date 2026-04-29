@@ -1238,8 +1238,8 @@ const HTML = `<!DOCTYPE html>
   .toast-warn    { border-color: rgba(255,181,71,0.3); box-shadow: 0 8px 24px rgba(255,181,71,0.1); }
 
   /* ── Modal Dialog ── */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 20px; }
-  .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease-out; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 20px; pointer-events: none; }
+  .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease-out; pointer-events: auto; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   .modal { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 30px rgba(0,212,255,0.1); animation: modalIn 0.25s cubic-bezier(0.16,1,0.3,1); }
   @keyframes modalIn { from { opacity: 0; transform: translateY(20px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -3563,6 +3563,9 @@ const HTML = `<!DOCTYPE html>
   // ── Custom Confirm Modal ──────────────────────────────────────────────────
   let modalAction = null;
   function showModal(opts) {
+    // If another modal is already open, resolve it as cancelled before
+    // opening the new one so the previous promise doesn't hang forever.
+    if (modalAction) modalAction(false);
     return new Promise(resolve => {
       const o = document.getElementById("modal-overlay");
       document.getElementById("modal-icon").textContent  = opts.icon  || "⚠";
@@ -3583,9 +3586,11 @@ const HTML = `<!DOCTYPE html>
       // Single owner: lambda closes the overlay AND resolves the promise.
       // closeModal/confirmModalAction just delegate. No callbacks back into
       // closeModal -> avoids the infinite recursion that froze the page.
+      // Setting modalAction = null FIRST means a fast double-click on
+      // Cancel/Confirm becomes a no-op on the second click.
       modalAction = (confirmed) => {
-        o.classList.remove("open");
         modalAction = null;
+        o.classList.remove("open");
         resolve(confirmed);
       };
       o.classList.add("open");
