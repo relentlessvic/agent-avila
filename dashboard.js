@@ -2949,7 +2949,7 @@ const HTML = `<!DOCTYPE html>
         <div class="ctrl-group-label">Bot State</div>
         <div class="ctrl-btns">
           <button class="ctrl-btn ctrl-btn-success" id="btn-start"   onclick="sendCmd('START_BOT')">▶ START_BOT</button>
-          <button class="ctrl-btn ctrl-btn-danger"  id="btn-stop"    onclick="sendCmd('STOP_BOT')">⛔ STOP_BOT</button>
+          <button class="ctrl-btn ctrl-btn-danger"  id="btn-stop"    onclick="confirmStop()">⛔ STOP_BOT</button>
           <button class="ctrl-btn ctrl-btn-warn"    id="btn-pause"   onclick="sendCmd('PAUSE_TRADING')">⏸ PAUSE</button>
           <button class="ctrl-btn ctrl-btn-success" id="btn-resume"  onclick="sendCmd('RESUME_TRADING')">▶ RESUME</button>
         </div>
@@ -2962,7 +2962,7 @@ const HTML = `<!DOCTYPE html>
         </div>
         <div class="ctrl-group-label" style="margin-top:12px">Resets</div>
         <div class="ctrl-btns">
-          <button class="ctrl-btn ctrl-btn-success" onclick="sendCmd('RESET_KILL_SWITCH')">🔓 Reset Kill Switch</button>
+          <button class="ctrl-btn ctrl-btn-success" onclick="confirmResetKill()">🔓 Reset Kill Switch</button>
           <button class="ctrl-btn ctrl-btn-success" onclick="sendCmd('RESET_LOSSES')">↺ Reset Loss Counter</button>
           <button class="ctrl-btn ctrl-btn-success" onclick="sendCmd('RESET_COOLDOWN')">⏩ Skip Cooldown</button>
         </div>
@@ -3708,7 +3708,16 @@ const HTML = `<!DOCTYPE html>
   }
 
   async function confirmTrade(command, message) {
-    const ok = await showModal({ icon: "⚠", title: "Confirm trade action", msg: message, confirmText: "Execute" });
+    // Phase 5a — typed CONFIRM in live mode for CLOSE_POSITION / SELL_ALL.
+    // Existing tradeCmd live guard remains as defense-in-depth.
+    const isPaper = lastRenderData?.control?.paperTrading !== false;
+    const ok = await showModal({
+      icon: "⚠",
+      title: "Confirm trade action",
+      msg: message,
+      confirmText: "Execute",
+      requireText: isPaper ? null : "CONFIRM",
+    });
     if (ok) tradeCmd(command);
   }
 
@@ -3793,6 +3802,33 @@ const HTML = `<!DOCTYPE html>
     } catch (e) {
       showToast("Kill switch failed: " + (e?.message || "unknown error"), "error");
     }
+  }
+
+  // Phase 5a — STOP_BOT confirmation (light, reversible by START_BOT).
+  async function confirmStop() {
+    const ok = await showModal({
+      icon: "⛔",
+      title: "Stop the bot?",
+      msg: "The bot will halt trading until you click <strong>Start Bot</strong>. Any open position remains untouched.",
+      confirmText: "Stop Bot",
+    });
+    if (ok) sendCmd("STOP_BOT");
+  }
+
+  // Phase 5a — RESET_KILL_SWITCH confirmation. Live mode requires typed
+  // CONFIRM because resetting re-enables real-money trading.
+  async function confirmResetKill() {
+    const isPaper = lastRenderData?.control?.paperTrading !== false;
+    const ok = await showModal({
+      icon: "🔓",
+      title: "Reset kill switch?",
+      msg: isPaper
+        ? "This re-enables trading after a forced halt. The bot can resume placing trades on its next cycle."
+        : "<strong style='color:var(--red)'>This re-enables LIVE trading.</strong> The bot can resume placing real-money orders on its next cycle. Type <strong>CONFIRM</strong> below.",
+      confirmText: "Reset Kill Switch",
+      requireText: isPaper ? null : "CONFIRM",
+    });
+    if (ok) sendCmd("RESET_KILL_SWITCH");
   }
 
   async function sendCmd(command, value) {
