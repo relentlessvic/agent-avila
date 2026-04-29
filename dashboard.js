@@ -5793,23 +5793,75 @@ function homepagePage(initial) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Avila</title>
 <style>
-  body { background:#0A0F1A; color:#E6EAF1; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
-  .splash { max-width:560px; width:100%; text-align:center; }
-  h1 { font-size:36px; margin:0 0 6px; letter-spacing:0.5px; }
-  .tagline { color:#7A8499; font-size:13px; margin-bottom:32px; letter-spacing:1px; text-transform:uppercase; }
+  /* Phase 8c — futuristic terminal palette. */
+  :root {
+    --bg-deep:#040711; --bg-base:#0A0F1A;
+    --text:#E6EAF1; --muted:#7A8499; --line:rgba(255,255,255,0.08);
+    --cyan:#00D4FF; --magenta:#FF00C8;
+    --green:#00FF9A; --yellow:#FFC107; --red:#FF4D6A;
+  }
+  * { box-sizing:border-box; }
+  body {
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    margin:0; min-height:100vh; padding:24px;
+    display:flex; align-items:center; justify-content:center;
+    /* Layered radial gradients for depth — no JS, no animation cost. */
+    background:
+      radial-gradient(ellipse 80% 50% at 50% 0%,   rgba(0,212,255,0.05)  0%, transparent 60%),
+      radial-gradient(ellipse 80% 50% at 50% 100%, rgba(255,0,200,0.04)  0%, transparent 60%),
+      linear-gradient(180deg, var(--bg-base) 0%, var(--bg-deep) 100%);
+    background-attachment:fixed;
+  }
+  /* Subtle blueprint grid behind content (2% opacity). */
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.020) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.020) 1px, transparent 1px);
+    background-size:50px 50px;
+    mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+    -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+  }
+  .splash { position:relative; z-index:1; max-width:560px; width:100%; text-align:center; }
+  h1 {
+    font-size:36px; margin:0 0 6px; letter-spacing:0.5px; font-weight:700;
+    background:linear-gradient(90deg, var(--text) 0%, var(--cyan) 50%, var(--magenta) 100%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+  }
+  .tagline { color:var(--muted); font-size:12px; margin-bottom:32px; letter-spacing:2px; text-transform:uppercase; font-weight:500; }
   .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:28px; }
-  .stat { background:#0F1525; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; text-align:left; }
-  .stat-label { font-size:11px; color:#7A8499; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
-  .stat-value { font-size:18px; font-weight:600; }
-  .running { color:#22c55e; } .paused { color:#ffc107; } .stopped { color:#ef4444; }
+  /* Glass card — translucent + blur backdrop. */
+  .stat {
+    background:rgba(20,28,45,0.55);
+    -webkit-backdrop-filter:blur(20px) saturate(160%);
+    backdrop-filter:blur(20px) saturate(160%);
+    border:1px solid var(--line); border-radius:12px;
+    padding:14px; text-align:left;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.25);
+    transition:border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .stat:hover { border-color:rgba(255,255,255,0.18); transform:translateY(-1px); box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 28px rgba(0,0,0,0.4); }
+  .stat-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-weight:600; }
+  .stat-value { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .running { color:var(--green); } .paused { color:var(--yellow); } .stopped { color:var(--red); }
   .buttons { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
-  .big-btn { display:block; padding:26px 12px; border-radius:12px; text-decoration:none; font-weight:700; font-size:17px; letter-spacing:0.5px; transition:transform 0.1s, box-shadow 0.1s; }
-  .big-btn:hover { transform:translateY(-2px); }
-  .big-btn.paper { background:rgba(51,197,255,0.10); border:1px solid #33c5ff; color:#33c5ff; }
-  .big-btn.live  { background:rgba(255,85,102,0.10); border:1px solid #ff5566; color:#ff5566; }
-  .footer { font-size:13px; color:#7A8499; }
-  .footer a { color:#7A8499; text-decoration:none; margin:0 8px; }
-  .footer a:hover { color:#E6EAF1; }
+  .big-btn {
+    display:block; padding:26px 12px; border-radius:14px;
+    text-decoration:none; font-weight:700; font-size:17px; letter-spacing:0.5px;
+    background:linear-gradient(135deg, rgba(20,28,45,0.65) 0%, rgba(15,22,35,0.45) 100%);
+    -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+    transition:transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+    position:relative;
+  }
+  .big-btn.paper { border:1px solid rgba(0,212,255,0.32); color:var(--cyan); box-shadow:0 0 0 1px rgba(0,212,255,0.04), 0 6px 20px rgba(0,0,0,0.3); }
+  .big-btn.paper:hover { border-color:rgba(0,212,255,0.65); color:#5EE5FF; transform:translateY(-2px); box-shadow:0 0 32px rgba(0,212,255,0.22), 0 12px 36px rgba(0,0,0,0.5); }
+  .big-btn.live  { border:1px solid rgba(255,0,200,0.32); color:var(--magenta); box-shadow:0 0 0 1px rgba(255,0,200,0.04), 0 6px 20px rgba(0,0,0,0.3); }
+  .big-btn.live:hover  { border-color:rgba(255,0,200,0.65); color:#FF6BE0; transform:translateY(-2px); box-shadow:0 0 32px rgba(255,0,200,0.22), 0 12px 36px rgba(0,0,0,0.5); }
+  .footer { font-size:13px; color:var(--muted); }
+  .footer a { color:var(--muted); text-decoration:none; margin:0 8px; transition:color 0.18s ease; }
+  .footer a:hover { color:var(--text); }
   @media (max-width: 480px) {
     .stats, .buttons { grid-template-columns:1fr; }
     h1 { font-size:28px; }
@@ -5949,8 +6001,10 @@ function modePage(mode, initial) {
   const apiUrl  = isPaper ? "/api/paper-summary" : "/api/live-summary";
   const otherRoute = isPaper ? "/live" : "/paper";
   const otherLabel = isPaper ? "Live" : "Paper";
-  const accent  = isPaper ? "#33c5ff" : "#ff5566";
-  const pillBg  = isPaper ? "rgba(51,197,255,0.12)" : "rgba(255,85,102,0.12)";
+  // Phase 8c — cyan for paper, magenta for live (matching Phase 8a brief).
+  const accent  = isPaper ? "#00D4FF" : "#FF00C8";
+  const accentSoft = isPaper ? "rgba(0,212,255,0.12)" : "rgba(255,0,200,0.12)";
+  const pillBg  = isPaper ? "rgba(0,212,255,0.10)" : "rgba(255,0,200,0.10)";
   const wlLabel = isPaper ? "Paper W/L" : "Live W/L";
   const balLabel = isPaper ? "Paper Balance" : "Kraken Live Balance";
   const tradesLabel = isPaper ? "Paper Trades" : "Live Trades";
@@ -5965,37 +6019,88 @@ function modePage(mode, initial) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${title} — Agent Avila</title>
 <style>
-  :root { --bg:#0A0F1A; --card:#0F1525; --line:rgba(255,255,255,0.08); --muted:#7A8499; --text:#E6EAF1; --accent:${accent}; }
+  /* Phase 8c — futuristic terminal palette. Cyan = paper, magenta = live. */
+  :root {
+    --bg-deep:#040711; --bg-base:#0A0F1A;
+    --card:rgba(20,28,45,0.55); --line:rgba(255,255,255,0.08);
+    --muted:#7A8499; --text:#E6EAF1;
+    --accent:${accent}; --accent-soft:${accentSoft};
+    --green:#00FF9A; --red:#FF4D6A; --yellow:#FFC107;
+  }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:24px; }
+  body {
+    margin:0; color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding:24px;
+    /* Layered radial gradients + side accent matching the active mode. */
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%,    var(--accent-soft)    0%, transparent 60%),
+      radial-gradient(ellipse 80% 50% at 50% 100%,  rgba(255,0,200,0.03)  0%, transparent 60%),
+      linear-gradient(180deg, var(--bg-base) 0%, var(--bg-deep) 100%);
+    background-attachment:fixed;
+  }
+  /* Subtle blueprint grid behind content (2% opacity). */
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.020) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.020) 1px, transparent 1px);
+    background-size:50px 50px;
+    mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+    -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+  }
+  .topbar, .grid, details.advanced { position:relative; z-index:1; }
   .topbar { display:flex; justify-content:space-between; align-items:center; max-width:1100px; margin:0 auto 24px; flex-wrap:wrap; gap:12px; }
-  .topbar h1 { margin:0; font-size:22px; }
-  .pill { display:inline-block; padding:4px 12px; border-radius:999px; background:${pillBg}; color:var(--accent); font-size:12px; font-weight:600; letter-spacing:0.5px; }
-  .badge-warn { background:rgba(255,193,7,0.12); color:#ffc107; padding:4px 12px; border-radius:999px; font-size:12px; }
-  .nav-links a { color:var(--muted); text-decoration:none; margin-left:14px; font-size:13px; }
+  .topbar h1 {
+    margin:0; font-size:22px; font-weight:700; letter-spacing:0.5px;
+    background:linear-gradient(90deg, var(--text) 0%, var(--accent) 100%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+  }
+  .pill {
+    display:inline-block; padding:5px 12px; border-radius:999px;
+    background:${pillBg}; color:var(--accent);
+    border:1px solid var(--line);
+    font-size:12px; font-weight:600; letter-spacing:0.5px;
+    transition:border-color 0.18s ease, background 0.18s ease;
+  }
+  .badge-warn { background:rgba(255,193,7,0.12); color:var(--yellow); padding:5px 12px; border-radius:999px; font-size:12px; border:1px solid rgba(255,193,7,0.25); }
+  .nav-links a { color:var(--muted); text-decoration:none; margin-left:14px; font-size:13px; transition:color 0.18s ease; }
   .nav-links a:hover { color:var(--text); }
   .grid { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; }
-  .card-title { font-size:11px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
-  .stat { font-size:28px; font-weight:700; }
+  /* Glass card. */
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px;
+    -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.25);
+    transition:border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover { border-color:rgba(255,255,255,0.18); transform:translateY(-1px); box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 28px rgba(0,0,0,0.4), 0 0 24px var(--accent-soft); }
+  .card-title { font-size:10px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; font-weight:600; }
+  .stat { font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; }
   .stat-sub { font-size:13px; color:var(--muted); margin-top:4px; }
-  .pos-good { color:#22c55e; } .pos-bad { color:#ef4444; }
+  .pos-good { color:var(--green); } .pos-bad { color:var(--red); }
   .unavail { color:var(--muted); font-style:italic; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); }
   th { color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; }
-  .row-win td { color:#22c55e; } .row-loss td { color:#ef4444; }
+  .row-win td { color:var(--green); } .row-loss td { color:var(--red); }
   .ctrl-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-  .ctrl-row button { background:var(--card); color:var(--text); border:1px solid var(--line); padding:8px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
-  .ctrl-row button:hover { border-color:var(--accent); }
-  .ctrl-row button.danger { border-color:rgba(239,68,68,0.4); color:#ef4444; }
-  .ctrl-row button:disabled { opacity:0.4; cursor:not-allowed; }
+  .ctrl-row button {
+    background:rgba(20,28,45,0.55); color:var(--text);
+    border:1px solid var(--line); padding:8px 14px; border-radius:8px;
+    cursor:pointer; font-size:13px; font-family:inherit;
+    transition:border-color 0.18s ease, background 0.18s ease, transform 0.1s ease, box-shadow 0.18s ease;
+  }
+  .ctrl-row button:hover { border-color:var(--accent); background:var(--accent-soft); box-shadow:0 0 18px var(--accent-soft); transform:translateY(-1px); }
+  .ctrl-row button.danger { border-color:rgba(239,68,68,0.4); color:var(--red); }
+  .ctrl-row button.danger:hover { border-color:rgba(255,77,106,0.7); background:rgba(255,77,106,0.08); box-shadow:0 0 18px rgba(255,77,106,0.18); }
+  .ctrl-row button:disabled { opacity:0.45; cursor:not-allowed; transform:none; box-shadow:none; }
   .balances-list { font-size:13px; }
   .balances-list .row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--line); }
   .balances-list .row:last-child { border-bottom:0; }
   .full { grid-column:1/-1; }
   .empty { color:var(--muted); font-style:italic; padding:14px 0; }
-  details.advanced { max-width:1100px; margin:24px auto 0; background:var(--card); border:1px solid var(--line); border-radius:12px; }
+  details.advanced { max-width:1100px; margin:24px auto 0; background:var(--card); border:1px solid var(--line); border-radius:14px; -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%); box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.25); }
   details.advanced > summary { padding:14px 18px; cursor:pointer; font-size:13px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; user-select:none; outline:none; }
   details.advanced > summary:hover { color:var(--text); }
   details.advanced[open] > summary { border-bottom:1px solid var(--line); }
@@ -6010,10 +6115,15 @@ function modePage(mode, initial) {
   .stale-banner.stale-err  { background:rgba(239,68,68,0.18); color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.4); }
   body.with-stale-banner { padding-top:56px; }
   /* Phase 6d — live-price pill. State classes override the base .pill bg/color. */
-  .price-live    { background:rgba(34,197,94,0.10);  border:1px solid rgba(34,197,94,0.4); color:#22c55e; }
+  .price-live    { background:rgba(34,197,94,0.10);  border:1px solid rgba(34,197,94,0.4); color:#22c55e; box-shadow:0 0 12px rgba(0,255,154,0.12); }
   .price-warn    { background:rgba(255,193,7,0.10);  border:1px solid rgba(255,193,7,0.4); color:#ffc107; }
   .price-err     { background:rgba(239,68,68,0.10);  border:1px solid rgba(239,68,68,0.4); color:#ef4444; }
   .price-pending { background:rgba(122,132,153,0.10);border:1px solid var(--line);          color:var(--muted); }
+  /* Phase 8c — brief flash on price tick (added after a successful WS message). */
+  @keyframes priceFlashUp   { 0% { background:rgba(0,255,154,0.40); border-color:var(--green); box-shadow:0 0 32px rgba(0,255,154,0.45); } 100% { background:rgba(34,197,94,0.10); border-color:rgba(34,197,94,0.4); box-shadow:0 0 12px rgba(0,255,154,0.12); } }
+  @keyframes priceFlashDown { 0% { background:rgba(255,77,106,0.40); border-color:var(--red);   box-shadow:0 0 32px rgba(255,77,106,0.45); } 100% { background:rgba(34,197,94,0.10); border-color:rgba(34,197,94,0.4); box-shadow:0 0 12px rgba(0,255,154,0.12); } }
+  .price-flash-up   { animation:priceFlashUp   600ms ease-out; }
+  .price-flash-down { animation:priceFlashDown 600ms ease-out; }
   /* Phase 7a — small mode-switch button in the topbar. */
   .mode-switch-btn { padding:4px 10px; border-radius:999px; background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer; font-size:12px; font-weight:500; font-family:inherit; }
   .mode-switch-btn:hover { color:var(--text); border-color:var(--accent); }
@@ -6410,11 +6520,22 @@ function connectTickerWS() {
     try {
       const msg = JSON.parse(e.data);
       if (Array.isArray(msg) && msg[2] === "ticker") {
-        _wsPrice = parseFloat(msg[1].c[0]);
+        const newPrice = parseFloat(msg[1].c[0]);
+        // Phase 8c — flash direction on tick.
+        const direction = (_wsPrice !== null && newPrice !== _wsPrice) ? (newPrice > _wsPrice ? "up" : "down") : null;
+        _wsPrice = newPrice;
         _wsState = "live";
         _lastWSMsgAt = Date.now();
         _wsAttempts = 0;
         renderPricePill();
+        if (direction) {
+          const el = document.getElementById("live-price-pill");
+          if (el) {
+            el.classList.remove("price-flash-up", "price-flash-down");
+            void el.offsetWidth; // restart animation
+            el.classList.add(direction === "up" ? "price-flash-up" : "price-flash-down");
+          }
+        }
       }
     } catch {}
   };
@@ -6430,24 +6551,27 @@ function connectTickerWS() {
 function renderPricePill() {
   const el = document.getElementById("live-price-pill");
   if (!el) return;
+  // Phase 8c — only swap state classes; let any active flash class survive.
+  el.classList.remove("price-live", "price-warn", "price-err", "price-pending");
+  if (!el.classList.contains("pill")) el.classList.add("pill");
   const liveStale = _wsState === "live" && _lastWSMsgAt && (Date.now() - _lastWSMsgAt) > 30000;
   if (_wsState === "live" && _wsPrice !== null && !liveStale) {
     el.textContent = "Live: $" + _wsPrice.toFixed(4);
-    el.className = "pill price-live";
+    el.classList.add("price-live");
     return;
   }
   if (_wsPrice !== null) {
     el.textContent = "$" + _wsPrice.toFixed(4) + " (delayed)";
-    el.className = "pill price-warn";
+    el.classList.add("price-warn");
   } else if (_polledPrice !== null) {
     el.textContent = "$" + _polledPrice.toFixed(4) + " (last logged)";
-    el.className = "pill price-warn";
+    el.classList.add("price-warn");
   } else if (_wsState === "connecting") {
     el.textContent = "Live: connecting…";
-    el.className = "pill price-pending";
+    el.classList.add("price-pending");
   } else {
     el.textContent = "Live: unavailable";
-    el.className = "pill price-err";
+    el.classList.add("price-err");
   }
 }
 
