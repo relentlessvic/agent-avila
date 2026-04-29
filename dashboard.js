@@ -2464,16 +2464,6 @@ const HTML = `<!DOCTYPE html>
   </div>
 
   <!-- Persistent Risk Alert Feed — last 5 risk events from safety-check-log -->
-  <section class="risk-feed" id="risk-feed">
-    <div class="risk-feed-header">
-      <span>⚠️ Recent Risk Alerts</span>
-      <span class="risk-feed-count" id="risk-feed-count"></span>
-    </div>
-    <div class="risk-feed-list" id="risk-feed-list">
-      <div class="risk-feed-empty">Loading…</div>
-    </div>
-  </section>
-
   <!-- Strategy V2 — Shadow Decision card. Read-only view of the latest
        V2 verdict from safety-check-log.json. V2 is analysis-only in
        Phase 1 — never places trades. -->
@@ -2486,6 +2476,60 @@ const HTML = `<!DOCTYPE html>
       <div class="v2-shadow-empty">Loading…</div>
     </div>
   </section>
+
+  <!-- Open Position — moved to top of operator view -->
+  <div class="section-title" id="section-position">Open Position</div>
+  <div class="position-card" id="position-card">
+    <div class="position-header">
+      <span class="position-title">Current Trade</span>
+      <span class="position-badge-closed" id="position-badge">No Position</span>
+    </div>
+    <div id="position-body">
+      <div class="position-no-trade">No open trade — bot is watching for the next entry signal.</div>
+    </div>
+  </div>
+
+  <!-- Paper Portfolio Wallet — moved to top of operator view -->
+  <div class="section-title" id="section-paper">Paper Portfolio</div>
+  <div class="paper-wallet">
+    <div class="paper-wallet-header">
+      <span class="paper-wallet-title">Virtual Wallet</span>
+      <span class="paper-wallet-badge">📋 Paper Money</span>
+    </div>
+    <div class="paper-wallet-row">
+      <div class="paper-wallet-item">
+        <div class="paper-wallet-label">Starting Balance</div>
+        <div class="paper-wallet-value" id="pw-starting">—</div>
+        <div class="paper-wallet-sub">your paper budget</div>
+      </div>
+      <div class="paper-wallet-item">
+        <div class="paper-wallet-label">USD Remaining</div>
+        <div class="paper-wallet-value" id="pw-usd-remaining">—</div>
+        <div class="paper-wallet-sub" id="pw-usd-spent">$0 spent</div>
+      </div>
+      <div class="paper-wallet-item">
+        <div class="paper-wallet-label">XRP Held</div>
+        <div class="paper-wallet-value" id="pw-xrp-held">—</div>
+        <div class="paper-wallet-sub" id="pw-xrp-value">current value: —</div>
+      </div>
+      <div class="paper-wallet-item">
+        <div class="paper-wallet-label">Trades Taken</div>
+        <div class="paper-wallet-value" id="pw-trade-count">—</div>
+        <div class="paper-wallet-sub" id="pw-avg-entry">avg entry: —</div>
+      </div>
+    </div>
+    <hr class="paper-wallet-divider">
+    <div class="paper-wallet-footer">
+      <div>
+        <div class="paper-wallet-total-label">Total Portfolio Value</div>
+        <div class="paper-wallet-total-value" id="pw-total-value">—</div>
+      </div>
+      <div style="text-align:right">
+        <div class="paper-wallet-total-label">Overall P&amp;L</div>
+        <div class="paper-wallet-pnl" id="pw-pnl">—</div>
+      </div>
+    </div>
+  </div>
 
   <!-- "How the system works" collapsible -->
   <div class="how-it-works" id="how-it-works">
@@ -2937,60 +2981,6 @@ const HTML = `<!DOCTYPE html>
     <span class="balance-updated" id="balance-updated"></span>
   </div>
 
-  <!-- Open Position -->
-  <div class="section-title" id="section-position">Open Position</div>
-  <div class="position-card" id="position-card">
-    <div class="position-header">
-      <span class="position-title">Current Trade</span>
-      <span class="position-badge-closed" id="position-badge">No Position</span>
-    </div>
-    <div id="position-body">
-      <div class="position-no-trade">No open trade — bot is watching for the next entry signal.</div>
-    </div>
-  </div>
-
-  <!-- Paper Portfolio Wallet -->
-  <div class="section-title" id="section-paper">Paper Portfolio</div>
-  <div class="paper-wallet">
-    <div class="paper-wallet-header">
-      <span class="paper-wallet-title">Virtual Wallet</span>
-      <span class="paper-wallet-badge">📋 Paper Money</span>
-    </div>
-    <div class="paper-wallet-row">
-      <div class="paper-wallet-item">
-        <div class="paper-wallet-label">Starting Balance</div>
-        <div class="paper-wallet-value" id="pw-starting">—</div>
-        <div class="paper-wallet-sub">your paper budget</div>
-      </div>
-      <div class="paper-wallet-item">
-        <div class="paper-wallet-label">USD Remaining</div>
-        <div class="paper-wallet-value" id="pw-usd-remaining">—</div>
-        <div class="paper-wallet-sub" id="pw-usd-spent">$0 spent</div>
-      </div>
-      <div class="paper-wallet-item">
-        <div class="paper-wallet-label">XRP Held</div>
-        <div class="paper-wallet-value" id="pw-xrp-held">—</div>
-        <div class="paper-wallet-sub" id="pw-xrp-value">current value: —</div>
-      </div>
-      <div class="paper-wallet-item">
-        <div class="paper-wallet-label">Trades Taken</div>
-        <div class="paper-wallet-value" id="pw-trade-count">—</div>
-        <div class="paper-wallet-sub" id="pw-avg-entry">avg entry: —</div>
-      </div>
-    </div>
-    <hr class="paper-wallet-divider">
-    <div class="paper-wallet-footer">
-      <div>
-        <div class="paper-wallet-total-label">Total Portfolio Value</div>
-        <div class="paper-wallet-total-value" id="pw-total-value">—</div>
-      </div>
-      <div style="text-align:right">
-        <div class="paper-wallet-total-label">Overall P&amp;L</div>
-        <div class="paper-wallet-pnl" id="pw-pnl">—</div>
-      </div>
-    </div>
-  </div>
-
   <!-- Paper P&L -->
   <div class="section-title">Paper Trading P&amp;L</div>
   <div class="pnl-grid">
@@ -3078,6 +3068,17 @@ const HTML = `<!DOCTYPE html>
       </div>
     </div>
   </div>
+
+  <!-- Risk Alert Feed — moved here to group with logs/history -->
+  <section class="risk-feed" id="risk-feed">
+    <div class="risk-feed-header">
+      <span>⚠️ Recent Risk Alerts</span>
+      <span class="risk-feed-count" id="risk-feed-count"></span>
+    </div>
+    <div class="risk-feed-list" id="risk-feed-list">
+      <div class="risk-feed-empty">Loading…</div>
+    </div>
+  </section>
 
   <!-- Trade History / Recent Runs -->
   <div class="section-header">
