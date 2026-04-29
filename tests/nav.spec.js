@@ -82,4 +82,32 @@ test.describe("Nav drawer on Agent 3.0 tab", () => {
     await expect(page.locator("#dashboard-page")).toBeVisible();
     await expect(page.locator("#nav-drawer")).not.toHaveClass(/open/);
   });
+
+  test("Section actually lands in viewport (full scroll-into-view check)", async ({ page }) => {
+    // Set a known viewport so the assertion is deterministic
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    // Switch to Agent 3.0
+    await page.click("#tab-info");
+    await expect(page.locator("#info-page")).toBeVisible();
+
+    // Open menu and click Trading Terminal
+    await page.click(".hamburger");
+    await page.click('[onclick="navTo(\'section-terminal\')"]');
+
+    // Dashboard should now be visible
+    await expect(page.locator("#dashboard-page")).toBeVisible();
+
+    // Wait for smooth scroll + rAF to settle
+    await page.waitForTimeout(700);
+
+    // The target section should now be in the visible viewport area —
+    // not just "exists somewhere on the page". Top should be in upper
+    // ~half of the viewport (allowing for sticky nav + status-bar height).
+    const target = page.locator("#section-terminal");
+    const box = await target.boundingBox();
+    expect(box, "section-terminal must have a layout box").toBeTruthy();
+    expect(box.y, "section should be near the top of the viewport after scroll").toBeLessThan(400);
+    expect(box.y, "section should be below sticky header").toBeGreaterThan(-50);
+  });
 });
