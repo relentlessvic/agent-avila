@@ -1089,6 +1089,23 @@ async function run() {
   const candles = await fetchCandles(CONFIG.symbol, CONFIG.timeframe, 500);
   const closes = candles.map((c) => c.close);
   const price = closes[closes.length - 1];
+
+  // Price sanity check — Kraken can return malformed candles (zeros, nulls,
+  // stale ticks) during edge conditions. Every downstream check (SL/TP
+  // comparison, signal scoring, sizing) silently produces undefined behavior
+  // on NaN. Fail closed: skip the cycle, alert once per cooldown window.
+  if (!Number.isFinite(price) || price <= 0) {
+    console.log(`\n⚠️  Invalid price data from Kraken: ${JSON.stringify(price)}. Skipping cycle — no trade evaluated.`);
+    if (shouldLog("price-bad-data")) {
+      notifyDiscord(
+        `⚠️ RISK ALERT\n` +
+        `Issue: bad price data on ${CONFIG.symbol} — got "${JSON.stringify(price)}". ` +
+        `Skipping cycle; no trade evaluated.`
+      );
+    }
+    return;
+  }
+
   const ema8  = calcEMA(closes, 8);
   const vwap  = calcVWAP(candles);
   const rsi3  = calcRSI(closes, 3);
