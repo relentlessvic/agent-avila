@@ -19,3 +19,5 @@ trades.csv
 # Dependencies
 node_modules/
 cookies.txt
+test-results/
+playwright-report/
