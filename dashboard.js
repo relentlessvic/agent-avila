@@ -1279,6 +1279,34 @@ const HTML = `<!DOCTYPE html>
   .discord-status-warn    { color: var(--yellow); background: rgba(255,181,71,0.08); border-color: rgba(255,181,71,0.3); }
   .discord-status-unknown { color: var(--muted);  opacity: 0.75; }
 
+  /* ── Emergency Kill button (top nav) ── */
+  /* Visible but recessed — outline-only by default so it's not click-by-accident.
+     Hover/focus fills red to make the action obvious before clicking. */
+  .nav-kill-btn {
+    background: transparent;
+    color: var(--red);
+    border: 1px solid rgba(255,77,106,0.45);
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin-left: 10px;
+    font-size: 12px; font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    font-family: inherit;
+  }
+  .nav-kill-btn:hover, .nav-kill-btn:focus-visible {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+    outline: none;
+  }
+  .nav-kill-btn:active { transform: translateY(1px); }
+  @media (max-width: 768px) {
+    .nav-kill-btn { padding: 4px 8px; font-size: 11px; margin-left: 6px; }
+    /* Keep label readable on narrow widths — let it shrink to icon if cramped */
+  }
+
   /* ── Trading Status banner ── single READY/BLOCKED answer at the top */
   .trading-status {
     display: flex; align-items: center; gap: 10px;
@@ -2000,6 +2028,7 @@ const HTML = `<!DOCTYPE html>
     <span id="last-updated">Loading...</span>
     <span class="dot"></span>
     <span style="color:var(--green);font-size:12px;font-weight:600">LIVE</span>
+    <button id="nav-kill-btn" class="nav-kill-btn" type="button" onclick="confirmEmergencyKill()" title="Trigger kill switch — bot stops trading until reset" aria-label="Emergency Kill">🚨 Emergency Kill</button>
     <a href="/logout" style="color:var(--muted);font-size:12px;text-decoration:none;margin-left:8px;padding:4px 10px;border:1px solid var(--border);border-radius:6px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">Sign out</a>
   </div>
 </nav>
@@ -3564,6 +3593,7 @@ const HTML = `<!DOCTYPE html>
       SET_COOLDOWN:            () => "✅ Cooldown set to " + (ctrl?.cooldownMinutes || value) + " min",
       SET_KILL_DRAWDOWN:       () => "✅ Kill switch threshold set to " + (ctrl?.killSwitchDrawdownPct || value) + "%",
       SET_PAUSE_LOSSES:        () => "✅ Pause-after-losses set to " + (ctrl?.pauseAfterLosses || value),
+      KILL_NOW:                () => "🚨 Kill switch activated — bot halted. Reset from Bot Controls when ready.",
       RESET_KILL_SWITCH:       () => "🔓 Kill switch reset",
       RESET_COOLDOWN:          () => "⏩ Cooldown skipped",
       RESET_LOSSES:            () => "↺ Loss counter reset",
@@ -3573,6 +3603,27 @@ const HTML = `<!DOCTYPE html>
     };
     const fn = messages[command];
     return fn ? fn() : "✅ " + command + " applied";
+  }
+
+  // ── Emergency Kill (top-nav button) ──────────────────────────────────────
+  // Hard-stop the bot now. Reuses showModal's requireText guard so the
+  // operator has to type "KILL" to confirm — prevents accidental clicks.
+  // After confirm, sends KILL_NOW via the existing /api/control endpoint.
+  async function confirmEmergencyKill() {
+    const ok = await showModal({
+      icon: "🚨",
+      title: "Emergency Kill — bot will halt immediately",
+      msg: "This activates the kill switch. The bot will <strong>stop trading</strong> until you manually reset it from Bot Controls. Type <strong>KILL</strong> below to confirm.",
+      confirmText: "Activate Kill Switch",
+      requireText: "KILL",
+    });
+    if (!ok) return;
+    try {
+      await sendCmd("KILL_NOW");
+      // sendCmd already updates status pills + shows toast on success.
+    } catch (e) {
+      showToast("Kill switch failed: " + (e?.message || "unknown error"), "error");
+    }
   }
 
   async function sendCmd(command, value) {
@@ -5573,6 +5624,7 @@ const server = createServer(async (req, res) => {
           writeFileSync("capital-state.json", JSON.stringify(cap, null, 2));
           break;
         }
+        case "KILL_NOW":             ctrl.killed = true;  ctrl.paused = true; break;
         case "RESET_KILL_SWITCH":    ctrl.killed = false; ctrl.paused = false; ctrl.consecutiveLosses = 0; break;
         case "RESET_COOLDOWN":       ctrl.lastTradeTime = null; break;
         case "RESET_LOSSES":         ctrl.consecutiveLosses = 0; ctrl.paused = false; break;
