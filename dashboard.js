@@ -145,8 +145,11 @@ function getApiData() {
   return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperStartingBalance, position, control, perfState, capitalState, portfolioState, modeWinLoss, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
 }
 
-// ─── Home summary (Phase 6e — slim endpoint for /) ──────────────────────────
-// Homepage only renders 4 fields. /api/data ships ~30 KB; this returns ~250 B.
+// ─── Home summary (Phase 6e + 8d) ────────────────────────────────────────────
+// Slim endpoint for /. Phase 8d adds paper + live mini-stats so the homepage
+// mode cards can show "$X balance · NW/NL · +$P P&L" without hitting the
+// full /api/data payload. Stays sync — Kraken balance is intentionally not
+// fetched here (slow); user sees real Kraken value on /live.
 function getHomeSummary() {
   let control = {};
   try { if (existsSync("bot-control.json")) control = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
@@ -164,6 +167,26 @@ function getHomeSummary() {
       };
     }
   } catch {}
+
+  // Mode mini-stats from the same paperTrading-filtered log.
+  let paper = null, live = null;
+  try {
+    const pBase = modeScopedSummary(true);
+    const startingBal = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
+    paper = {
+      balance:  startingBal + pBase.pnl.totalUSD,
+      winLoss:  pBase.winLoss,
+      pnl:      pBase.pnl,
+    };
+  } catch {}
+  try {
+    const lBase = modeScopedSummary(false);
+    live = {
+      winLoss: lBase.winLoss,
+      pnl:     lBase.pnl,
+    };
+  } catch {}
+
   return {
     control: {
       paperTrading: control.paperTrading !== false,
@@ -172,6 +195,8 @@ function getHomeSummary() {
       killed:       !!control.killed,
     },
     latest,
+    paper,
+    live,
   };
 }
 
@@ -5823,48 +5848,93 @@ function homepagePage(initial) {
     mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
     -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
   }
-  .splash { position:relative; z-index:1; max-width:560px; width:100%; text-align:center; }
+  .splash { position:relative; z-index:1; max-width:720px; width:100%; }
+  .hero-head { text-align:center; margin-bottom:18px; }
   h1 {
-    font-size:36px; margin:0 0 6px; letter-spacing:0.5px; font-weight:700;
+    font-size:32px; margin:0 0 4px; letter-spacing:0.5px; font-weight:800;
     background:linear-gradient(90deg, var(--text) 0%, var(--cyan) 50%, var(--magenta) 100%);
     -webkit-background-clip:text; background-clip:text;
     -webkit-text-fill-color:transparent; color:transparent;
   }
-  .tagline { color:var(--muted); font-size:12px; margin-bottom:32px; letter-spacing:2px; text-transform:uppercase; font-weight:500; }
-  .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:28px; }
-  /* Glass card — translucent + blur backdrop. */
-  .stat {
-    background:rgba(20,28,45,0.55);
-    -webkit-backdrop-filter:blur(20px) saturate(160%);
-    backdrop-filter:blur(20px) saturate(160%);
-    border:1px solid var(--line); border-radius:12px;
-    padding:14px; text-align:left;
+  .tagline { color:var(--muted); font-size:11px; letter-spacing:2.5px; text-transform:uppercase; font-weight:500; }
+  /* Phase 8d — hero price section. Centered, big, mono digits. */
+  .hero-price-section {
+    text-align:center; margin:8px 0 24px; padding:24px 16px;
+    background:rgba(20,28,45,0.35);
+    -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%);
+    border:1px solid var(--line); border-radius:18px;
     box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.25);
-    transition:border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
   }
-  .stat:hover { border-color:rgba(255,255,255,0.18); transform:translateY(-1px); box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 28px rgba(0,0,0,0.4); }
-  .stat-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; font-weight:600; }
-  .stat-value { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
-  .running { color:var(--green); } .paused { color:var(--yellow); } .stopped { color:var(--red); }
-  .buttons { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
-  .big-btn {
-    display:block; padding:26px 12px; border-radius:14px;
-    text-decoration:none; font-weight:700; font-size:17px; letter-spacing:0.5px;
-    background:linear-gradient(135deg, rgba(20,28,45,0.65) 0%, rgba(15,22,35,0.45) 100%);
+  .hero-price-label { font-size:10px; color:var(--muted); letter-spacing:2.5px; text-transform:uppercase; margin-bottom:8px; font-weight:700; }
+  .hero-price {
+    font-size:60px; font-weight:800; line-height:1; letter-spacing:-1.5px;
+    font-variant-numeric:tabular-nums;
+    background:linear-gradient(180deg, var(--text) 0%, rgba(230,234,241,0.65) 100%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+    transition:background 0.4s ease;
+  }
+  .hero-price.flash-up   { animation:heroFlashUp   600ms ease-out; }
+  .hero-price.flash-down { animation:heroFlashDown 600ms ease-out; }
+  @keyframes heroFlashUp   { 0% { color:var(--green); -webkit-text-fill-color:var(--green); text-shadow:0 0 28px rgba(0,255,154,0.55); } 100% { -webkit-text-fill-color:transparent; text-shadow:none; } }
+  @keyframes heroFlashDown { 0% { color:var(--red);   -webkit-text-fill-color:var(--red);   text-shadow:0 0 28px rgba(255,77,106,0.55); } 100% { -webkit-text-fill-color:transparent; text-shadow:none; } }
+  .hero-price-sub { font-size:12px; color:var(--muted); margin-top:8px; letter-spacing:0.5px; }
+  /* Phase 8d — status badges row. */
+  .badge-row { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:24px; }
+  .badge {
+    padding:6px 12px; border-radius:999px;
+    background:rgba(20,28,45,0.55);
     -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
-    transition:transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
-    position:relative;
+    border:1px solid var(--line);
+    font-size:11px; font-weight:600; letter-spacing:0.5px;
+    color:var(--muted);
+    transition:border-color 0.18s ease, color 0.18s ease;
   }
-  .big-btn.paper { border:1px solid rgba(0,212,255,0.32); color:var(--cyan); box-shadow:0 0 0 1px rgba(0,212,255,0.04), 0 6px 20px rgba(0,0,0,0.3); }
-  .big-btn.paper:hover { border-color:rgba(0,212,255,0.65); color:#5EE5FF; transform:translateY(-2px); box-shadow:0 0 32px rgba(0,212,255,0.22), 0 12px 36px rgba(0,0,0,0.5); }
-  .big-btn.live  { border:1px solid rgba(255,0,200,0.32); color:var(--magenta); box-shadow:0 0 0 1px rgba(255,0,200,0.04), 0 6px 20px rgba(0,0,0,0.3); }
-  .big-btn.live:hover  { border-color:rgba(255,0,200,0.65); color:#FF6BE0; transform:translateY(-2px); box-shadow:0 0 32px rgba(255,0,200,0.22), 0 12px 36px rgba(0,0,0,0.5); }
-  .footer { font-size:13px; color:var(--muted); }
+  .badge.running       { color:var(--green); border-color:rgba(0,255,154,0.4); }
+  .badge.stopped       { color:var(--red);   border-color:rgba(255,77,106,0.4); }
+  .badge.paused        { color:var(--yellow);border-color:rgba(255,193,7,0.4); }
+  .badge.mode-paper    { color:var(--cyan);    border-color:rgba(0,212,255,0.4); }
+  .badge.mode-live     { color:var(--magenta); border-color:rgba(255,0,200,0.4); }
+  .badge.dec-buy       { color:var(--green); border-color:rgba(0,255,154,0.4); }
+  .badge.dec-exit      { color:var(--red);   border-color:rgba(255,77,106,0.4); }
+  .badge.dec-blocked   { color:var(--muted); }
+  /* Phase 8d — mode cards (replaces the old big-btn pair). */
+  .mode-cards { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px; }
+  .mode-card {
+    display:block; text-decoration:none; color:var(--text);
+    padding:20px;
+    background:linear-gradient(135deg, rgba(20,28,45,0.70) 0%, rgba(15,22,35,0.50) 100%);
+    -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%);
+    border:1px solid var(--line); border-radius:16px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.25);
+    transition:transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .mode-card.paper { border-color:rgba(0,212,255,0.32); }
+  .mode-card.live  { border-color:rgba(255,0,200,0.32); }
+  .mode-card:hover { transform:translateY(-2px); }
+  .mode-card.paper:hover { border-color:rgba(0,212,255,0.65); box-shadow:0 0 32px rgba(0,212,255,0.22), 0 12px 36px rgba(0,0,0,0.5); }
+  .mode-card.live:hover  { border-color:rgba(255,0,200,0.65); box-shadow:0 0 32px rgba(255,0,200,0.22), 0 12px 36px rgba(0,0,0,0.5); }
+  .mode-card-head { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .mode-card-icon { width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:8px; font-size:16px; font-weight:700; }
+  .mode-card.paper .mode-card-icon { color:var(--cyan);    background:rgba(0,212,255,0.10);   border:1px solid rgba(0,212,255,0.3); }
+  .mode-card.live  .mode-card-icon { color:var(--magenta); background:rgba(255,0,200,0.10);   border:1px solid rgba(255,0,200,0.3); }
+  .mode-card-title { font-size:13px; font-weight:700; flex:1; letter-spacing:1px; text-transform:uppercase; }
+  .mode-card.paper .mode-card-title { color:var(--cyan); }
+  .mode-card.live  .mode-card-title { color:var(--magenta); }
+  .mode-card-arrow { color:var(--muted); font-size:18px; transition:transform 0.2s ease, color 0.2s ease; }
+  .mode-card:hover .mode-card-arrow { color:var(--text); transform:translateX(3px); }
+  .mode-card-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .mode-stat { min-width:0; }
+  .mode-stat-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px; font-weight:600; }
+  .mode-stat-value { font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pos-good { color:var(--green); } .pos-bad { color:var(--red); }
+  .footer { font-size:13px; color:var(--muted); text-align:center; }
   .footer a { color:var(--muted); text-decoration:none; margin:0 8px; transition:color 0.18s ease; }
   .footer a:hover { color:var(--text); }
-  @media (max-width: 480px) {
-    .stats, .buttons { grid-template-columns:1fr; }
-    h1 { font-size:28px; }
+  @media (max-width: 600px) {
+    .mode-cards { grid-template-columns:1fr; }
+    .hero-price { font-size:44px; }
+    h1 { font-size:26px; }
   }
   /* Phase 6a — stale-data banner. Non-scary; only appears after 20s without
      a successful refresh. Yellow at 20–60s ("retrying"), red after 60s.
@@ -5884,18 +5954,51 @@ function homepagePage(initial) {
 <body>
 <div id="stale-banner" class="stale-banner" style="display:none"></div>
 <div class="splash">
-  <h1>Agent Avila</h1>
-  <div class="tagline">XRP/USDT &middot; 5m</div>
-  <div class="stats">
-    <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="hp-status"><span class="skel skel-line"></span></div></div>
-    <div class="stat"><div class="stat-label">Mode</div><div class="stat-value" id="hp-mode"><span class="skel skel-line"></span></div></div>
-    <div class="stat"><div class="stat-label">XRP Price</div><div class="stat-value" id="hp-price"><span class="skel skel-line"></span></div></div>
-    <div class="stat"><div class="stat-label">Last Decision</div><div class="stat-value" id="hp-decision"><span class="skel skel-line"></span></div></div>
+  <header class="hero-head">
+    <h1>Agent Avila</h1>
+    <div class="tagline">Command Center &middot; XRP/USDT &middot; 5m</div>
+  </header>
+
+  <section class="hero-price-section">
+    <div class="hero-price-label">XRP / USD</div>
+    <div class="hero-price" id="hp-price">&mdash;</div>
+    <div class="hero-price-sub" id="hp-price-sub">connecting&hellip;</div>
+  </section>
+
+  <div class="badge-row">
+    <span class="badge" id="hp-status-badge"><span class="skel skel-line" style="width:60px"></span></span>
+    <span class="badge" id="hp-mode-badge"><span class="skel skel-line" style="width:50px"></span></span>
+    <span class="badge" id="hp-decision-badge"><span class="skel skel-line" style="width:70px"></span></span>
   </div>
-  <div class="buttons">
-    <a class="big-btn paper" href="/paper">Paper Dashboard &rarr;</a>
-    <a class="big-btn live"  href="/live">Live Dashboard &rarr;</a>
+
+  <div class="mode-cards">
+    <a class="mode-card paper" href="/paper">
+      <div class="mode-card-head">
+        <span class="mode-card-icon">◆</span>
+        <span class="mode-card-title">Paper Dashboard</span>
+        <span class="mode-card-arrow">&rarr;</span>
+      </div>
+      <div class="mode-card-stats">
+        <div class="mode-stat"><div class="mode-stat-label">Balance</div><div class="mode-stat-value" id="hp-paper-balance"><span class="skel skel-line"></span></div></div>
+        <div class="mode-stat"><div class="mode-stat-label">W/L</div><div class="mode-stat-value" id="hp-paper-wl"><span class="skel skel-line"></span></div></div>
+        <div class="mode-stat"><div class="mode-stat-label">P&amp;L</div><div class="mode-stat-value" id="hp-paper-pnl"><span class="skel skel-line"></span></div></div>
+      </div>
+    </a>
+
+    <a class="mode-card live" href="/live">
+      <div class="mode-card-head">
+        <span class="mode-card-icon">⬢</span>
+        <span class="mode-card-title">Live Dashboard</span>
+        <span class="mode-card-arrow">&rarr;</span>
+      </div>
+      <div class="mode-card-stats">
+        <div class="mode-stat"><div class="mode-stat-label">Kraken</div><div class="mode-stat-value" id="hp-live-balance">via /live</div></div>
+        <div class="mode-stat"><div class="mode-stat-label">W/L</div><div class="mode-stat-value" id="hp-live-wl"><span class="skel skel-line"></span></div></div>
+        <div class="mode-stat"><div class="mode-stat-label">P&amp;L</div><div class="mode-stat-value" id="hp-live-pnl"><span class="skel skel-line"></span></div></div>
+      </div>
+    </a>
   </div>
+
   <div class="footer">
     <a href="/dashboard">Detailed view</a> &middot; <a href="/logout">Logout</a>
   </div>
@@ -5907,26 +6010,76 @@ window.__INIT__ = ${initialJson};
 // Phase 6a — refresh reliability state.
 let _lastOk = Date.now(), _inflight = false, _hidden = false;
 
+// Phase 8d — small format helpers shared by mode cards.
+function _fmtUSD(n) {
+  if (n === null || n === undefined || isNaN(n)) return "—";
+  const s = (n >= 0 ? "+" : "−") + "$" + Math.abs(n).toFixed(2);
+  return s;
+}
+function _setBadge(el, label, cls) {
+  if (!el) return;
+  el.textContent = label;
+  el.className   = "badge " + (cls || "");
+}
+
 function renderHome(d) {
   const ctrl = d.control || {};
+
+  // Status badge.
   let st = "Running", cls = "running";
   if (ctrl.killed)        { st = "Killed";  cls = "stopped"; }
   else if (ctrl.stopped)  { st = "Stopped"; cls = "stopped"; }
   else if (ctrl.paused)   { st = "Paused";  cls = "paused";  }
-  const sEl = document.getElementById("hp-status");
-  sEl.textContent = st;
-  sEl.className   = "stat-value " + cls;
-  document.getElementById("hp-mode").textContent  = ctrl.paperTrading !== false ? "Paper" : "Live";
+  _setBadge(document.getElementById("hp-status-badge"), "● " + st, cls);
+
+  // Mode badge.
+  const isPaperMode = ctrl.paperTrading !== false;
+  _setBadge(document.getElementById("hp-mode-badge"), isPaperMode ? "◆ Paper" : "⬢ Live", isPaperMode ? "mode-paper" : "mode-live");
+
+  // Hero price (replaced by WS tick if/when available).
   const px = d.latest && d.latest.price;
-  document.getElementById("hp-price").textContent = px ? "$" + Number(px).toFixed(4) : "Unavailable";
-  let dec = "—";
+  const heroEl = document.getElementById("hp-price");
+  if (heroEl && !heroEl.dataset.wsLive) {
+    heroEl.textContent = px ? "$" + Number(px).toFixed(4) : "—";
+  }
+  const subEl = document.getElementById("hp-price-sub");
+  if (subEl && !subEl.dataset.wsLive) {
+    subEl.textContent = px ? "from latest log entry" : "no price data yet";
+  }
+
+  // Last decision badge.
+  let dec = "—", decCls = "";
   if (d.latest) {
     const t = d.latest.type;
-    if (t === "EXIT")              dec = "EXIT (" + (d.latest.exitReason || "") + ")";
-    else if (t)                    dec = t;
-    else                           dec = d.latest.allPass ? "PASS" : "BLOCKED";
+    if (t === "EXIT")              { dec = "EXIT · " + (d.latest.exitReason || "—"); decCls = "dec-exit"; }
+    else if (t === "BUY" || t === "BUY_REENTRY" || t === "MANUAL_BUY") { dec = t; decCls = "dec-buy"; }
+    else if (t)                    { dec = t; decCls = "dec-blocked"; }
+    else                           { dec = d.latest.allPass ? "PASS" : "BLOCKED"; decCls = "dec-blocked"; }
   }
-  document.getElementById("hp-decision").textContent = dec;
+  _setBadge(document.getElementById("hp-decision-badge"), dec, decCls);
+
+  // Paper mode mini-stats.
+  const p = d.paper;
+  if (p) {
+    document.getElementById("hp-paper-balance").textContent = "$" + Number(p.balance).toFixed(2);
+    const pwl = p.winLoss;
+    document.getElementById("hp-paper-wl").textContent = pwl && pwl.total ? (pwl.wins + "W / " + pwl.losses + "L") : "—";
+    const pPnL = p.pnl ? p.pnl.totalUSD : 0;
+    const pEl  = document.getElementById("hp-paper-pnl");
+    pEl.textContent = _fmtUSD(pPnL);
+    pEl.className   = "mode-stat-value " + (pPnL > 0 ? "pos-good" : pPnL < 0 ? "pos-bad" : "");
+  }
+
+  // Live mode mini-stats. Balance comes from /live (Kraken); not on home.
+  const l = d.live;
+  if (l) {
+    const lwl = l.winLoss;
+    document.getElementById("hp-live-wl").textContent = lwl && lwl.total ? (lwl.wins + "W / " + lwl.losses + "L") : "—";
+    const lPnL = l.pnl ? l.pnl.totalUSD : 0;
+    const lEl  = document.getElementById("hp-live-pnl");
+    lEl.textContent = lwl && lwl.total ? _fmtUSD(lPnL) : "—";
+    lEl.className   = "mode-stat-value " + (lPnL > 0 ? "pos-good" : lPnL < 0 ? "pos-bad" : "");
+  }
 }
 
 async function loadHome() {
@@ -5936,9 +6089,7 @@ async function loadHome() {
     const d = await r.json();
     renderHome(d);
   } catch (e) {
-    const sEl = document.getElementById("hp-status");
-    sEl.textContent = "Unavailable";
-    sEl.className   = "stat-value stopped";
+    _setBadge(document.getElementById("hp-status-badge"), "● Unavailable", "stopped");
     throw e;
   }
 }
@@ -5947,6 +6098,52 @@ async function loadHome() {
 if (window.__INIT__) {
   try { renderHome(window.__INIT__); _lastOk = Date.now(); } catch (e) { console.warn("[__INIT__]", e.message); }
 }
+
+// Phase 8d — Kraken WebSocket for real-time hero price + flash on tick.
+// Falls back silently to polled price (from log entry) if WS fails.
+let _hpWsPrice = null;
+let _hpWsAttempts = 0;
+function _hpWsBackoff() { return Math.min(3000 * Math.pow(2, _hpWsAttempts - 1), 30000); }
+function connectHomeTickerWS() {
+  let ws;
+  try { ws = new WebSocket("wss://ws.kraken.com"); }
+  catch (e) { _hpWsAttempts++; setTimeout(connectHomeTickerWS, _hpWsBackoff()); return; }
+  ws.onopen = () => {
+    try { ws.send(JSON.stringify({ event: "subscribe", pair: ["XRP/USD"], subscription: { name: "ticker" } })); } catch {}
+  };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (Array.isArray(msg) && msg[2] === "ticker") {
+        const newPrice = parseFloat(msg[1].c[0]);
+        const heroEl = document.getElementById("hp-price");
+        const subEl  = document.getElementById("hp-price-sub");
+        if (!heroEl) return;
+        const direction = (_hpWsPrice !== null && newPrice !== _hpWsPrice) ? (newPrice > _hpWsPrice ? "up" : "down") : null;
+        _hpWsPrice = newPrice;
+        _hpWsAttempts = 0;
+        heroEl.textContent = "$" + newPrice.toFixed(4);
+        heroEl.dataset.wsLive = "1"; // tells renderHome to stop overwriting from log
+        if (subEl) { subEl.textContent = "● live · Kraken"; subEl.dataset.wsLive = "1"; }
+        if (direction) {
+          heroEl.classList.remove("flash-up", "flash-down");
+          void heroEl.offsetWidth; // restart animation
+          heroEl.classList.add(direction === "up" ? "flash-up" : "flash-down");
+        }
+      }
+    } catch {}
+  };
+  ws.onclose = () => {
+    _hpWsAttempts++;
+    const heroEl = document.getElementById("hp-price");
+    if (heroEl) delete heroEl.dataset.wsLive;
+    const subEl = document.getElementById("hp-price-sub");
+    if (subEl) { subEl.textContent = "reconnecting…"; delete subEl.dataset.wsLive; }
+    setTimeout(connectHomeTickerWS, _hpWsBackoff());
+  };
+  ws.onerror = () => { try { ws.close(); } catch {} };
+}
+connectHomeTickerWS();
 
 async function safePoll() {
   if (_inflight || _hidden) return;
