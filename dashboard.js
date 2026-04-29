@@ -5484,6 +5484,96 @@ const HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+// ─── Homepage (Phase 2 — minimal splash) ─────────────────────────────────────
+// Shows only: bot status, current mode, XRP price, last decision, and two
+// big buttons to /paper and /live. No trading data is rendered here. The
+// detailed legacy UI is preserved at /dashboard for power users and tests.
+
+const HOMEPAGE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Avila</title>
+<style>
+  body { background:#0A0F1A; color:#E6EAF1; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .splash { max-width:560px; width:100%; text-align:center; }
+  h1 { font-size:36px; margin:0 0 6px; letter-spacing:0.5px; }
+  .tagline { color:#7A8499; font-size:13px; margin-bottom:32px; letter-spacing:1px; text-transform:uppercase; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:28px; }
+  .stat { background:#0F1525; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; text-align:left; }
+  .stat-label { font-size:11px; color:#7A8499; text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; }
+  .stat-value { font-size:18px; font-weight:600; }
+  .running { color:#22c55e; } .paused { color:#ffc107; } .stopped { color:#ef4444; }
+  .buttons { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
+  .big-btn { display:block; padding:26px 12px; border-radius:12px; text-decoration:none; font-weight:700; font-size:17px; letter-spacing:0.5px; transition:transform 0.1s, box-shadow 0.1s; }
+  .big-btn:hover { transform:translateY(-2px); }
+  .big-btn.paper { background:rgba(51,197,255,0.10); border:1px solid #33c5ff; color:#33c5ff; }
+  .big-btn.live  { background:rgba(255,85,102,0.10); border:1px solid #ff5566; color:#ff5566; }
+  .footer { font-size:13px; color:#7A8499; }
+  .footer a { color:#7A8499; text-decoration:none; margin:0 8px; }
+  .footer a:hover { color:#E6EAF1; }
+  @media (max-width: 480px) {
+    .stats, .buttons { grid-template-columns:1fr; }
+    h1 { font-size:28px; }
+  }
+</style>
+</head>
+<body>
+<div class="splash">
+  <h1>Agent Avila</h1>
+  <div class="tagline">XRP/USDT &middot; 5m</div>
+  <div class="stats">
+    <div class="stat"><div class="stat-label">Status</div><div class="stat-value" id="hp-status">&mdash;</div></div>
+    <div class="stat"><div class="stat-label">Mode</div><div class="stat-value" id="hp-mode">&mdash;</div></div>
+    <div class="stat"><div class="stat-label">XRP Price</div><div class="stat-value" id="hp-price">&mdash;</div></div>
+    <div class="stat"><div class="stat-label">Last Decision</div><div class="stat-value" id="hp-decision">&mdash;</div></div>
+  </div>
+  <div class="buttons">
+    <a class="big-btn paper" href="/paper">Paper Dashboard &rarr;</a>
+    <a class="big-btn live"  href="/live">Live Dashboard &rarr;</a>
+  </div>
+  <div class="footer">
+    <a href="/dashboard">Detailed view</a> &middot; <a href="/logout">Logout</a>
+  </div>
+</div>
+<script>
+async function loadHome() {
+  try {
+    const r = await fetch("/api/data", { credentials: "same-origin" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    const ctrl = d.control || {};
+    let st = "Running", cls = "running";
+    if (ctrl.killed)        { st = "Killed";  cls = "stopped"; }
+    else if (ctrl.stopped)  { st = "Stopped"; cls = "stopped"; }
+    else if (ctrl.paused)   { st = "Paused";  cls = "paused";  }
+    const sEl = document.getElementById("hp-status");
+    sEl.textContent = st;
+    sEl.className   = "stat-value " + cls;
+    document.getElementById("hp-mode").textContent  = ctrl.paperTrading !== false ? "Paper" : "Live";
+    const px = d.latest && d.latest.price;
+    document.getElementById("hp-price").textContent = px ? "$" + Number(px).toFixed(4) : "Unavailable";
+    let dec = "—";
+    if (d.latest) {
+      const t = d.latest.type;
+      if (t === "EXIT")              dec = "EXIT (" + (d.latest.exitReason || "") + ")";
+      else if (t)                    dec = t;
+      else                           dec = d.latest.allPass ? "PASS" : "BLOCKED";
+    }
+    document.getElementById("hp-decision").textContent = dec;
+  } catch (e) {
+    const sEl = document.getElementById("hp-status");
+    sEl.textContent = "Unavailable";
+    sEl.className   = "stat-value stopped";
+  }
+}
+loadHome();
+setInterval(loadHome, 10000);
+</script>
+</body>
+</html>`;
+
 // ─── Mode pages: /paper and /live (Phase 1 — data separation only) ───────────
 // These are deliberately minimal HTML so the existing main "/" dashboard is
 // untouched. Each page fetches a single mode-scoped JSON endpoint and renders
@@ -6052,6 +6142,13 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ── /dashboard — legacy detailed UI (preserved; not the homepage) ───────
+  if (req.url === "/dashboard") {
+    res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
+    res.end(HTML);
+    return;
+  }
+
   // ── System status (auth-required, broader than /api/health) ────────────
   if (req.url === "/api/system-status") {
     try {
@@ -6311,7 +6408,7 @@ RULES:
       "Content-Type": "text/html",
       "Cache-Control": "no-store, must-revalidate",
     });
-    res.end(HTML);
+    res.end(HOMEPAGE_HTML);
   }
 });
 

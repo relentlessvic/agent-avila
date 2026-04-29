@@ -60,7 +60,7 @@ async function authedSession(page) {
 test.describe("Modal recursion fix", () => {
   test.beforeEach(async ({ page }) => {
     await authedSession(page);
-    await page.goto("/");
+    await page.goto("/dashboard");
     await expect(page.locator(".status-bar")).toBeVisible();
     // Sanity check: showModal must be reachable on window
     const fnType = await page.evaluate(() => typeof window.showModal);

@@ -45,7 +45,7 @@ async function authedSession(page) {
 test.describe("Nav drawer on Agent 3.0 tab", () => {
   test.beforeEach(async ({ page }) => {
     await authedSession(page);
-    await page.goto("/");
+    await page.goto("/dashboard");
     await expect(page.locator(".status-bar")).toBeVisible();
   });
 
