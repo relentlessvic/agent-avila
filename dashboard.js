@@ -3644,8 +3644,17 @@ const HTML = `<!DOCTYPE html>
   }
   function navTo(sectionId) {
     closeNav();
-    const el = document.getElementById(sectionId);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    // All nav-items target sections inside #dashboard-page. If we're on the
+    // Agent 3.0 (info) tab, switch back to dashboard first so scrollIntoView
+    // actually has a visible target.
+    const onInfoTab = document.getElementById("info-page")?.style.display !== "none"
+                   && document.getElementById("info-page")?.style.display !== "";
+    if (onInfoTab) switchTab("dashboard");
+    // Defer scroll one frame so layout reflows after the tab swap
+    requestAnimationFrame(() => {
+      const el = document.getElementById(sectionId);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     document.querySelectorAll(".nav-item").forEach(i => i.classList.remove("active"));
     const activeItem = document.querySelector(\`[onclick="navTo('\${sectionId}')"]\`);
     if (activeItem) activeItem.classList.add("active");
