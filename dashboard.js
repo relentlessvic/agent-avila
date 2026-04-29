@@ -129,7 +129,20 @@ function getApiData() {
   try { if (existsSync("capital-state.json")) capitalState = JSON.parse(readFileSync("capital-state.json", "utf8")); } catch {}
   let portfolioState = {};
   try { if (existsSync("portfolio-state.json")) portfolioState = JSON.parse(readFileSync("portfolio-state.json", "utf8")); } catch {}
-  return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperStartingBalance, position, control, perfState, capitalState, portfolioState, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
+
+  // Mode-segregated W/L (Phase 3). Each side counted from safety-check-log
+  // EXIT entries filtered by .paperTrading. Returns null when no data, so
+  // the UI can render "unavailable" for the missing side instead of mixing.
+  const modeWL = (wantPaper) => {
+    const exits = log.trades.filter(t => t.type === "EXIT" && Boolean(t.paperTrading) === wantPaper);
+    if (!exits.length) return null;
+    const w = exits.filter(t => parseFloat(t.pnlUSD) > 0).length;
+    const l = exits.filter(t => parseFloat(t.pnlUSD) < 0).length;
+    return { wins: w, losses: l, total: w + l, winRate: (w + l) > 0 ? (w / (w + l)) * 100 : null };
+  };
+  const modeWinLoss = { paper: modeWL(true), live: modeWL(false) };
+
+  return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperStartingBalance, position, control, perfState, capitalState, portfolioState, modeWinLoss, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
 }
 
 // ─── Mode-scoped data (Paper / Live) ──────────────────────────────────────────
@@ -2878,9 +2891,10 @@ const HTML = `<!DOCTYPE html>
   <div class="perf-panel">
     <div class="perf-grid">
       <div>
-        <div class="perf-item-label">Win Rate</div>
+        <div class="perf-item-label">Win Rate <span id="perf-wr-mode-tag" style="font-size:9px;color:var(--muted);font-weight:500;letter-spacing:0.5px">—</span></div>
         <div class="perf-item-value" id="perf-winrate">—</div>
-        <div class="perf-item-sub" id="perf-wl-detail">no exits yet</div>
+        <div class="perf-item-sub" id="perf-wl-paper">Paper W/L: —</div>
+        <div class="perf-item-sub" id="perf-wl-live">Live W/L: unavailable</div>
       </div>
       <div>
         <div class="perf-item-label">Profit Factor</div>
@@ -3092,9 +3106,9 @@ const HTML = `<!DOCTYPE html>
       <div class="pnl-sub" id="pnl-current-price">current: —</div>
     </div>
     <div class="pnl-card">
-      <div class="pnl-label">Win / Loss Ratio</div>
+      <div class="pnl-label">Paper W/L Ratio</div>
       <div class="pnl-value pnl-zero" id="pnl-wl-ratio">—</div>
-      <div class="pnl-sub" id="pnl-wl-detail">no trades yet</div>
+      <div class="pnl-sub" id="pnl-wl-detail">no paper trades yet</div>
     </div>
   </div>
 
@@ -4687,8 +4701,30 @@ const HTML = `<!DOCTYPE html>
     if (aggBtn) aggBtn.classList.toggle("active-role", cap.xrpRole === "AGGRESSIVE");
   }
 
-  function renderPerfPanel(perf) {
-    if (!perf || !perf.totalTrades) return;
+  // Phase 3 — explicit per-mode W/L labels under the Win Rate stat. Paper and
+  // Live are rendered as two separate sub-lines; whichever side has no data
+  // shows "unavailable" instead of borrowing from the other mode.
+  function fmtModeWL(o) {
+    if (!o || !o.total) return "unavailable";
+    const wr = o.winRate !== null && o.winRate !== undefined ? o.winRate.toFixed(0) + "%" : "—";
+    return o.wins + "W / " + o.losses + "L  (" + wr + ")";
+  }
+  function renderModeWL(modeWL, ctrl) {
+    const tag = document.getElementById("perf-wr-mode-tag");
+    if (tag) tag.textContent = "(active mode: " + (ctrl && ctrl.paperTrading !== false ? "PAPER" : "LIVE") + ")";
+    const pEl = document.getElementById("perf-wl-paper");
+    const lEl = document.getElementById("perf-wl-live");
+    if (pEl) pEl.textContent = "Paper W/L: " + fmtModeWL(modeWL && modeWL.paper);
+    if (lEl) lEl.textContent = "Live W/L: "  + fmtModeWL(modeWL && modeWL.live);
+  }
+
+  function renderPerfPanel(perf, modeWL, ctrl) {
+    if (!perf || !perf.totalTrades) {
+      // Even without perf state, still render the explicit Paper/Live W/L
+      // sub-lines below so the labels are never blank or ambiguous.
+      renderModeWL(modeWL, ctrl);
+      return;
+    }
     const wr    = perf.winRate ?? 0;
     const pf    = perf.profitFactor ?? 0;
     const dd    = perf.drawdown ?? 0;
@@ -4699,8 +4735,7 @@ const HTML = `<!DOCTYPE html>
 
     const wrEl = document.getElementById("perf-winrate");
     if (wrEl) { wrEl.textContent = (wr * 100).toFixed(0) + "%"; wrEl.style.color = wr >= 0.55 ? "var(--green)" : wr >= 0.45 ? "var(--yellow)" : "var(--red)"; }
-    const wlEl = document.getElementById("perf-wl-detail");
-    if (wlEl) wlEl.textContent = perf.wins + "W / " + perf.losses + "L of " + perf.totalTrades + " trades";
+    renderModeWL(modeWL, ctrl);
 
     const pfEl = document.getElementById("perf-pf");
     if (pfEl) { pfEl.textContent = pf === 999 ? "∞" : pf.toFixed(2); pfEl.style.color = pf >= 1.5 ? "var(--green)" : pf >= 1.0 ? "var(--yellow)" : "var(--red)"; }
@@ -5165,7 +5200,7 @@ const HTML = `<!DOCTYPE html>
     const safe = (name, fn) => { try { fn(); } catch (e) { console.warn("[render]", name, "failed:", e.message); } };
     safe("portfolio", () => renderPortfolioPanel(data.portfolioState, data.perfState, data.position, livePrice));
     safe("capital",   () => renderCapitalPanel(data.capitalState, data.paperPnL));
-    safe("perf",      () => renderPerfPanel(data.perfState));
+    safe("perf",      () => renderPerfPanel(data.perfState, data.modeWinLoss, data.control));
     safe("control",   () => renderControl(data.control));
     safe("liveStatus",() => renderLiveStatus(data));
     safe("position",  () => renderPosition(data.position, data.latest?.price));
