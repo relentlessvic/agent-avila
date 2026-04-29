@@ -3668,6 +3668,26 @@ const HTML = `<!DOCTYPE html>
     log.insertBefore(div, log.firstChild);
   }
 
+  // Phase 6b — after a successful trade, fetch /api/data once and re-render
+  // so the UI reflects new position/control/balance immediately instead of
+  // waiting up to 5s for the next SSE tick. SSE keeps running normally; this
+  // is just an extra one-shot. In-flight guard prevents rapid trades from
+  // stacking refreshes.
+  let _tradeRefreshInflight = false;
+  async function refreshAfterTrade() {
+    if (_tradeRefreshInflight) return;
+    _tradeRefreshInflight = true;
+    try {
+      const data = await safeJson("/api/data");
+      if (data) render(data);
+    } catch (e) {
+      // SSE will catch up; suppress noise here.
+      console.warn("[refreshAfterTrade]", e.message);
+    } finally {
+      _tradeRefreshInflight = false;
+    }
+  }
+
   async function tradeCmd(command, params = {}, _btn) {
     // Phase 5b — button lock. Capture btn synchronously before any await.
     const release = lockBtn(_btn !== undefined ? _btn : _activeBtn());
@@ -3700,6 +3720,7 @@ const HTML = `<!DOCTYPE html>
       if (data.ok || data.message) {
         tradeLog("✅ " + (data.message || command + " OK"), "ok");
         if (!isPaper) showToast("✅ Live trade executed", "success");
+        refreshAfterTrade();
       } else {
         tradeLog("❌ " + data.error, "err");
         showToast("❌ Trade failed: " + data.error, "error");
