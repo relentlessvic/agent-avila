@@ -2998,30 +2998,30 @@ const HTML = `<!DOCTYPE html>
         <div class="ctrl-group-label">Risk Settings</div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-leverage-val" type="number" min="1" max="3" step="1" value="2" placeholder="1–3" title="Leverage 1× to 3× (hard cap)">
-          <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_LEVERAGE', document.getElementById('ctrl-leverage-val').value)">Leverage ×</button>
+          <button class="ctrl-btn" style="flex:1" onclick="sendNum('SET_LEVERAGE','ctrl-leverage-val',1,3,'Leverage',true)">Leverage ×</button>
         </div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-risk-val" type="number" min="0.1" max="5" step="0.1" value="1" placeholder="Risk % (e.g. 1)" title="Risk per trade as % of balance (0.1–5)">
-          <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_RISK', document.getElementById('ctrl-risk-val').value)">Risk %</button>
+          <button class="ctrl-btn" style="flex:1" onclick="sendNum('SET_RISK','ctrl-risk-val',0.1,5,'Risk %',false)">Risk %</button>
         </div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-dailyloss-val" type="number" min="0.5" max="20" step="0.5" value="3" placeholder="Max % (e.g. 3)" title="Stop trading if daily loss exceeds this % (0.5–20)">
-          <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_MAX_DAILY_LOSS', document.getElementById('ctrl-dailyloss-val').value)">Max Daily Loss %</button>
+          <button class="ctrl-btn" style="flex:1" onclick="sendNum('SET_MAX_DAILY_LOSS','ctrl-dailyloss-val',0.5,20,'Max Daily Loss %',false)">Max Daily Loss %</button>
         </div>
       </div>
       <div>
         <div class="ctrl-group-label">Safety Guards</div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-cooldown-val" type="number" min="0" max="120" step="5" value="15" placeholder="Min (e.g. 15)" title="Wait N minutes between trades (0–120)">
-          <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_COOLDOWN', document.getElementById('ctrl-cooldown-val').value)">Cooldown (min)</button>
+          <button class="ctrl-btn" style="flex:1" onclick="sendNum('SET_COOLDOWN','ctrl-cooldown-val',0,120,'Cooldown (min)',false)">Cooldown (min)</button>
         </div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-killpct-val" type="number" min="1" max="50" step="0.5" value="5" placeholder="Drawdown % (e.g. 5)" title="Halt all trading if drawdown exceeds this % (1–50)">
-          <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_KILL_DRAWDOWN', document.getElementById('ctrl-killpct-val').value)">Kill Switch %</button>
+          <button class="ctrl-btn" style="flex:1" onclick="sendNum('SET_KILL_DRAWDOWN','ctrl-killpct-val',1,50,'Kill Switch %',false)">Kill Switch %</button>
         </div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-pauselosses-val" type="number" min="1" max="10" step="1" value="3" placeholder="Streak (e.g. 3)" title="Auto-pause after N consecutive losses (1–10)">
-          <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_PAUSE_LOSSES', document.getElementById('ctrl-pauselosses-val').value)">Pause After Losses</button>
+          <button class="ctrl-btn" style="flex:1" onclick="sendNum('SET_PAUSE_LOSSES','ctrl-pauselosses-val',1,10,'Pause After Losses',true)">Pause After Losses</button>
         </div>
       </div>
     </div>
@@ -3868,6 +3868,23 @@ const HTML = `<!DOCTYPE html>
       requireText: isPaper ? null : "CONFIRM",
     });
     if (ok) sendCmd("RESET_KILL_SWITCH");
+  }
+
+  // Phase 5e — client-side validation for SET_* numeric inputs. Mirrors the
+  // server's Math.min/max clamp ranges so bad input is rejected early with a
+  // toast (server still validates as the source of truth — this is preflight
+  // polish only). Single-quoted strings only — this is inside a backtick
+  // template, where escape sequences like \" collapse to literal " on the
+  // wire and would break the toast call.
+  function sendNum(command, inputId, min, max, label, isInt) {
+    const el = document.getElementById(inputId);
+    const raw = el ? el.value : '';
+    const n = isInt ? parseInt(raw, 10) : parseFloat(raw);
+    if (Number.isNaN(n) || n < min || n > max) {
+      showToast(label + ' must be ' + min + '–' + max + ' (got: ' + raw + ')', 'error');
+      return;
+    }
+    sendCmd(command, String(n));
   }
 
   async function sendCmd(command, value, _btn) {
@@ -4782,6 +4799,7 @@ const HTML = `<!DOCTYPE html>
       confirmText: "Set Aggressive", requireText: "CONFIRM"
     });
     if (ok) { setCapital("SET_XRP_ROLE", "AGGRESSIVE"); showToast("XRP role: AGGRESSIVE", "warn"); }
+    else { showToast("AGGRESSIVE role change cancelled — XRP role unchanged", "info"); }
   }
 
   function renderCapitalPanel(cap, paperPnL) {
@@ -6026,22 +6044,33 @@ function _activeBtn() {
   return (t && typeof t === "object" && "disabled" in t) ? t : null;
 }
 
+// Phase 5e — ctrl-result auto-clear. Each setCtrlMsg call cancels any
+// pending clear and schedules a fresh 4s clear, so a quick chain of actions
+// keeps showing the latest message and never leaves a stale one behind.
+let _ctrlMsgTimer = null;
+function setCtrlMsg(text) {
+  const out = document.getElementById("ctrl-result");
+  if (!out) return;
+  out.textContent = text;
+  if (_ctrlMsgTimer) clearTimeout(_ctrlMsgTimer);
+  _ctrlMsgTimer = setTimeout(() => { out.textContent = ""; _ctrlMsgTimer = null; }, 4000);
+}
+
 async function ctrl(command, danger) {
   // Capture the originating button BEFORE window.confirm() (the dialog
   // doesn't shift window.event but we want btn captured pre-await regardless).
   const btn = _activeBtn();
-  const out = document.getElementById("ctrl-result");
   if (danger) {
     const friendly = command === "STOP_BOT" ? "stop the bot"
                   : command === "RESET_KILL_SWITCH" ? "reset the kill switch (re-enables trading after a forced halt)"
                   : "run " + command;
     if (!window.confirm("Are you sure you want to " + friendly + "?")) {
-      out.textContent = command + " cancelled.";
+      setCtrlMsg(command + " cancelled.");
       return;
     }
   }
   const release = lockBtn(btn);
-  out.textContent = "Sending " + command + "…";
+  setCtrlMsg("Sending " + command + "…");
   try {
     const r = await fetch("/api/control", {
       method: "POST",
@@ -6050,10 +6079,10 @@ async function ctrl(command, danger) {
       body: JSON.stringify({ command }),
     });
     const j = await r.json();
-    out.textContent = j.ok ? command + " OK" : "Failed: " + (j.error || "unknown");
+    setCtrlMsg(j.ok ? command + " OK" : "Failed: " + (j.error || "unknown"));
     if (j.ok) setTimeout(loadSummary, 400);
   } catch (e) {
-    out.textContent = "Failed: " + e.message;
+    setCtrlMsg("Failed: " + e.message);
   } finally { release(); }
 }
 
