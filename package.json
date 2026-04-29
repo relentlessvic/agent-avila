@@ -8,7 +8,8 @@
     "start": "node bot.js",
     "dev": "node bot.js",
     "dashboard": "node dashboard.js",
-    "test": "playwright test"
+    "test": "playwright test",
+    "deploy": "railway up --detach --service agent-avila-dashboard"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
