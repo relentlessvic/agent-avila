@@ -6263,7 +6263,9 @@ function modePage(mode, initial) {
   .badge-warn { background:rgba(255,193,7,0.12); color:var(--yellow); padding:5px 12px; border-radius:999px; font-size:12px; border:1px solid rgba(255,193,7,0.25); }
   .nav-links a { color:var(--muted); text-decoration:none; margin-left:14px; font-size:13px; transition:color 0.18s ease; }
   .nav-links a:hover { color:var(--text); }
-  .grid { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+  /* Phase 8e — 3-col grid; hero balance + decision span the full row. */
+  .grid { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .hero { grid-column:1 / -1; }
   /* Glass card. */
   .card {
     background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px;
@@ -6275,6 +6277,37 @@ function modePage(mode, initial) {
   .card-title { font-size:10px; letter-spacing:1.5px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; font-weight:600; }
   .stat { font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; }
   .stat-sub { font-size:13px; color:var(--muted); margin-top:4px; }
+  /* Phase 8e — hero balance card: bigger padding + premium gradient + accent halo. */
+  .hero-balance {
+    padding:32px 28px;
+    background:
+      radial-gradient(ellipse 60% 100% at 50% 50%, var(--accent-soft) 0%, transparent 70%),
+      var(--card);
+    border-color:rgba(255,255,255,0.12);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,0.06), 0 8px 32px rgba(0,0,0,0.4), 0 0 80px var(--accent-soft);
+  }
+  .hero-balance .card-title { font-size:11px; letter-spacing:2px; }
+  /* Parent-driven sizes so render() (which sets className="stat ...") doesn't
+     need to know about the hero treatment. */
+  .hero-balance .stat {
+    font-size:48px; font-weight:800; line-height:1.05; letter-spacing:-1px;
+    background:linear-gradient(180deg, var(--text) 0%, rgba(230,234,241,0.65) 100%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+  }
+  /* "Unavailable" state should fall back to plain muted text — gradient on
+     a transparent fill would invisible-out var(--muted) otherwise. */
+  .hero-balance .stat.unavail {
+    background:none;
+    -webkit-text-fill-color:var(--muted); color:var(--muted);
+    font-style:italic; font-weight:600; font-size:24px;
+  }
+  .hero-balance .stat-sub { font-size:13px; margin-top:8px; }
+  /* Phase 8e — decision card: wider band, slightly compact stat. */
+  .hero-decision { padding:18px 24px; }
+  .hero-decision .stat { font-size:22px; }
+  /* Phase 8e — secondary cards — slightly compact for visual hierarchy. */
+  .secondary .stat { font-size:24px; }
   .pos-good { color:var(--green); } .pos-bad { color:var(--red); }
   .unavail { color:var(--muted); font-style:italic; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -6303,6 +6336,15 @@ function modePage(mode, initial) {
   details.advanced[open] > summary { border-bottom:1px solid var(--line); }
   details.advanced .adv-body { padding:18px; display:flex; flex-direction:column; gap:24px; }
   .adv-section-title { font-size:11px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
+  /* Phase 8e — mobile: stack 3-col grid to 1 col, scale down hero. */
+  @media (max-width: 700px) {
+    .grid { grid-template-columns:1fr; }
+    .hero-balance { padding:24px 18px; }
+    .hero-balance .stat { font-size:36px; letter-spacing:-0.5px; }
+    .hero-balance .stat.unavail { font-size:20px; }
+    .secondary .stat { font-size:22px; }
+    .hero-decision .stat { font-size:18px; }
+  }
   /* Phase 6a — stale-data banner. Hidden until 20s without a successful
      refresh. Yellow at 20–60s ("retrying"), red after 60s.
      Phase 7a — when visible, body gets .with-stale-banner so the topbar
@@ -6357,31 +6399,31 @@ function modePage(mode, initial) {
 
 <div class="grid">
 
-  <div class="card">
+  <div class="card hero hero-balance">
     <div class="card-title">${balLabel}</div>
     <div id="balance-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="balance-sub" class="stat-sub"></div>
   </div>
 
-  <div class="card">
+  <div class="card secondary">
     <div class="card-title">${mode} Open Position</div>
     <div id="pos-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="pos-sub" class="stat-sub"></div>
   </div>
 
-  <div class="card">
+  <div class="card secondary">
     <div class="card-title">${wlLabel}</div>
     <div id="wl-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="wl-sub" class="stat-sub"></div>
   </div>
 
-  <div class="card">
+  <div class="card secondary">
     <div class="card-title">${pnlLabel}</div>
     <div id="pnl-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="pnl-sub" class="stat-sub"></div>
   </div>
 
-  <div class="card">
+  <div class="card hero hero-decision">
     <div class="card-title">Last Bot Decision</div>
     <div id="dec-stat" class="stat"><span class="skel skel-stat"></span></div>
     <div id="dec-sub" class="stat-sub"></div>
