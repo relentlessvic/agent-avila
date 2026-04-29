@@ -847,19 +847,45 @@ function loginPage(error = "") {
 }
 
 const pendingSessions = new Set(_persisted.pending);
-const loginAttempts = new Map(); // ip -> { count, first } — sliding 5-min window
-const twofaAttempts = new Map(); // ip -> { count, first } — POST /2fa
-const forgotAttempts = new Map(); // ip -> { count, first } — POST /api/forgot-password
+// File-backed rate-limit state — survives Railway restarts so a redeploy or
+// container shuffle can't reset an attacker's counter. File is gitignored.
+const RATE_LIMIT_FILE = ".rate-limit-state.json";
+function loadRateLimitState() {
+  if (!existsSync(RATE_LIMIT_FILE)) return { login: [], twofa: [], forgot: [] };
+  try {
+    const raw = JSON.parse(readFileSync(RATE_LIMIT_FILE, "utf8"));
+    return {
+      login:  Array.isArray(raw.login)  ? raw.login  : [],
+      twofa:  Array.isArray(raw.twofa)  ? raw.twofa  : [],
+      forgot: Array.isArray(raw.forgot) ? raw.forgot : [],
+    };
+  } catch { return { login: [], twofa: [], forgot: [] }; } // corrupt → start clean
+}
+const _rl = loadRateLimitState();
+const loginAttempts  = new Map(_rl.login);  // ip -> { count, first } — sliding 5-min window
+const twofaAttempts  = new Map(_rl.twofa);  // ip -> { count, first } — POST /2fa
+const forgotAttempts = new Map(_rl.forgot); // ip -> { count, first } — POST /api/forgot-password
+
+function persistRateLimits() {
+  try {
+    writeFileSync(RATE_LIMIT_FILE, JSON.stringify({
+      login:  [...loginAttempts],
+      twofa:  [...twofaAttempts],
+      forgot: [...forgotAttempts],
+    }));
+  } catch (e) { log.warn("rate-limit", `persist failed: ${e.message}`); }
+}
 
 // Shared sliding-window check — same shape as /api/login uses inline.
 // Returns true if the request is allowed; false if the IP has exceeded `limit`
-// within the trailing `windowMs`. Mutates the bucket in place.
+// within the trailing `windowMs`. Mutates the bucket in place and persists.
 function rateLimited(bucket, ip, limit = 8, windowMs = 5 * 60 * 1000) {
   const now = Date.now();
   const rec = bucket.get(ip) || { count: 0, first: now };
   if (now - rec.first > windowMs) { rec.count = 0; rec.first = now; }
   rec.count++;
   bucket.set(ip, rec);
+  persistRateLimits();
   return rec.count > limit;
 }
 function clientIp(req) {
@@ -888,6 +914,7 @@ async function processLogin(req, res) {
     if (now - rec.first > windowMs) { rec.count = 0; rec.first = now; }
     rec.count++;
     loginAttempts.set(ip, rec);
+    persistRateLimits();
 
     const body = await readBody(req);
     const ctype = (req.headers["content-type"] || "").toLowerCase();
@@ -928,6 +955,7 @@ async function processLogin(req, res) {
 
     if (valid) {
       loginAttempts.delete(ip);
+      persistRateLimits();
       const pending = generateToken();
       pendingSessions.add(pending);
       persistSessions();
@@ -5020,6 +5048,7 @@ const server = createServer(async (req, res) => {
       const backupOk = !!backup && !!process.env.DASHBOARD_BACKUP_PHRASE && safeStringEqual(backup, process.env.DASHBOARD_BACKUP_PHRASE);
       if (totpOk || backupOk) {
         twofaAttempts.delete(ip); // success resets the counter
+        persistRateLimits();
         pendingSessions.delete(pending);
         const token = generateToken();
         sessions.add(token);

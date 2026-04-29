@@ -11,6 +11,7 @@ bot-control.json
 sessions-store.json
 .bot.lock
 .bot-log-state.json
+.rate-limit-state.json
 
 # Logs & data
 *.log
