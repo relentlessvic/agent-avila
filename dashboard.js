@@ -1268,6 +1268,17 @@ const HTML = `<!DOCTYPE html>
   }
   .risk-feed-na { opacity: 0.65; }
 
+  /* ── Discord status indicator (in health-strip) ── */
+  .discord-status {
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .discord-status-ok      { color: var(--green);  background: rgba(0,255,154,0.06);  border-color: rgba(0,255,154,0.25); }
+  .discord-status-warn    { color: var(--yellow); background: rgba(255,181,71,0.08); border-color: rgba(255,181,71,0.3); }
+  .discord-status-unknown { color: var(--muted);  opacity: 0.75; }
+
   /* ── Trading Status banner ── single READY/BLOCKED answer at the top */
   .trading-status {
     display: flex; align-items: center; gap: 10px;
@@ -2354,7 +2365,10 @@ const HTML = `<!DOCTYPE html>
   <div class="health-item" id="live-leverage-item" style="display:none">
     <span class="live-status-item" id="live-leverage-badge" style="background:rgba(124,92,255,0.1);color:var(--purple);border:1px solid rgba(124,92,255,0.2)">—</span>
   </div>
-  <div class="health-item" style="margin-left:auto">
+  <div class="health-item" id="discord-status-item" style="margin-left:auto">
+    <span class="discord-status discord-status-unknown" id="discord-status">Discord: ? unknown</span>
+  </div>
+  <div class="health-item">
     <span id="live-mode-bar" style="font-size:11px;font-weight:600;color:var(--muted)">📋 PAPER · 5m · XRPUSDT</span>
   </div>
 </div>
@@ -3997,7 +4011,37 @@ const HTML = `<!DOCTYPE html>
     if (count) count.textContent = alerts.length + " event" + (alerts.length === 1 ? "" : "s");
   }
 
+  // ── Discord status indicator ──────────────────────────────────────────────
+  // Polls /api/system-status (auth-gated, dashboard cookie auto-attached).
+  // If discord.enabled is true → green "Enabled". If false → yellow
+  // "Missing webhook". On fetch failure → muted "unknown" so the UI never
+  // breaks if the endpoint is briefly unreachable.
+  function setDiscordStatus(state) {
+    const el = document.getElementById("discord-status");
+    if (!el) return;
+    const cfg = {
+      ok:      { text: "Discord: ✓ Enabled",        cls: "discord-status discord-status-ok" },
+      warn:    { text: "Discord: ⚠ Missing webhook", cls: "discord-status discord-status-warn" },
+      unknown: { text: "Discord: ? unknown",         cls: "discord-status discord-status-unknown" },
+    };
+    const c = cfg[state] || cfg.unknown;
+    el.textContent = c.text;
+    el.className   = c.cls;
+  }
+  async function refreshDiscordStatus() {
+    try {
+      const r = await safeJson("/api/system-status");
+      const enabled = r?.data?.discord?.enabled === true || r?.discord?.enabled === true;
+      setDiscordStatus(enabled ? "ok" : "warn");
+    } catch {
+      setDiscordStatus("unknown");
+    }
+  }
+
   async function runHealthCheck() {
+    // Discord status piggybacks on the same 30s cadence — independent fetch
+    // so a /api/system-status failure can't break /api/health rendering.
+    refreshDiscordStatus();
     try {
       const data = await safeJson("/api/health");
       // Single source of truth: derive lastRunAge from latest.timestamp if available (matches nav clock)
