@@ -3732,6 +3732,25 @@ const HTML = `<!DOCTYPE html>
     aggressive:   { riskPct: 2.0, leverage: 3, label: "Aggressive" },
   };
 
+  // Phase 5d — small inline /api/control helper for the preset flow only.
+  // Returns { ok, data?, error? } so applyBotMode can decide what to render
+  // and what to toast. Mirrors the error-handling pattern from setCapital.
+  async function _applyPresetCmd(command, value) {
+    try {
+      const res = await fetch("/api/control", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command, value }),
+      });
+      if (!res.ok)           return { ok: false, error: "HTTP " + res.status };
+      const data = await res.json();
+      if (data.ok === false) return { ok: false, error: data.error || "unknown" };
+      return { ok: true, data };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
   async function applyBotMode(mode) {
     const preset = BOT_MODE_PRESETS[mode];
     if (!preset) return;
@@ -3743,18 +3762,27 @@ const HTML = `<!DOCTYPE html>
       });
       if (!ok) return;
     }
-    // Phase 5b — lock all 3 preset buttons for the dual-command window so a
-    // second preset click can't interleave SET_RISK from one preset with
-    // SET_LEVERAGE from another. Pass null to inner sendCmds so they don't
-    // re-lock a stale button.
+    // Phase 5d — atomic preset application. Lock all 3 preset buttons for
+    // the FULL await chain (no fixed setTimeout). Apply SET_RISK then
+    // SET_LEVERAGE sequentially. Mark the visual "active" state ONLY after
+    // both succeed. On any failure, show error toast and leave the existing
+    // active class untouched — the next SSE highlightActiveBotMode tick will
+    // reflect actual server state.
     const presetBtns = [...document.querySelectorAll(".bot-mode-btn")];
     const releases = presetBtns.map(b => lockBtn(b));
-    document.querySelectorAll(".bot-mode-btn").forEach(b => b.classList.remove("active"));
-    document.getElementById("mode-preset-" + mode)?.classList.add("active");
-    sendCmd("SET_RISK", String(preset.riskPct), null);
-    setTimeout(() => sendCmd("SET_LEVERAGE", String(preset.leverage), null), 300);
-    setTimeout(() => releases.forEach(r => r()), 1500);
-    showToast("⚙️ Mode preset applied: " + preset.label, "success");
+    try {
+      const r1 = await _applyPresetCmd("SET_RISK", String(preset.riskPct));
+      if (!r1.ok) { showToast("Preset failed: SET_RISK — " + r1.error, "error"); return; }
+      const r2 = await _applyPresetCmd("SET_LEVERAGE", String(preset.leverage));
+      if (!r2.ok) { showToast("Preset failed: SET_LEVERAGE — " + r2.error, "error"); return; }
+      // Both succeeded — now mark active visually + sync control panel.
+      document.querySelectorAll(".bot-mode-btn").forEach(b => b.classList.remove("active"));
+      document.getElementById("mode-preset-" + mode)?.classList.add("active");
+      if (r2.data?.control) renderControl(r2.data.control);
+      showToast("⚙️ Mode preset applied: " + preset.label, "success");
+    } finally {
+      releases.forEach(r => r());
+    }
   }
 
   function highlightActiveBotMode(ctrl) {
