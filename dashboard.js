@@ -5913,6 +5913,11 @@ function modePage(mode) {
   .stale-banner { position:fixed; top:0; left:0; right:0; padding:8px 16px; text-align:center; font-size:13px; font-weight:500; z-index:1000; }
   .stale-banner.stale-warn { background:rgba(255,193,7,0.15); color:#ffc107; border-bottom:1px solid rgba(255,193,7,0.4); }
   .stale-banner.stale-err  { background:rgba(239,68,68,0.18); color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.4); }
+  /* Phase 6d — live-price pill. State classes override the base .pill bg/color. */
+  .price-live    { background:rgba(34,197,94,0.10);  border:1px solid rgba(34,197,94,0.4); color:#22c55e; }
+  .price-warn    { background:rgba(255,193,7,0.10);  border:1px solid rgba(255,193,7,0.4); color:#ffc107; }
+  .price-err     { background:rgba(239,68,68,0.10);  border:1px solid rgba(239,68,68,0.4); color:#ef4444; }
+  .price-pending { background:rgba(122,132,153,0.10);border:1px solid var(--line);          color:var(--muted); }
 </style>
 </head>
 <body>
@@ -5921,7 +5926,11 @@ function modePage(mode) {
 <div class="topbar">
   <div>
     <h1>${title}</h1>
-    <div style="margin-top:6px"><span class="pill">${mode.toUpperCase()} ROUTE</span> <span id="active-badge"></span></div>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span class="pill">${mode.toUpperCase()} ROUTE</span>
+      <span id="active-badge"></span>
+      <span id="live-price-pill" class="pill price-pending">Live: connecting…</span>
+    </div>
   </div>
   <div class="nav-links">
     <a href="/">Main Dashboard</a>
@@ -6052,6 +6061,10 @@ document.addEventListener("visibilitychange", () => {
 function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
 
 function render(d) {
+  // Phase 6d — capture polled price for live-price pill fallback.
+  _polledPrice = (d.latestDecision && typeof d.latestDecision.price === "number") ? d.latestDecision.price : _polledPrice;
+  if (typeof renderPricePill === "function") renderPricePill();
+
   // Active badge
   const badge = document.getElementById("active-badge");
   if (d.isActive) {
@@ -6222,6 +6235,67 @@ async function ctrl(command, danger) {
 safePoll();
 setInterval(safePoll, 10000);
 setInterval(showStale, 1000);
+
+// Phase 6d — Kraken WebSocket ticker. Real-time XRP/USD price. Updates only
+// the topbar live-price pill; never touches trade/W/L state. If WS fails or
+// times out, the pill falls back to the last polled summary price.
+let _wsPrice = null;
+let _wsState = "connecting";
+let _lastWSMsgAt = 0;
+let _polledPrice = null;
+
+function connectTickerWS() {
+  let ws;
+  try { ws = new WebSocket("wss://ws.kraken.com"); }
+  catch (e) { _wsState = "reconnecting"; renderPricePill(); setTimeout(connectTickerWS, 3000); return; }
+  ws.onopen = () => {
+    try { ws.send(JSON.stringify({ event: "subscribe", pair: ["XRP/USD"], subscription: { name: "ticker" } })); } catch {}
+  };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (Array.isArray(msg) && msg[2] === "ticker") {
+        _wsPrice = parseFloat(msg[1].c[0]);
+        _wsState = "live";
+        _lastWSMsgAt = Date.now();
+        renderPricePill();
+      }
+    } catch {}
+  };
+  ws.onclose = () => {
+    if (_wsState !== "connecting") _wsState = "reconnecting";
+    renderPricePill();
+    setTimeout(connectTickerWS, 3000);
+  };
+  ws.onerror = () => { try { ws.close(); } catch {} };
+}
+
+function renderPricePill() {
+  const el = document.getElementById("live-price-pill");
+  if (!el) return;
+  const liveStale = _wsState === "live" && _lastWSMsgAt && (Date.now() - _lastWSMsgAt) > 30000;
+  if (_wsState === "live" && _wsPrice !== null && !liveStale) {
+    el.textContent = "Live: $" + _wsPrice.toFixed(4);
+    el.className = "pill price-live";
+    return;
+  }
+  if (_wsPrice !== null) {
+    el.textContent = "$" + _wsPrice.toFixed(4) + " (delayed)";
+    el.className = "pill price-warn";
+  } else if (_polledPrice !== null) {
+    el.textContent = "$" + _polledPrice.toFixed(4) + " (last logged)";
+    el.className = "pill price-warn";
+  } else if (_wsState === "connecting") {
+    el.textContent = "Live: connecting…";
+    el.className = "pill price-pending";
+  } else {
+    el.textContent = "Live: unavailable";
+    el.className = "pill price-err";
+  }
+}
+
+setInterval(renderPricePill, 1000);
+connectTickerWS();
 </script>
 
 </body>
