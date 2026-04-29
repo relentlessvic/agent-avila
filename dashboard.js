@@ -5817,6 +5817,8 @@ function homepagePage(initial) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Avila</title>
+<!-- Phase 8f — warm TLS to Kraken WSS host so the ticker subscription is fast. -->
+<link rel="preconnect" href="https://ws.kraken.com" crossorigin>
 <style>
   /* Phase 8c — futuristic terminal palette. */
   :root {
@@ -6145,6 +6147,29 @@ function connectHomeTickerWS() {
 }
 connectHomeTickerWS();
 
+// Phase 8f — prefetch /paper and /live HTML so the next click feels instant.
+// Once-only per session. Hovers cover desktop; idle timer covers mobile/early
+// clickers. Browser keeps prefetched responses for ~5 min.
+const _prefetched = { "/paper": false, "/live": false };
+function prefetchOnce(path) {
+  if (_prefetched[path]) return;
+  _prefetched[path] = true;
+  try {
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.href = path;
+    document.head.appendChild(link);
+  } catch {}
+}
+const _paperTile = document.querySelector(".mode-card.paper");
+const _liveTile  = document.querySelector(".mode-card.live");
+if (_paperTile) _paperTile.addEventListener("mouseenter", () => prefetchOnce("/paper"), { once: true });
+if (_liveTile)  _liveTile .addEventListener("mouseenter", () => prefetchOnce("/live"),  { once: true });
+// Mobile/keyboard fallback: warm both routes 1.5s after page settles.
+window.addEventListener("load", () => {
+  setTimeout(() => { prefetchOnce("/paper"); prefetchOnce("/live"); }, 1500);
+});
+
 async function safePoll() {
   if (_inflight || _hidden) return;
   _inflight = true;
@@ -6215,6 +6240,8 @@ function modePage(mode, initial) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${title} — Agent Avila</title>
+<!-- Phase 8f — warm TLS to Kraken WSS host so the ticker subscription is fast. -->
+<link rel="preconnect" href="https://ws.kraken.com" crossorigin>
 <style>
   /* Phase 8c — futuristic terminal palette. Cyan = paper, magenta = live. */
   :root {
@@ -6476,6 +6503,31 @@ let _lastOk = Date.now(), _inflight = false, _hidden = false;
 // Phase 6e — declared early so render() (called via safePoll) can safely
 // write to it before the Phase 6d WS block parses further down the script.
 let _polledPrice = null;
+// Phase 8f — cache of recent trades; rendered into the table only when the
+// Advanced Details disclosure is open.
+let _lastRecentTrades = [];
+
+function buildTradesTable() {
+  const body = document.getElementById("trades-body");
+  if (!body) return;
+  if (!_lastRecentTrades.length) {
+    body.innerHTML = '<div class="empty">No ' + MODE + ' trades recorded yet.</div>';
+    return;
+  }
+  const rows = _lastRecentTrades.map(t => {
+    const pnl = t.pnlUSD !== undefined ? parseFloat(t.pnlUSD) : null;
+    const cls = pnl > 0 ? "row-win" : pnl < 0 ? "row-loss" : "";
+    return '<tr class="' + cls + '">' +
+      '<td>' + escapeHtml(t.timestamp.slice(0, 16).replace("T", " ")) + '</td>' +
+      '<td>' + escapeHtml(t.type || "") + '</td>' +
+      '<td>' + escapeHtml(t.symbol || "") + '</td>' +
+      '<td>' + (t.price !== undefined ? Number(t.price).toFixed(4) : "—") + '</td>' +
+      '<td>' + (pnl !== null ? fmtUSD(pnl) : "—") + '</td>' +
+      '<td>' + escapeHtml(t.exitReason || (t.orderPlaced ? "FILLED" : "—")) + '</td>' +
+      '</tr>';
+  }).join("");
+  body.innerHTML = '<table><thead><tr><th>Time</th><th>Type</th><th>Symbol</th><th>Price</th><th>P&L</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
 // Phase 6e — cross-route self-heal. If safety-check log is > 6 min stale,
 // POST /api/run-bot once. Throttled client-side; the server has its own
 // "skipped if last run < 4 min" guard as the source of truth.
@@ -6633,25 +6685,12 @@ function render(d) {
     decSub.textContent = [when, px].filter(Boolean).join(" · ") + reason;
   }
 
-  // Trades
-  const body = document.getElementById("trades-body");
-  if (!d.recentTrades.length) {
-    body.innerHTML = '<div class="empty">No ' + MODE + ' trades recorded yet.</div>';
-  } else {
-    const rows = d.recentTrades.map(t => {
-      const pnl = t.pnlUSD !== undefined ? parseFloat(t.pnlUSD) : null;
-      const cls = pnl > 0 ? "row-win" : pnl < 0 ? "row-loss" : "";
-      return '<tr class="' + cls + '">' +
-        '<td>' + escapeHtml(t.timestamp.slice(0, 16).replace("T", " ")) + '</td>' +
-        '<td>' + escapeHtml(t.type || "") + '</td>' +
-        '<td>' + escapeHtml(t.symbol || "") + '</td>' +
-        '<td>' + (t.price !== undefined ? Number(t.price).toFixed(4) : "—") + '</td>' +
-        '<td>' + (pnl !== null ? fmtUSD(pnl) : "—") + '</td>' +
-        '<td>' + escapeHtml(t.exitReason || (t.orderPlaced ? "FILLED" : "—")) + '</td>' +
-        '</tr>';
-    }).join("");
-    body.innerHTML = '<table><thead><tr><th>Time</th><th>Type</th><th>Symbol</th><th>Price</th><th>P&L</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table>';
-  }
+  // Phase 8f — lazy-render trades. Cache the latest list, but only build the
+  // DOM when the Advanced Details disclosure is open. Saves ~30 rows of HTML
+  // generation on every poll for users who keep the details closed.
+  _lastRecentTrades = d.recentTrades || [];
+  const _adv = document.querySelector("details.advanced");
+  if (_adv && _adv.open) buildTradesTable();
 
   // Control note
   const note = document.getElementById("ctrl-note");
@@ -6818,13 +6857,20 @@ setInterval(renderPricePill, 1000);
 connectTickerWS();
 
 // Phase 7a — Advanced Details open/closed state persists per mode.
+// Phase 8f — also builds the trades table the first time the disclosure opens
+// (and on subsequent opens after data has changed). buildTradesTable() reads
+// from _lastRecentTrades which render() updates on every successful poll.
 (() => {
   const adv = document.querySelector("details.advanced");
   if (!adv) return;
   const KEY = "agentavila.advanced." + MODE;
   try { if (localStorage.getItem(KEY) === "1") adv.open = true; } catch {}
+  // If restored open AND data already arrived (inline init or first poll),
+  // build immediately so user doesn't see skeleton on a fresh page reload.
+  if (adv.open && _lastRecentTrades.length) buildTradesTable();
   adv.addEventListener("toggle", () => {
     try { localStorage.setItem(KEY, adv.open ? "1" : "0"); } catch {}
+    if (adv.open) buildTradesTable();
   });
 })();
 
