@@ -774,6 +774,208 @@ function calcVWAP(candles) {
   return cumVol === 0 ? null : cumTPV / cumVol;
 }
 
+// ─── Strategy V2 — Shadow Analysis (Phase 1) ────────────────────────────────
+// XRP Aggressive High-Probability Strategy. PHASE 1 ONLY: log decisions, never
+// place orders. V1 remains the sole entry-decision authority. V2 emits a
+// verdict object that gets attached to safety-check-log.json under
+// strategyV2 so we can compare V2 setups vs V1 entries over time.
+//
+// Long-only by design — bearish trends short-circuit to NO_TRADE_SHORT_DEFERRED
+// since current Kraken setup is spot-only.
+
+function v2_trend(candles) {
+  if (!Array.isArray(candles) || candles.length < 25) return "neutral";
+  const closes = candles.map(c => c.close);
+  const ema20Now  = calcEMA(closes, 20);
+  const ema20Prev = calcEMA(closes.slice(0, -5), 20);
+  if (!Number.isFinite(ema20Now) || !Number.isFinite(ema20Prev) || ema20Prev <= 0) return "neutral";
+  const slope = (ema20Now - ema20Prev) / ema20Prev;
+  const last  = closes[closes.length - 1];
+  if (slope >  0.0005 && last > ema20Now) return "bullish";
+  if (slope < -0.0005 && last < ema20Now) return "bearish";
+  return "neutral";
+}
+
+// Find the lowest swing-low (fractal-2) within the last `lookback` confirmed
+// candles. A fractal-2 swing low requires 2 lower lows on each side.
+function v2_swingLow(candles, lookback = 20) {
+  if (!Array.isArray(candles) || candles.length < 5) return null;
+  const end   = candles.length - 2;
+  const start = Math.max(2, end - lookback);
+  let best = null;
+  for (let i = start; i < end; i++) {
+    const c = candles[i];
+    if (c.low < candles[i-1].low && c.low < candles[i-2].low &&
+        c.low < candles[i+1].low && c.low < candles[i+2].low) {
+      if (!best || c.low < best.low) best = { index: i, low: c.low, time: c.time };
+    }
+  }
+  return best;
+}
+
+// Sweep: a candle in the last 3 closed candles whose LOW pierced refLow by
+// ≥0.05% AND whose CLOSE returned above refLow (liquidity grabbed, rejected).
+function v2_sweep(candles15m, refLow) {
+  if (!Array.isArray(candles15m) || candles15m.length < 3) {
+    return { detected: false, depthPct: 0, candle: null };
+  }
+  const last3 = candles15m.slice(-3);
+  for (let i = last3.length - 1; i >= 0; i--) {
+    const c = last3[i];
+    if (c.low < refLow * 0.9995 && c.close > refLow) {
+      return {
+        detected: true,
+        depthPct: ((refLow - c.low) / refLow) * 100,
+        candle: { time: c.time, low: c.low, close: c.close },
+      };
+    }
+  }
+  return { detected: false, depthPct: 0, candle: null };
+}
+
+// BOS: post-sweep, find the highest fractal-2 swing high in 5M candles after
+// the sweep, then check if any 5M candle CLOSED above that level.
+function v2_bos(candles5m, sweepTime) {
+  if (!Array.isArray(candles5m) || sweepTime == null) {
+    return { detected: false, level: null, breakoutCandle: null };
+  }
+  const after = candles5m.filter(c => c.time >= sweepTime);
+  if (after.length < 5) return { detected: false, level: null, breakoutCandle: null };
+  // Highest fractal-2 swing high in `after` (excluding last 2 unconfirmed)
+  const end = after.length - 2;
+  let refHigh = null;
+  for (let i = 2; i < end; i++) {
+    const c = after[i];
+    if (c.high > after[i-1].high && c.high > after[i-2].high &&
+        c.high > after[i+1].high && c.high > after[i+2].high) {
+      if (refHigh === null || c.high > refHigh) refHigh = c.high;
+    }
+  }
+  if (refHigh === null) return { detected: false, level: null, breakoutCandle: null };
+  // First candle to close above refHigh = breakout
+  for (let i = 0; i < after.length; i++) {
+    if (after[i].close > refHigh) {
+      return {
+        detected: true,
+        level: refHigh,
+        breakoutCandle: { time: after[i].time, close: after[i].close },
+      };
+    }
+  }
+  return { detected: false, level: refHigh, breakoutCandle: null };
+}
+
+// Pullback: after BOS breakout, price retraces 50–62% of the BOS leg without
+// breaking the structure low; first bullish reaction candle is the trigger.
+function v2_pullback(candles5m, bosBreakoutCandle, bosLow) {
+  if (!Array.isArray(candles5m) || !bosBreakoutCandle || !Number.isFinite(bosLow)) {
+    return { ok: false, retracementPct: null, triggerCandle: null };
+  }
+  const after = candles5m.filter(c => c.time > bosBreakoutCandle.time);
+  if (after.length < 2) return { ok: false, retracementPct: null, triggerCandle: null };
+  const range = bosBreakoutCandle.close - bosLow;
+  if (range <= 0) return { ok: false, retracementPct: null, triggerCandle: null };
+  const target50 = bosBreakoutCandle.close - 0.50 * range;
+  const target62 = bosBreakoutCandle.close - 0.62 * range;
+  for (let i = 0; i < after.length - 1; i++) {
+    const c = after[i];
+    if (c.low > bosLow && c.low <= target50 && c.low >= target62) {
+      const next = after[i + 1];
+      if (next.close > next.open) {
+        const retPct = ((bosBreakoutCandle.close - c.low) / range) * 100;
+        return {
+          ok: true,
+          retracementPct: retPct,
+          triggerCandle: { time: next.time, close: next.close, open: next.open },
+        };
+      }
+    }
+  }
+  return { ok: false, retracementPct: null, triggerCandle: null };
+}
+
+// Compose a verdict object for one cycle. Pure function — no side effects,
+// no orders, no state mutations. Always returns a populated object.
+function analyzeStrategyV2(c4h, c15m, c5m) {
+  const out = {
+    shadow: true,
+    trend4h: "neutral",
+    trend15m: "neutral",
+    trendsAgree: false,
+    sweep:    { detected: false, depthPct: 0, candle: null },
+    bos:      { detected: false, level: null, breakoutCandle: null },
+    pullback: { ok: false, retracementPct: null, triggerCandle: null },
+    entryPrice: null, stopLoss: null, tp1: null, tp2: null,
+    setupQuality: null,
+    decision: "NO_TRADE",
+    skipReason: "",
+  };
+
+  try {
+    out.trend4h  = v2_trend(c4h);
+    out.trend15m = v2_trend(c15m);
+
+    // Bearish trend → short setup; deferred until Kraken margin support exists.
+    if (out.trend4h === "bearish" || out.trend15m === "bearish") {
+      out.decision   = "NO_TRADE_SHORT_DEFERRED";
+      out.skipReason = "Bearish trend — short setups deferred until margin support";
+      return out;
+    }
+
+    out.trendsAgree = (out.trend4h === "bullish" && out.trend15m === "bullish");
+    if (!out.trendsAgree) {
+      out.skipReason = "4H/15M trends do not both agree on bullish";
+      return out;
+    }
+
+    const swing = v2_swingLow(c15m, 20);
+    if (!swing) { out.skipReason = "No 15M swing low in 20-candle lookback"; return out; }
+
+    out.sweep = v2_sweep(c15m, swing.low);
+    if (!out.sweep.detected) { out.skipReason = "No 15M liquidity sweep of recent swing low"; return out; }
+
+    out.bos = v2_bos(c5m, out.sweep.candle.time);
+    if (!out.bos.detected) { out.skipReason = "No 5M break of structure after sweep"; return out; }
+
+    // Compute the structure low (lowest 5m low between sweep time and BOS time)
+    const bosLow = Math.min(
+      ...c5m
+        .filter(c => c.time >= out.sweep.candle.time && c.time <= out.bos.breakoutCandle.time)
+        .map(c => c.low)
+    );
+    if (!Number.isFinite(bosLow)) { out.skipReason = "Could not derive structure low"; return out; }
+
+    out.pullback = v2_pullback(c5m, out.bos.breakoutCandle, bosLow);
+    if (!out.pullback.ok) { out.skipReason = "No valid pullback into 50–62% retracement zone"; return out; }
+
+    // Entry / SL / TP construction
+    const entry = out.pullback.triggerCandle.close;
+    const sl    = out.sweep.candle.low * 0.999; // 10 bps below the swept low
+    const r     = entry - sl;
+    if (r <= 0) { out.skipReason = "Computed SL is at or above entry — invalid"; return out; }
+
+    out.entryPrice = entry;
+    out.stopLoss   = sl;
+    out.tp1        = entry + r;       // 1 : 1 R
+    out.tp2        = entry + 2 * r;   // 1 : 2 R
+
+    // Setup-quality classifier (perfect needs all 4 confluences)
+    const sweepDepthOk   = out.sweep.depthPct >= 0.10;
+    const bosStrengthOk  = ((out.bos.breakoutCandle.close - out.bos.level) / out.bos.level) * 100 >= 0.15;
+    const retInTightZone = out.pullback.retracementPct >= 50 && out.pullback.retracementPct <= 62;
+    const rsi5m          = Array.isArray(c5m) ? calcRSI(c5m.map(c => c.close), 14) : null;
+    const rsiOk          = Number.isFinite(rsi5m) && rsi5m < 40;
+    out.setupQuality     = (sweepDepthOk && bosStrengthOk && retInTightZone && rsiOk) ? "perfect" : "standard";
+
+    out.decision   = "TRADE";   // shadow only — caller MUST NOT act on this in Phase 1
+    out.skipReason = null;
+  } catch (e) {
+    out.decision   = "NO_TRADE";
+    out.skipReason = "v2-analysis-error: " + (e?.message || String(e));
+  }
+  return out;
+}
+
 // ─── Signal Scoring System (Agent 2.0) ──────────────────────────────────────
 
 function evalSignal(price, ema8, vwap, rsi3, threshold = 75) {
@@ -1196,6 +1398,34 @@ async function run() {
     return;
   }
 
+  // ── Strategy V2 — SHADOW analysis (Phase 1: log only, NEVER trades) ──────
+  // Runs alongside V1 every cycle. Result is attached to every log entry as
+  // `strategyV2` via attachV2() below. V1 logic below is completely unaffected.
+  let strategyV2 = null;
+  const attachV2 = (entry) => {
+    if (entry && typeof entry === "object" && strategyV2) entry.strategyV2 = strategyV2;
+    return entry;
+  };
+  try {
+    const c15m = await fetchCandles(CONFIG.symbol, "15m", 100);
+    const c4h  = await fetchCandles(CONFIG.symbol, "4H", 80);
+    strategyV2 = analyzeStrategyV2(c4h, c15m, candles);
+    console.log(
+      "\n  📊 [V2-shadow] " +
+      "trend4h=" + strategyV2.trend4h + " " +
+      "trend15m=" + strategyV2.trend15m + " " +
+      "sweep=" + strategyV2.sweep.detected + " " +
+      "bos=" + strategyV2.bos.detected + " " +
+      "pullback=" + strategyV2.pullback.ok +
+      " → " + strategyV2.decision +
+      (strategyV2.skipReason ? " (" + strategyV2.skipReason + ")" : "") +
+      (strategyV2.setupQuality ? " [" + strategyV2.setupQuality + "]" : "")
+    );
+  } catch (e) {
+    strategyV2 = { shadow: true, decision: "NO_TRADE", skipReason: "v2-fetch-error: " + e.message };
+    console.log("  ⚠️  V2 shadow analysis failed: " + e.message);
+  }
+
   const ema8  = calcEMA(closes, 8);
   const vwap  = calcVWAP(candles);
   const rsi3  = calcRSI(closes, 3);
@@ -1278,7 +1508,7 @@ async function run() {
       // On live-failure, leave position.open=true so the next cycle retries this exit.
       if (exitEntry.orderPlaced) {
         savePosition({ open: false });
-        log.trades.push(exitEntry);
+        log.trades.push(attachV2(exitEntry));
         saveLog(log);
         writeTradeCsv(exitEntry);
 
@@ -1313,7 +1543,7 @@ async function run() {
         // position closed, DO NOT write to trades.csv (no actual trade), DO NOT
         // update cooldown (no trade time advanced), DO NOT fire SELL signal.
         exitEntry.exitReason = `${exit.reason}_FAILED_RETRY_PENDING`;
-        log.trades.push(exitEntry);
+        log.trades.push(attachV2(exitEntry));
         saveLog(log);
         console.log(`\nDecision log saved → ${LOG_FILE} (exit attempt failed; position retained as OPEN)`);
       }
@@ -1370,7 +1600,7 @@ async function run() {
         // (otherwise we'd have two open positions on Kraken).
         if (reexitEntry.orderPlaced) {
           savePosition({ open: false });
-          log.trades.push(reexitEntry);
+          log.trades.push(attachV2(reexitEntry));
           saveLog(log);
           writeTradeCsv(reexitEntry);
 
@@ -1418,7 +1648,7 @@ async function run() {
         } else {
           // Failed live close — record attempt for visibility, no csv, position retained.
           reexitEntry.exitReason = "REENTRY_SIGNAL_FAILED_RETRY_PENDING";
-          log.trades.push(reexitEntry);
+          log.trades.push(attachV2(reexitEntry));
           saveLog(log);
         }
       } else {
@@ -1432,7 +1662,7 @@ async function run() {
           allPass: false, orderPlaced: false, paperTrading: CONFIG.paperTrading,
           holding: true, signalScore: newSig.score,
         };
-        log.trades.push(holdEntry);
+        log.trades.push(attachV2(holdEntry));
         saveLog(log);
       }
     }
@@ -1534,7 +1764,7 @@ async function run() {
       allPass: false, orderPlaced: false, paperTrading: CONFIG.paperTrading,
       decisionLog: `⛔ DAILY LIMIT REACHED | Trades today: ${countTodaysTrades(log)}/${CONFIG.maxTradesPerDay} | Resets at midnight UTC`,
     };
-    log.trades.push(limitEntry);
+    log.trades.push(attachV2(limitEntry));
     saveLog(log);
     writeTradeCsv(limitEntry);
     return;
@@ -1553,7 +1783,7 @@ async function run() {
       volatility: { stable: false, regime: "VOLATILE", spikeRatio: vol.spikeRatio },
       decisionLog: `⛔ SKIPPED | REGIME: VOLATILE | Spike: ${vol.spikeRatio}x ATR`,
     };
-    log.trades.push(volEntry);
+    log.trades.push(attachV2(volEntry));
     saveLog(log);
     writeTradeCsv(volEntry);
     console.log("═══════════════════════════════════════════════════════════\n");
@@ -1580,7 +1810,7 @@ async function run() {
       allPass: false, orderPlaced: false, paperTrading: CONFIG.paperTrading,
       volatility: { stable: true, level: vol.level, spikeRatio: vol.spikeRatio },
     };
-    log.trades.push(liqEntry);
+    log.trades.push(attachV2(liqEntry));
     saveLog(log);
     writeTradeCsv(liqEntry);
     console.log("═══════════════════════════════════════════════════════════\n");
@@ -1683,7 +1913,7 @@ async function run() {
     }
   }
 
-  log.trades.push(logEntry);
+  log.trades.push(attachV2(logEntry));
   saveLog(log);
   writeTradeCsv(logEntry);
   console.log(`\nDecision log saved → ${LOG_FILE}`);
