@@ -1098,6 +1098,24 @@ async function run() {
   // Fetch market data
   console.log("\n── Fetching market data from Kraken ────────────────────\n");
   const candles = await fetchCandles(CONFIG.symbol, CONFIG.timeframe, 500);
+
+  // Candle-count guard — Kraken can return short responses on edge conditions
+  // (just-listed pair, partial fetch, low-volume window). Indicators computed
+  // on too few candles produce weak/garbage output. Longest indicator lookback
+  // we use is 20 (Bollinger Bands); 30 leaves a safety margin.
+  if (!Array.isArray(candles) || candles.length < 30) {
+    const got = Array.isArray(candles) ? candles.length : "n/a";
+    console.log(`\n⚠️  Insufficient candle data from Kraken: got ${got}, need ≥30. Skipping cycle — no trade evaluated.`);
+    if (shouldLog("candles-insufficient")) {
+      notifyDiscord(
+        `⚠️ RISK ALERT\n` +
+        `Issue: insufficient candle data on ${CONFIG.symbol} — got ${got}, need ≥30. ` +
+        `Skipping cycle; no trade evaluated.`
+      );
+    }
+    return;
+  }
+
   const closes = candles.map((c) => c.close);
   const price = closes[closes.length - 1];
 
