@@ -1347,6 +1347,10 @@ const HTML = `<!DOCTYPE html>
   .pill-daily-loss-warn   { color: var(--yellow); border-color: rgba(255,181,71,0.4); background: rgba(255,181,71,0.06); }
   .pill-daily-loss-danger { color: var(--red);    border-color: rgba(255,77,106,0.4); background: rgba(255,77,106,0.08); }
   .pill-daily-loss-na     { color: var(--muted); opacity: 0.7; }
+  /* Phase 6c — SSE stream health pill. Hidden when fresh; shown when the
+     EventSource hasn't delivered an event in > 15s. */
+  .pill-stream-warn { color: var(--yellow); border-color: rgba(255,181,71,0.4); background: rgba(255,181,71,0.08); }
+  .pill-stream-err  { color: var(--red);    border-color: rgba(255,77,106,0.4); background: rgba(255,77,106,0.10); }
 
   /* ── Risk Alert Feed ── compact persistent list of last 5 risk events */
   .risk-feed {
@@ -2568,6 +2572,7 @@ const HTML = `<!DOCTYPE html>
     <span class="pill pill-pnl" id="pill-pnl">P&L: —</span>
     <span class="pill pill-daily-loss" id="pill-daily-loss">Daily: —</span>
     <span class="pill pill-last-trade" id="pill-last-trade">Last trade: —</span>
+    <span class="pill" id="pill-stream" style="display:none">Stream: —</span>
   </div>
 
   <!-- Persistent Risk Alert Feed — last 5 risk events from safety-check-log -->
@@ -5384,14 +5389,21 @@ const HTML = `<!DOCTYPE html>
   }
 
   // ── SSE live stream ────────────────────────────────────────────────────────
+  // Phase 6c — track timestamp of last successful SSE event so a 5s checker
+  // can surface a non-scary pill when the stream goes silent. Existing
+  // reconnect behavior is unchanged; this is observation only.
+  let _lastSSEEventAt = Date.now();
+
   function connectStream() {
     const es = new EventSource("/api/stream");
 
     es.addEventListener("data", e => {
+      _lastSSEEventAt = Date.now();
       try { render(JSON.parse(e.data)); } catch {}
     });
 
     es.addEventListener("balance", e => {
+      _lastSSEEventAt = Date.now();
       try { renderBalance(JSON.parse(e.data)); } catch {}
     });
 
@@ -5401,6 +5413,26 @@ const HTML = `<!DOCTYPE html>
     });
   }
   connectStream();
+
+  function checkStreamHealth() {
+    const el = document.getElementById("pill-stream");
+    if (!el) return;
+    const ageMs = Date.now() - _lastSSEEventAt;
+    if (ageMs < 15000) {
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "";
+    const s = Math.round(ageMs / 1000);
+    if (ageMs < 30000) {
+      el.className = "pill pill-stream-warn";
+      el.textContent = "Stream: slow (" + s + "s)";
+    } else {
+      el.className = "pill pill-stream-err";
+      el.textContent = "Stream: offline (" + s + "s)";
+    }
+  }
+  setInterval(checkStreamHealth, 5000);
 
   // ── Kraken WebSocket — real-time live price ───────────────────────────────
   let livePrice = null;
