@@ -4727,10 +4727,23 @@ const HTML = `<!DOCTYPE html>
   async function setCapital(command, value, _btn) {
     // Phase 5b — button lock. Capture btn synchronously before any await.
     const release = lockBtn(_btn !== undefined ? _btn : _activeBtn());
+    // Phase 5c — surface failures. Network errors, non-200 HTTP, and
+    // { ok: false } payloads now show a toast instead of silent no-op.
     try {
-      const res  = await fetch("/api/control", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ command, value }) });
+      const res = await fetch("/api/control", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ command, value }) });
+      if (!res.ok) {
+        showToast("Capital update failed: HTTP " + res.status, "error");
+        return;
+      }
       const data = await res.json();
+      if (data.ok === false) {
+        showToast("Capital update failed: " + (data.error || "unknown"), "error");
+        return;
+      }
       if (data.capitalState) renderCapitalPanel(data.capitalState, null);
+      showToast(commandSuccessMessage(command, value, data.control), "success");
+    } catch (e) {
+      showToast("Capital update failed: " + e.message, "error");
     } finally { release(); }
   }
 
