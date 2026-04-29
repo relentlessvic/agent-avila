@@ -10,9 +10,20 @@
  */
 
 import "dotenv/config";
-import { readFileSync, writeFileSync, existsSync, appendFileSync, unlinkSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, appendFileSync, unlinkSync, renameSync } from "fs";
 import crypto from "crypto";
 import { execSync } from "child_process";
+
+// ─── Atomic state-file write ──────────────────────────────────────────────────
+// Write to a per-process tmp file then rename into place. POSIX rename is
+// atomic within the same filesystem, so a SIGKILL or container restart
+// mid-write either leaves the original file fully intact (rename never ran)
+// or fully replaced (rename completed). No truncation window.
+function atomicWrite(file, content) {
+  const tmp = `${file}.tmp.${process.pid}`;
+  writeFileSync(tmp, content);
+  renameSync(tmp, file);
+}
 
 // ─── Single-instance lock ─────────────────────────────────────────────────────
 // Prevents duplicate bot.js processes from running concurrently. Three
@@ -120,7 +131,7 @@ function loadLogState() {
   try { return JSON.parse(readFileSync(LOG_STATE_FILE, "utf8")); } catch { return {}; }
 }
 function saveLogState(state) {
-  try { writeFileSync(LOG_STATE_FILE, JSON.stringify(state)); } catch {}
+  try { atomicWrite(LOG_STATE_FILE, JSON.stringify(state)); } catch {}
 }
 function shouldLog(key, cooldownMs = 2 * 60 * 1000) {
   const state = loadLogState();
@@ -282,7 +293,7 @@ function updatePortfolioState(perf, position, vol, price) {
     efficiencyScore: Math.round(efficiencyScore),
     updatedAt: new Date().toISOString(),
   };
-  writeFileSync(PORTFOLIO_FILE, JSON.stringify(state, null, 2));
+  atomicWrite(PORTFOLIO_FILE, JSON.stringify(state, null, 2));
   return state;
 }
 
@@ -357,7 +368,7 @@ function updatePerfState(log) {
   }
 
   const perf = { totalTrades, wins: wins.length, losses: losses.length, breakeven: breakeven.length, winRate, avgProfit, avgLoss, profitFactor, drawdown, consecutiveWins, consecutiveLosses, adaptedThreshold: 75, adaptedRiskMultiplier: 1.0, leverageDisabledUntil: null, updatedAt: new Date().toISOString() };
-  writeFileSync(PERF_STATE_FILE, JSON.stringify(perf, null, 2));
+  atomicWrite(PERF_STATE_FILE, JSON.stringify(perf, null, 2));
   return perf;
 }
 
@@ -454,7 +465,7 @@ const DEFAULT_CONTROL = {
 
 function loadControl() {
   if (!existsSync(CONTROL_FILE)) {
-    writeFileSync(CONTROL_FILE, JSON.stringify(DEFAULT_CONTROL, null, 2));
+    atomicWrite(CONTROL_FILE, JSON.stringify(DEFAULT_CONTROL, null, 2));
     return { ...DEFAULT_CONTROL };
   }
   try { return JSON.parse(readFileSync(CONTROL_FILE, "utf8")); }
@@ -463,7 +474,7 @@ function loadControl() {
 
 // Override CONFIG with any values set via control file
 function saveControl(ctrl) {
-  writeFileSync(CONTROL_FILE, JSON.stringify(ctrl, null, 2));
+  atomicWrite(CONTROL_FILE, JSON.stringify(ctrl, null, 2));
 }
 
 function applyControl() {
@@ -488,7 +499,7 @@ function loadLog() {
 }
 
 function saveLog(log) {
-  writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
+  atomicWrite(LOG_FILE, JSON.stringify(log, null, 2));
 }
 
 // ─── Position Tracking ───────────────────────────────────────────────────────
@@ -502,7 +513,7 @@ function loadPosition() {
 }
 
 function savePosition(pos) {
-  writeFileSync(POSITION_FILE, JSON.stringify(pos, null, 2));
+  atomicWrite(POSITION_FILE, JSON.stringify(pos, null, 2));
 }
 
 // On first run, auto-restore any existing open paper trade from the log
