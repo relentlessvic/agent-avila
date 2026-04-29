@@ -1155,45 +1155,59 @@ async function run() {
           console.log(`  ✅ SELL ORDER PLACED — ${order.orderId}`);
         } catch (err) {
           console.log(`  ❌ SELL ORDER FAILED — ${err.message}`);
+          console.log(`  ⚠️  Position kept OPEN — bot will retry exit on next cycle.`);
           exitEntry.error = err.message;
           notifyDiscord(
             `⚠️ RISK ALERT\n` +
-            `Issue: live SELL order FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}`
+            `Issue: live SELL order FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
+            `Position kept OPEN; bot will retry exit next cycle. Reconcile manually if Kraken position differs.`
           );
         }
       }
 
-      savePosition({ open: false });
-      log.trades.push(exitEntry);
-      saveLog(log);
-      writeTradeCsv(exitEntry);
+      // Only flip position to closed and emit the SELL signal if the order actually placed.
+      // On live-failure, leave position.open=true so the next cycle retries this exit.
+      if (exitEntry.orderPlaced) {
+        savePosition({ open: false });
+        log.trades.push(exitEntry);
+        saveLog(log);
+        writeTradeCsv(exitEntry);
 
-      notifyDiscord(
-        `📉 SELL XRP SIGNAL\n` +
-        `Asset: ${CONFIG.symbol}\n` +
-        `Price: ${price.toFixed(4)}\n` +
-        `Reason: ${exit.reason.toLowerCase().replace(/_/g, " ")} · P&L ${exit.pct}% ($${exitUSD})${CONFIG.paperTrading ? " · paper" : ""}`
-      );
-
-      // Update cooldown + consecutive loss tracking
-      const isLoss = parseFloat(exitEntry.pnlUSD) < 0;
-      ctrl.lastTradeTime     = new Date().toISOString();
-      ctrl.consecutiveLosses = isLoss ? (parseInt(ctrl.consecutiveLosses || 0) + 1) : 0;
-      ctrl.updatedAt         = new Date().toISOString();
-      saveControl(ctrl);
-
-      if (isLoss && ctrl.consecutiveLosses >= CONFIG.pauseAfterLosses) {
-        ctrl.paused    = true;
-        ctrl.updatedBy = "AUTO_PAUSE_LOSSES";
-        saveControl(ctrl);
-        console.log(`\n⚠️  ${ctrl.consecutiveLosses} consecutive losses — trading auto-paused.`);
         notifyDiscord(
-          `⚠️ RISK ALERT\n` +
-          `Issue: system pause · ${ctrl.consecutiveLosses} consecutive losses on ${CONFIG.symbol}`
+          `📉 SELL XRP SIGNAL\n` +
+          `Asset: ${CONFIG.symbol}\n` +
+          `Price: ${price.toFixed(4)}\n` +
+          `Reason: ${exit.reason.toLowerCase().replace(/_/g, " ")} · P&L ${exit.pct}% ($${exitUSD})${CONFIG.paperTrading ? " · paper" : ""}`
         );
-      }
 
-      console.log(`\nPosition closed. Decision log saved → ${LOG_FILE}`);
+        // Update cooldown + consecutive loss tracking
+        const isLoss = parseFloat(exitEntry.pnlUSD) < 0;
+        ctrl.lastTradeTime     = new Date().toISOString();
+        ctrl.consecutiveLosses = isLoss ? (parseInt(ctrl.consecutiveLosses || 0) + 1) : 0;
+        ctrl.updatedAt         = new Date().toISOString();
+        saveControl(ctrl);
+
+        if (isLoss && ctrl.consecutiveLosses >= CONFIG.pauseAfterLosses) {
+          ctrl.paused    = true;
+          ctrl.updatedBy = "AUTO_PAUSE_LOSSES";
+          saveControl(ctrl);
+          console.log(`\n⚠️  ${ctrl.consecutiveLosses} consecutive losses — trading auto-paused.`);
+          notifyDiscord(
+            `⚠️ RISK ALERT\n` +
+            `Issue: system pause · ${ctrl.consecutiveLosses} consecutive losses on ${CONFIG.symbol}`
+          );
+        }
+
+        console.log(`\nPosition closed. Decision log saved → ${LOG_FILE}`);
+      } else {
+        // Live SELL failed. Record the attempt for visibility but DO NOT mark
+        // position closed, DO NOT write to trades.csv (no actual trade), DO NOT
+        // update cooldown (no trade time advanced), DO NOT fire SELL signal.
+        exitEntry.exitReason = `${exit.reason}_FAILED_RETRY_PENDING`;
+        log.trades.push(exitEntry);
+        saveLog(log);
+        console.log(`\nDecision log saved → ${LOG_FILE} (exit attempt failed; position retained as OPEN)`);
+      }
     } else {
       // Active trade management — breakeven + trailing stop
       const mgmt = manageActiveTrade(position, price);
@@ -1219,41 +1233,64 @@ async function run() {
           tradeSize: position.tradeSize, entryPrice: position.entryPrice,
           exitReason: "REENTRY_SIGNAL", pct: pnlStr, pnlUSD: exitUSD,
           paperTrading: CONFIG.paperTrading, orderId: CONFIG.paperTrading ? `PAPER-REXIT-${Date.now()}` : null,
-          conditions: [], allPass: false, orderPlaced: true,
+          conditions: [], allPass: false,
+          // Paper "trades" always succeed; for live, prove success in the try below.
+          orderPlaced: !!CONFIG.paperTrading,
         };
         if (!CONFIG.paperTrading) {
           try {
             const o = await placeKrakenOrder(position.symbol, "sell", position.tradeSize, price);
             reexitEntry.orderId = o.orderId;
-          } catch (err) { reexitEntry.error = err.message; }
-        }
-        savePosition({ open: false });
-        log.trades.push(reexitEntry);
-        saveLog(log);
-        writeTradeCsv(reexitEntry);
-
-        // Immediately re-enter with new signal
-        const vol2 = classifyRegime(candles, ema8);
-        if (vol2.level !== "HIGH") {
-          const ts2 = calcDynamicTradeSize(log, vol2.slPct);
-          const sl2 = price * (1 - vol2.slPct / 100);
-          const tp2 = price * (1 + vol2.tpPct / 100);
-          const reorderId = CONFIG.paperTrading ? `PAPER-REENTRY-${Date.now()}` : null;
-          if (!CONFIG.paperTrading) {
-            try {
-              const o = await placeKrakenOrder(position.symbol, "buy", ts2, price, vol2.leverage);
-              reorderId = o.orderId;
-            } catch (err) { console.log(`  ❌ Re-entry order failed: ${err.message}`); }
+            reexitEntry.orderPlaced = true;
+          } catch (err) {
+            reexitEntry.error = err.message;
+            console.log(`  ❌ REENTRY-SELL FAILED — ${err.message}`);
+            console.log(`  ⚠️  Position kept OPEN — re-entry aborted.`);
+            notifyDiscord(
+              `⚠️ RISK ALERT\n` +
+              `Issue: live REENTRY-SELL FAILED on ${CONFIG.symbol} @ $${price.toFixed(4)} — ${err.message}. ` +
+              `Position kept OPEN; re-entry aborted. Reconcile manually if Kraken position differs.`
+            );
           }
-          savePosition({
-            open: true, side: "long", symbol: CONFIG.symbol,
-            entryPrice: price, entryTime: new Date().toISOString(),
-            quantity: (ts2 * vol2.leverage) / price, tradeSize: ts2,
-            leverage: vol2.leverage, effectiveSize: ts2 * vol2.leverage,
-            orderId: reorderId, stopLoss: sl2, takeProfit: tp2,
-            entrySignalScore: newSig.score, volatilityLevel: vol2.level,
-          });
-          console.log(`  ✅ Re-entered — SL $${sl2.toFixed(4)} | TP $${tp2.toFixed(4)} | score ${newSig.score.toFixed(0)}`);
+        }
+
+        // Only proceed to close + immediate re-entry if the close actually placed.
+        // On failure, leave the existing position open and skip the BUY entirely
+        // (otherwise we'd have two open positions on Kraken).
+        if (reexitEntry.orderPlaced) {
+          savePosition({ open: false });
+          log.trades.push(reexitEntry);
+          saveLog(log);
+          writeTradeCsv(reexitEntry);
+
+          // Immediately re-enter with new signal
+          const vol2 = classifyRegime(candles, ema8);
+          if (vol2.level !== "HIGH") {
+            const ts2 = calcDynamicTradeSize(log, vol2.slPct);
+            const sl2 = price * (1 - vol2.slPct / 100);
+            const tp2 = price * (1 + vol2.tpPct / 100);
+            let reorderId = CONFIG.paperTrading ? `PAPER-REENTRY-${Date.now()}` : null;
+            if (!CONFIG.paperTrading) {
+              try {
+                const o = await placeKrakenOrder(position.symbol, "buy", ts2, price, vol2.leverage);
+                reorderId = o.orderId;
+              } catch (err) { console.log(`  ❌ Re-entry order failed: ${err.message}`); }
+            }
+            savePosition({
+              open: true, side: "long", symbol: CONFIG.symbol,
+              entryPrice: price, entryTime: new Date().toISOString(),
+              quantity: (ts2 * vol2.leverage) / price, tradeSize: ts2,
+              leverage: vol2.leverage, effectiveSize: ts2 * vol2.leverage,
+              orderId: reorderId, stopLoss: sl2, takeProfit: tp2,
+              entrySignalScore: newSig.score, volatilityLevel: vol2.level,
+            });
+            console.log(`  ✅ Re-entered — SL $${sl2.toFixed(4)} | TP $${tp2.toFixed(4)} | score ${newSig.score.toFixed(0)}`);
+          }
+        } else {
+          // Failed live close — record attempt for visibility, no csv, position retained.
+          reexitEntry.exitReason = "REENTRY_SIGNAL_FAILED_RETRY_PENDING";
+          log.trades.push(reexitEntry);
+          saveLog(log);
         }
       } else {
         const perfNow = loadPerfState();
