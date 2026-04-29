@@ -2050,7 +2050,7 @@ const HTML = `<!DOCTYPE html>
     <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-paper')"><span class="nav-item-icon">🏦</span>Paper Portfolio</a>
     <div class="nav-section-label">History & Controls</div>
     <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-history')"><span class="nav-item-icon">📜</span>Trade History</a>
-    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-controls')"><span class="nav-item-icon">🎛</span>Bot Controls</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-controls')"><span class="nav-item-icon">🎛</span>Lifecycle Controls</a>
     <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-risk')"><span class="nav-item-icon">🛑</span>Risk Controls</a>
   </div>
   <div class="nav-drawer-footer">
@@ -2823,29 +2823,9 @@ const HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Bot Controls -->
-  <div class="section-title" id="section-controls">Bot Controls</div>
+  <!-- Lifecycle Controls — bot start/stop/pause, mode toggle, resets, status badges -->
+  <div class="section-title" id="section-controls">Lifecycle Controls</div>
   <div class="ctrl-panel">
-    <div class="bot-modes">
-      <div class="bot-modes-label">⚙️ Quick Mode Preset:</div>
-      <div class="bot-modes-grid">
-        <button class="bot-mode-btn" id="mode-preset-conservative" onclick="applyBotMode('conservative')">
-          <div class="mode-icon">🛡</div>
-          <div class="mode-name">Conservative</div>
-          <div class="mode-detail">Risk 0.5% · Threshold 85 · 1× lev</div>
-        </button>
-        <button class="bot-mode-btn active" id="mode-preset-balanced" onclick="applyBotMode('balanced')">
-          <div class="mode-icon">⚖️</div>
-          <div class="mode-name">Balanced</div>
-          <div class="mode-detail">Risk 1% · Threshold 75 · 2× lev</div>
-        </button>
-        <button class="bot-mode-btn" id="mode-preset-aggressive" onclick="applyBotMode('aggressive')">
-          <div class="mode-icon">🔥</div>
-          <div class="mode-name">Aggressive</div>
-          <div class="mode-detail">Risk 2% · Threshold 65 · 3× lev</div>
-        </button>
-      </div>
-    </div>
     <div class="ctrl-status-row" id="ctrl-status-row">
       <span class="ctrl-badge ctrl-badge-muted" id="ctrl-badge-running">—</span>
       <span class="ctrl-badge ctrl-badge-muted" id="ctrl-badge-mode">—</span>
@@ -2856,7 +2836,7 @@ const HTML = `<!DOCTYPE html>
       <span class="ctrl-badge ctrl-badge-muted" id="ctrl-badge-losses">—</span>
       <span class="ctrl-badge ctrl-badge-muted" id="ctrl-badge-cooldown">—</span>
     </div>
-    <div class="ctrl-groups" style="grid-template-columns:repeat(4,1fr)">
+    <div class="ctrl-groups" style="grid-template-columns:repeat(2,1fr)">
       <div>
         <div class="ctrl-group-label">Bot State</div>
         <div class="ctrl-btns">
@@ -2879,8 +2859,35 @@ const HTML = `<!DOCTYPE html>
           <button class="ctrl-btn ctrl-btn-success" onclick="sendCmd('RESET_COOLDOWN')">⏩ Skip Cooldown</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Risk Controls — leverage, risk %, daily loss cap, cooldown, kill threshold, pause-on-losses -->
+  <div class="section-title" id="section-risk">Risk Controls</div>
+  <div class="ctrl-panel">
+    <div class="bot-modes">
+      <div class="bot-modes-label">⚙️ Quick Mode Preset:</div>
+      <div class="bot-modes-grid">
+        <button class="bot-mode-btn" id="mode-preset-conservative" onclick="applyBotMode('conservative')">
+          <div class="mode-icon">🛡</div>
+          <div class="mode-name">Conservative</div>
+          <div class="mode-detail">Risk 0.5% · Threshold 85 · 1× lev</div>
+        </button>
+        <button class="bot-mode-btn active" id="mode-preset-balanced" onclick="applyBotMode('balanced')">
+          <div class="mode-icon">⚖️</div>
+          <div class="mode-name">Balanced</div>
+          <div class="mode-detail">Risk 1% · Threshold 75 · 2× lev</div>
+        </button>
+        <button class="bot-mode-btn" id="mode-preset-aggressive" onclick="applyBotMode('aggressive')">
+          <div class="mode-icon">🔥</div>
+          <div class="mode-name">Aggressive</div>
+          <div class="mode-detail">Risk 2% · Threshold 65 · 3× lev</div>
+        </button>
+      </div>
+    </div>
+    <div class="ctrl-groups" style="grid-template-columns:repeat(2,1fr)">
       <div>
-        <div class="ctrl-group-label" id="section-risk">Risk Settings</div>
+        <div class="ctrl-group-label">Risk Settings</div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-leverage-val" type="number" min="1" max="3" step="1" value="2" placeholder="1–3" title="Leverage 1× to 3× (hard cap)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_LEVERAGE', document.getElementById('ctrl-leverage-val').value)">Leverage ×</button>
@@ -2895,7 +2902,7 @@ const HTML = `<!DOCTYPE html>
         </div>
       </div>
       <div>
-        <div class="ctrl-group-label">2.0 Guards</div>
+        <div class="ctrl-group-label">Safety Guards</div>
         <div class="ctrl-input-row">
           <input class="ctrl-input" id="ctrl-cooldown-val" type="number" min="0" max="120" step="5" value="15" placeholder="Min (e.g. 15)" title="Wait N minutes between trades (0–120)">
           <button class="ctrl-btn" style="flex:1" onclick="sendCmd('SET_COOLDOWN', document.getElementById('ctrl-cooldown-val').value)">Cooldown (min)</button>
