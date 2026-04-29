@@ -1235,6 +1235,38 @@ const HTML = `<!DOCTYPE html>
   .pill-pnl-neg { color: var(--red); }
   .pill-last-trade { color: var(--muted); }
 
+  /* ── Trading Status banner ── single READY/BLOCKED answer at the top */
+  .trading-status {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 18px;
+    margin: -24px -24px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 51;  /* above status-bar's z-index 50 */
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+  }
+  .trading-status.ready {
+    background: rgba(0,255,154,0.10);
+    border-bottom-color: rgba(0,255,154,0.35);
+    color: var(--green);
+  }
+  .trading-status.blocked {
+    background: rgba(255,77,106,0.10);
+    border-bottom-color: rgba(255,77,106,0.4);
+    color: var(--red);
+  }
+  .trading-status.paper {
+    background: rgba(255,181,71,0.10);
+    border-bottom-color: rgba(255,181,71,0.35);
+    color: var(--yellow);
+  }
+  .trading-status-icon { font-size: 16px; line-height: 1; }
+  @media (max-width: 768px) {
+    .trading-status { padding: 8px 14px; margin: -12px -12px 12px; font-size: 12px; }
+  }
+
   /* ── How It Works accordion ── */
   .how-it-works { background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
   .how-toggle { width: 100%; background: transparent; border: none; color: var(--text); font-size: 13px; font-weight: 700; padding: 12px 18px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
@@ -2297,6 +2329,12 @@ const HTML = `<!DOCTYPE html>
 <main>
 
   <!-- Compact Status Bar — single source of truth -->
+  <!-- Trading Status banner — single answer to "can the bot trade right now?" -->
+  <div class="trading-status" id="trading-status" role="status" aria-live="polite">
+    <span class="trading-status-icon" id="trading-status-icon">⏳</span>
+    <span class="trading-status-text"  id="trading-status-text">Checking system…</span>
+  </div>
+
   <div class="status-bar">
     <span class="pill pill-mode" id="pill-mode">🔒 PAPER MODE</span>
     <span class="pill pill-symbol" id="pill-symbol">XRP <strong id="pill-price">$—</strong> <span id="pill-arrow">—</span></span>
@@ -3781,6 +3819,77 @@ const HTML = `<!DOCTYPE html>
     }
   }
 
+  // Latest health snapshot — populated by runHealthCheck, read by renderTradingStatus.
+  // Allows the banner to combine SSE-driven render data + /api/health polling.
+  let lastHealth = { krakenOk: true, lastRunAge: null };
+
+  // ── Trading Status banner ─────────────────────────────────────────────────
+  // Single answer to "can the bot trade right now?". Priority order: most
+  // severe blocker wins. Reads control flags + recent trades from
+  // lastRenderData; reads kraken/health from lastHealth (set by runHealthCheck).
+  function renderTradingStatus() {
+    const el     = document.getElementById("trading-status");
+    const icon   = document.getElementById("trading-status-icon");
+    const text   = document.getElementById("trading-status-text");
+    if (!el || !icon || !text) return;
+
+    const data = lastRenderData || {};
+    const ctrl = data.control || {};
+    const recent = Array.isArray(data.recentTrades) ? data.recentTrades : [];
+
+    // Severity-ordered checks. First match wins.
+    let state = "ready", iconCh = "✅", reason = "Ready — bot can trade if a valid signal appears";
+
+    if (ctrl.killed) {
+      state = "blocked"; iconCh = "🚨"; reason = "BLOCKED — Kill switch active";
+    } else if (ctrl.stopped) {
+      state = "blocked"; iconCh = "⛔"; reason = "BLOCKED — Bot stopped";
+    } else if (ctrl.paused) {
+      state = "blocked"; iconCh = "⏸"; reason = "BLOCKED — Bot paused";
+    } else if (lastHealth.krakenOk === false) {
+      state = "blocked"; iconCh = "🔴"; reason = "BLOCKED — Kraken offline";
+    } else if (lastHealth.lastRunAge !== null && lastHealth.lastRunAge > 15) {
+      state = "blocked"; iconCh = "⚠️"; reason = "BLOCKED — Bot data stale (last run " + lastHealth.lastRunAge.toFixed(0) + " min ago)";
+    } else {
+      // Cooldown
+      if (ctrl.lastTradeTime && ctrl.cooldownMinutes) {
+        const elapsedMin = (Date.now() - new Date(ctrl.lastTradeTime).getTime()) / 60000;
+        if (elapsedMin < ctrl.cooldownMinutes) {
+          state = "blocked"; iconCh = "⏳"; reason = "BLOCKED — Cooldown active (" + Math.ceil(ctrl.cooldownMinutes - elapsedMin) + " min remaining)";
+        }
+      }
+      // Daily loss limit (only if not already blocked)
+      if (state === "ready" && ctrl.maxDailyLossPct) {
+        const today = new Date().toISOString().slice(0, 10);
+        const realizedToday = recent
+          .filter(function(t) { return t.type === "EXIT" && t.timestamp && t.timestamp.slice(0,10) === today && t.exitReason !== "REENTRY_SIGNAL"; })
+          .reduce(function(s, t) { return s + parseFloat(t.pnlUSD || 0); }, 0);
+        const startBalance = 100; // mirrors PAPER_STARTING_BALANCE default
+        const maxLossUSD = startBalance * (ctrl.maxDailyLossPct / 100);
+        if (realizedToday < 0 && Math.abs(realizedToday) >= maxLossUSD) {
+          state = "blocked"; iconCh = "🛑"; reason = "BLOCKED — Daily loss limit reached";
+        }
+      }
+      // Pending exit retry from a failed live SELL (C-1 path)
+      if (state === "ready") {
+        const lastEntry = recent[recent.length - 1];
+        if (lastEntry && typeof lastEntry.exitReason === "string" && lastEntry.exitReason.indexOf("FAILED_RETRY_PENDING") !== -1) {
+          state = "blocked"; iconCh = "🔁"; reason = "BLOCKED — Exit retry pending (last live SELL did not confirm fill)";
+        }
+      }
+    }
+
+    // Paper mode is its own visual state — bot trades simulated orders, but
+    // no live execution will fire. Distinct yellow styling.
+    if (state === "ready" && ctrl.paperTrading !== false) {
+      state = "paper"; iconCh = "📋"; reason = "PAPER MODE — simulated trades only, no live orders";
+    }
+
+    el.className = "trading-status " + state;
+    icon.textContent = iconCh;
+    text.textContent = reason;
+  }
+
   async function runHealthCheck() {
     try {
       const data = await safeJson("/api/health");
@@ -3789,7 +3898,9 @@ const HTML = `<!DOCTYPE html>
       if (lastRenderData?.latest?.timestamp) {
         ageMin = (Date.now() - new Date(lastRenderData.latest.timestamp).getTime()) / 60000;
       }
+      lastHealth = { krakenOk: !!data.krakenOk, lastRunAge: ageMin };
       updateHealthPanel(data.krakenOk, data.krakenLatency, ageMin, wsConnected);
+      renderTradingStatus();
       // Self-heal: if data is stale (> 6 min), trigger a bot run to wake Railway from sleep
       if (ageMin !== null && ageMin > 6) {
         console.log("[self-heal] Data is " + ageMin.toFixed(1) + " min stale — triggering bot run");
@@ -3798,7 +3909,11 @@ const HTML = `<!DOCTYPE html>
           if (r?.data?.triggered || r?.triggered) showToast("Bot was sleeping — woke it up", "info");
         } catch {}
       }
-    } catch { updateHealthPanel(false, 0, null, wsConnected); }
+    } catch {
+      lastHealth = { krakenOk: false, lastRunAge: lastHealth.lastRunAge };
+      updateHealthPanel(false, 0, null, wsConnected);
+      renderTradingStatus();
+    }
   }
   runHealthCheck();
   setInterval(runHealthCheck, 30000);
@@ -4619,6 +4734,7 @@ const HTML = `<!DOCTYPE html>
     safe("checkLog",   () => renderCheckLog(data.allLogs));
     safe("heatmap",    () => renderHeatmap(data.allLogs));
     safe("statusBar",     () => renderStatusBar(data));
+    safe("tradingStatus", () => renderTradingStatus());
     safe("lastDecision",  () => renderLastDecision(data.latest));
   }
 
