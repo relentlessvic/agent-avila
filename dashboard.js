@@ -5795,10 +5795,13 @@ const HOMEPAGE_HTML = `<!DOCTYPE html>
     h1 { font-size:28px; }
   }
   /* Phase 6a — stale-data banner. Non-scary; only appears after 20s without
-     a successful refresh. Yellow at 20–60s ("retrying"), red after 60s. */
+     a successful refresh. Yellow at 20–60s ("retrying"), red after 60s.
+     Phase 7a — when visible, body gets .with-stale-banner so the splash
+     content shifts below the fixed banner instead of overlapping it. */
   .stale-banner { position:fixed; top:0; left:0; right:0; padding:8px 16px; text-align:center; font-size:13px; font-weight:500; z-index:1000; }
   .stale-banner.stale-warn { background:rgba(255,193,7,0.15); color:#ffc107; border-bottom:1px solid rgba(255,193,7,0.4); }
   .stale-banner.stale-err  { background:rgba(239,68,68,0.18); color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.4); }
+  body.with-stale-banner { padding-top:56px; }
 </style>
 </head>
 <body>
@@ -5868,8 +5871,13 @@ function showStale() {
   const el = document.getElementById("stale-banner");
   if (!el) return;
   const ageMs = Date.now() - _lastOk;
-  if (ageMs < 20000) { el.style.display = "none"; return; }
+  if (ageMs < 20000) {
+    el.style.display = "none";
+    document.body.classList.remove("with-stale-banner");
+    return;
+  }
   el.style.display = "block";
+  document.body.classList.add("with-stale-banner");
   const s = Math.round(ageMs / 1000);
   if (ageMs < 60000) {
     el.className = "stale-banner stale-warn";
@@ -5954,15 +5962,22 @@ function modePage(mode) {
   details.advanced .adv-body { padding:18px; display:flex; flex-direction:column; gap:24px; }
   .adv-section-title { font-size:11px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; }
   /* Phase 6a — stale-data banner. Hidden until 20s without a successful
-     refresh. Yellow at 20–60s ("retrying"), red after 60s. */
+     refresh. Yellow at 20–60s ("retrying"), red after 60s.
+     Phase 7a — when visible, body gets .with-stale-banner so the topbar
+     content shifts below the fixed banner instead of overlapping it. */
   .stale-banner { position:fixed; top:0; left:0; right:0; padding:8px 16px; text-align:center; font-size:13px; font-weight:500; z-index:1000; }
   .stale-banner.stale-warn { background:rgba(255,193,7,0.15); color:#ffc107; border-bottom:1px solid rgba(255,193,7,0.4); }
   .stale-banner.stale-err  { background:rgba(239,68,68,0.18); color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.4); }
+  body.with-stale-banner { padding-top:56px; }
   /* Phase 6d — live-price pill. State classes override the base .pill bg/color. */
   .price-live    { background:rgba(34,197,94,0.10);  border:1px solid rgba(34,197,94,0.4); color:#22c55e; }
   .price-warn    { background:rgba(255,193,7,0.10);  border:1px solid rgba(255,193,7,0.4); color:#ffc107; }
   .price-err     { background:rgba(239,68,68,0.10);  border:1px solid rgba(239,68,68,0.4); color:#ef4444; }
   .price-pending { background:rgba(122,132,153,0.10);border:1px solid var(--line);          color:var(--muted); }
+  /* Phase 7a — small mode-switch button in the topbar. */
+  .mode-switch-btn { padding:4px 10px; border-radius:999px; background:transparent; border:1px solid var(--line); color:var(--muted); cursor:pointer; font-size:12px; font-weight:500; font-family:inherit; }
+  .mode-switch-btn:hover { color:var(--text); border-color:var(--accent); }
+  .mode-switch-btn:disabled { opacity:0.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -5975,6 +5990,7 @@ function modePage(mode) {
       <span class="pill">${mode.toUpperCase()} ROUTE</span>
       <span id="active-badge"></span>
       <span id="live-price-pill" class="pill price-pending">Live: connecting…</span>
+      <button class="mode-switch-btn" onclick="switchMode(${isPaper ? "true" : "false"})">${isPaper ? "Switch to Live →" : "Switch to Paper →"}</button>
     </div>
   </div>
   <div class="nav-links">
@@ -6101,8 +6117,13 @@ function showStale() {
   const el = document.getElementById("stale-banner");
   if (!el) return;
   const ageMs = Date.now() - _lastOk;
-  if (ageMs < 20000) { el.style.display = "none"; return; }
+  if (ageMs < 20000) {
+    el.style.display = "none";
+    document.body.classList.remove("with-stale-banner");
+    return;
+  }
   el.style.display = "block";
+  document.body.classList.add("with-stale-banner");
   const s = Math.round(ageMs / 1000);
   if (ageMs < 60000) {
     el.className = "stale-banner stale-warn";
@@ -6370,6 +6391,56 @@ function renderPricePill() {
 
 setInterval(renderPricePill, 1000);
 connectTickerWS();
+
+// Phase 7a — Advanced Details open/closed state persists per mode.
+(() => {
+  const adv = document.querySelector("details.advanced");
+  if (!adv) return;
+  const KEY = "agentavila.advanced." + MODE;
+  try { if (localStorage.getItem(KEY) === "1") adv.open = true; } catch {}
+  adv.addEventListener("toggle", () => {
+    try { localStorage.setItem(KEY, adv.open ? "1" : "0"); } catch {}
+  });
+})();
+
+// Phase 7a — mode switch button. Paper direction uses simple confirm.
+// Live direction requires user to type CONFIRM (matches /dashboard pattern).
+async function switchMode(toLive) {
+  if (toLive) {
+    const typed = window.prompt(
+      "Switch to LIVE mode?\n\nReal money will be used. Bot's next trade will place a real order on Kraken. Type CONFIRM to proceed:"
+    );
+    if (typed !== "CONFIRM") {
+      setCtrlMsg("Mode switch cancelled.");
+      return;
+    }
+  } else {
+    if (!window.confirm("Switch to PAPER mode? Bot will use simulated funds only.")) {
+      setCtrlMsg("Mode switch cancelled.");
+      return;
+    }
+  }
+  const btn = _activeBtn();
+  const release = lockBtn(btn);
+  setCtrlMsg("Switching to " + (toLive ? "LIVE" : "PAPER") + "…");
+  try {
+    const r = await fetch("/api/control", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ command: toLive ? "SET_MODE_LIVE" : "SET_MODE_PAPER" }),
+    });
+    const j = await r.json();
+    if (j.ok) {
+      setCtrlMsg("Mode switched to " + (toLive ? "LIVE" : "PAPER") + " — redirecting…");
+      setTimeout(() => { window.location.href = toLive ? "/live" : "/paper"; }, 700);
+    } else {
+      setCtrlMsg("Failed: " + (j.error || "unknown"));
+    }
+  } catch (e) {
+    setCtrlMsg("Failed: " + e.message);
+  } finally { release(); }
+}
 </script>
 
 </body>
