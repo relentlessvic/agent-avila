@@ -6869,11 +6869,11 @@ function modePage(mode, initial) {
       <div class="adv-section-title">${ctrlLabel}</div>
       <div id="ctrl-note" class="stat-sub" style="margin-bottom:10px"></div>
       <div class="ctrl-row">
-        <button onclick="ctrl('START_BOT')">Start Bot</button>
-        <button onclick="ctrl('STOP_BOT', true)" class="danger">Stop Bot</button>
-        <button onclick="ctrl('PAUSE_TRADING')">Pause</button>
-        <button onclick="ctrl('RESUME_TRADING')">Resume</button>
-        <button onclick="ctrl('RESET_KILL_SWITCH', true)" class="danger">Reset Kill Switch</button>
+        <button id="mp-btn-start"      onclick="ctrl('START_BOT')">Start Bot</button>
+        <button id="mp-btn-stop"       onclick="ctrl('STOP_BOT', true)" class="danger">Stop Bot</button>
+        <button id="mp-btn-pause"      onclick="ctrl('PAUSE_TRADING')">Pause</button>
+        <button id="mp-btn-resume"     onclick="ctrl('RESUME_TRADING')">Resume</button>
+        <button id="mp-btn-reset-kill" onclick="ctrl('RESET_KILL_SWITCH', true)" class="danger">Reset Kill Switch</button>
         <button onclick="ctrl('RESET_LOSSES')">Reset Losses</button>
         <button onclick="ctrl('RESET_COOLDOWN')">Reset Cooldown</button>
       </div>
@@ -7120,6 +7120,36 @@ function render(d) {
   } else {
     note.textContent = "Bot is currently in " + d.botMode.toUpperCase() + " mode. Lifecycle controls still work but apply to whichever mode is active.";
   }
+
+  // Phase D-3-paper-button-states — gate the lifecycle buttons on the
+  // current control flags so Start/Stop/Pause/Resume/Reset Kill show the
+  // correct active/disabled state. Pure read-only UI gating; clicking a
+  // disabled button does nothing client-side, and the existing /api/control
+  // server gates would still reject unsafe transitions even if this gating
+  // were bypassed.
+  applyControlButtonStates(d.control);
+}
+
+function applyControlButtonStates(control) {
+  if (!control) return;
+  const stopped = !!control.stopped;
+  const paused  = !!control.paused;
+  const killed  = !!control.killed;
+  const running = !stopped && !killed;
+  const setDisabled = (id, disabled) => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !!disabled;
+  };
+  // Start: disabled when bot is already running. Enabled when stopped or killed.
+  setDisabled("mp-btn-start",      running);
+  // Stop: disabled when not running (already stopped or killed).
+  setDisabled("mp-btn-stop",       !running);
+  // Pause: disabled when paused, stopped, or killed.
+  setDisabled("mp-btn-pause",      paused || !running);
+  // Resume: disabled when not paused (or stopped/killed).
+  setDisabled("mp-btn-resume",     !paused || !running);
+  // Reset Kill Switch: disabled when not killed (nothing to reset).
+  setDisabled("mp-btn-reset-kill", !killed);
 }
 
 // Phase 5b — button lock helper for /paper /live. Disables triggering button
