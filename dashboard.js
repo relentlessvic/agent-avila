@@ -8098,6 +8098,20 @@ async function sseLoop() {
 }
 sseLoop();
 
+// ─── Phase C-4-a — single-process mode/trade transition lock ─────────────────
+// Try-acquire (non-blocking): if held, returns null and the caller responds
+// 409 instead of queuing — avoids deadlock if a holder ever forgets to
+// release. Used by SET_MODE_LIVE, SET_MODE_PAPER, /api/trade, /api/run-bot to
+// reduce the race where a paper-mode trade body executes after mode flips
+// but before its own gate sees the new state.
+let _transitionLock = null;
+function acquireTransitionLock(name) {
+  if (_transitionLock) return null;
+  _transitionLock = name;
+  return () => { if (_transitionLock === name) _transitionLock = null; };
+}
+function transitionLockHolder() { return _transitionLock; }
+
 // ─── Server ───────────────────────────────────────────────────────────────────
 
 const server = createServer(async (req, res) => {
@@ -8325,6 +8339,15 @@ const server = createServer(async (req, res) => {
 
   // ── Bot run trigger (auth-required; dashboard self-heal calls this) ─────
   if (req.url === "/api/run-bot" && req.method === "POST") {
+    // Phase C-4-a — acquire the transition lock before spawning the bot. If
+    // a SET_MODE_* or /api/trade is mid-flight, we'd rather refuse than read
+    // possibly-stale control state into a freshly-spawned bot.js.
+    const _release = acquireTransitionLock("run-bot");
+    if (!_release) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Cannot run bot: a mode/trade transition is in progress (" + transitionLockHolder() + "). Try again in a moment." }));
+      return;
+    }
     try {
       // Phase 3 — server-side confirmation gate. Spawning the bot in LIVE
       // mode requires explicit { confirm: "CONFIRM" } in the body. Paper-mode
@@ -8359,6 +8382,9 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: e.message }));
+    } finally {
+      // Phase C-4-a — always release the transition lock on this path.
+      _release();
     }
     return;
   }
@@ -8484,9 +8510,20 @@ const server = createServer(async (req, res) => {
       res.end(JSON.stringify({ error: true, message: e.message, source: "kraken-balance" }));
     }
   } else if (req.url === "/api/control" && req.method === "POST") {
+    let _release = null;
     try {
       const body  = JSON.parse(await readBody(req));
-      const ctrl  = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json", "utf8")) : {};
+      // Phase C-4-a — read bot-control.json defensively so a malformed file
+      // routes to the mode-switch preflight (which returns 409 fail-closed),
+      // not the outer catch (which returns 400). For non-mode commands the
+      // pre-existing soft-default ({}) behavior is preserved.
+      let ctrl = {};
+      let _ctrlReadable = true;
+      try {
+        if (existsSync("bot-control.json")) ctrl = JSON.parse(readFileSync("bot-control.json", "utf8"));
+      } catch (e) {
+        _ctrlReadable = false;
+      }
       const { command, value } = body;
       // Phase 3 — server-side confirmation gate for live-trading triggers.
       // Client modals can be bypassed by an authenticated POST; this rejects
@@ -8506,6 +8543,44 @@ const server = createServer(async (req, res) => {
         res.writeHead(403, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: "Confirmation required for KILL_NOW" }));
         return;
+      }
+      // Phase C-4-a — mode-switch preflight + transition lock. Closes the
+      // open-position hazard (position.json has no mode tag, so a paper
+      // position would be managed as live after a flip) and the killed-state
+      // surprise (resetting kill via paper logic before a live flip is the
+      // operator's responsibility). Fails CLOSED on missing/malformed state.
+      if (command === "SET_MODE_LIVE" || command === "SET_MODE_PAPER") {
+        let pos = null;
+        try {
+          if (!existsSync("position.json")) throw new Error("position.json missing");
+          pos = JSON.parse(readFileSync("position.json", "utf8"));
+        } catch (e) {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: position state is unreadable. Aborting for safety." }));
+          return;
+        }
+        if (!_ctrlReadable || !existsSync("bot-control.json")) {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: control state is unreadable. Aborting for safety." }));
+          return;
+        }
+        if (pos && pos.open === true) {
+          const px = (typeof pos.entryPrice === "number") ? " (entry $" + pos.entryPrice.toFixed(4) + ")" : "";
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: an open position exists" + px + ". Close it first via the Trading Terminal on /dashboard, /paper, or /live." }));
+          return;
+        }
+        if (command === "SET_MODE_LIVE" && ctrl.killed === true) {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Cannot switch to live: kill switch is active. Reset the kill switch first." }));
+          return;
+        }
+        _release = acquireTransitionLock(command);
+        if (!_release) {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: another transition is in progress (" + transitionLockHolder() + "). Try again in a moment." }));
+          return;
+        }
       }
       switch (command) {
         case "START_BOT":       ctrl.stopped = false; break;
@@ -8558,12 +8633,25 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: e.message }));
+    } finally {
+      // Phase C-4-a — always release the transition lock on this path.
+      if (_release) _release();
     }
   } else if (req.url === "/api/control" && req.method === "GET") {
     const ctrl = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json", "utf8")) : {};
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(ctrl));
   } else if (req.url === "/api/trade" && req.method === "POST") {
+    // Phase C-4-a — acquire the transition lock before doing anything else.
+    // Returns 409 if a SET_MODE_* or another /api/trade or /api/run-bot is
+    // currently committing, eliminating the race where a paper-trade body
+    // executes after a mode flip but before this handler's gate sees it.
+    const _release = acquireTransitionLock("trade");
+    if (!_release) {
+      res.writeHead(409, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: "Cannot place trade: a mode/trade transition is in progress (" + transitionLockHolder() + "). Try again in a moment." }));
+      return;
+    }
     try {
       const body = JSON.parse(await readBody(req));
       // Phase 3 — server-side confirmation gate. Live trades require
@@ -8581,6 +8669,9 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: e.message }));
+    } finally {
+      // Phase C-4-a — always release the transition lock on this path.
+      _release();
     }
   } else if (req.url === "/api/chat" && req.method === "POST") {
     try {
