@@ -7636,6 +7636,31 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-f-4 — Advanced tab Legacy Dashboard link card. Final card,
+     navigation only. No POST, no JS — pure anchor. Visually quiet so it
+     reads as "way out" rather than as another live data card. */
+  .adv-legacy-card { padding:14px 18px; margin-top:14px; }
+  .adv-legacy-card .card-title { margin-bottom:4px; }
+  .adv-legacy-card .card-sublabel {
+    font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.55;
+  }
+  .adv-legacy-link {
+    display:inline-flex; align-items:center; gap:6px;
+    padding: 8px 14px; border-radius: 5px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: var(--text); text-decoration: none;
+    font-size: 12px; font-weight: 600;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .adv-legacy-link:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(255,255,255,0.25);
+  }
+  .adv-legacy-link:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
   /* Phase D-1-f-3 — Advanced tab Active Strategies card. Two side-by-side
      tiles describing V1 (primary) and V2 (shadow). Description-only;
      parameters live on Controls / Bot Thinking. Read-only badges. */
@@ -8308,6 +8333,16 @@ function dashboardV2HTML(initial) {
       <div class="card-title">🧠 Active Strategies</div>
       <div class="card-sublabel">Which strategies are wired and how. Read-only — strategy logic lives in the bot.</div>
       <div id="adv-strategies-body"><div class="card-empty">Loading…</div></div>
+    </div>
+
+    <!-- Phase D-1-f-4 — Legacy Dashboard link card. Navigation only. The
+         heavy panels (RSI history, Capital Router, full Trade History,
+         Trading Terminal) still live on /dashboard-legacy; this card keeps
+         that escape hatch one click away from the new dashboard. -->
+    <div class="card adv-legacy-card">
+      <div class="card-title">📂 Legacy Dashboard</div>
+      <div class="card-sublabel">Need the full old detailed view? Open the legacy dashboard for heavy panels, charts, history, and raw tools.</div>
+      <a class="adv-legacy-link" href="/dashboard-legacy">View full detail in Legacy Dashboard →</a>
     </div>
   </section>
 
