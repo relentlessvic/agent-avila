@@ -7580,9 +7580,80 @@ function dashboardCombinedHTML(_initial) {
   // global IDs are available regardless of which top tab is active.
   const V2_INFRA = v2Modal + v2ToastCont;
 
+  // Phase D-2-h — paper data alignment fix on the combined /dashboard.
+  // Two parts:
+  //  (1) Augment the legacy section headers (#section-paper, #section-performance,
+  //      #section-capital) with clarifying notes so the operator can tell at a
+  //      glance which one is the official paper wallet vs the bot classifier
+  //      vs the capital-router debug snapshot.
+  //  (2) Periodically fetch /api/data and override pw-pnl + pw-total-value with
+  //      the paperPnLRealized fields (added in D-2-c). This makes the legacy
+  //      Paper Wallet card on /dashboard match /paper exactly (realized P&L
+  //      from closed exits + PAPER_STARTING_BALANCE), instead of the legacy
+  //      mark-to-market computation that treats every BUY row as still open.
+  // /dashboard-legacy is NOT touched — it still serves the byte-identical
+  // legacy HTML with the original calcPaperPnL output. The combined /dashboard
+  // is the only surface where the alignment fix runs.
+  const PAPER_FIX_SCRIPT = "<script>" +
+    "(function () {" +
+      // Idempotent label augmentation. Each section header gets one
+      // muted note inserted after it, marked with data-dc-aligned so a
+      // re-run does not duplicate the note.
+      "function dcAugmentLabels() {" +
+        "var anchors = [" +
+          '{ id: "section-paper",       text: "Bot-recorded realized P&L from closed exits · aligned with /paper" },' +
+          '{ id: "section-performance", text: "Bot per-trade classifier · separate from Paper Wallet" },' +
+          '{ id: "section-capital",     text: "Snapshot · debug · not the official paper wallet" }' +
+        "];" +
+        "for (var i = 0; i < anchors.length; i++) {" +
+          "var a = anchors[i];" +
+          "var hdr = document.getElementById(a.id);" +
+          'if (!hdr || hdr.dataset.dcAligned === "1") continue;' +
+          'hdr.dataset.dcAligned = "1";' +
+          'var note = document.createElement("div");' +
+          'note.className = "dc-section-note";' +
+          'note.style.cssText = "font-size:11px;color:var(--muted);margin:2px 0 10px;letter-spacing:0.2px";' +
+          "note.textContent = a.text;" +
+          'hdr.insertAdjacentElement("afterend", note);' +
+        "}" +
+      "}" +
+      // Override pw-pnl + pw-total-value with realized values from
+      // /api/data's paperPnLRealized. Runs after each fetch.
+      "function dcApplyPaperOverride(p) {" +
+        "if (!p) return;" +
+        'var pnlEl = document.getElementById("pw-pnl");' +
+        'var totalEl = document.getElementById("pw-total-value");' +
+        "if (pnlEl) {" +
+          "var pnl = Number(p.realizedPnL_USD || 0);" +
+          'var sign = pnl >= 0 ? "+" : "−";' +
+          'pnlEl.textContent = sign + "$" + Math.abs(pnl).toFixed(2);' +
+          'pnlEl.style.color = pnl >= 0 ? "var(--green)" : "var(--red)";' +
+        "}" +
+        "if (totalEl) {" +
+          'totalEl.textContent = "$" + Number(p.currentBalance || 0).toFixed(2);' +
+        "}" +
+      "}" +
+      "function dcFetchAndApply() {" +
+        'fetch("/api/data", { credentials: "same-origin" }).then(function(r) {' +
+          // Reuse the D-2-paper-json-fix-a session-expired guard pattern.
+          'var ct = r.headers.get("content-type") || "";' +
+          'if (r.redirected || /\\/login(\\?|$)/.test(r.url || "") || !ct.includes("application/json")) return null;' +
+          "if (!r.ok) return null;" +
+          "return r.json();" +
+        "}).then(function(d) {" +
+          "if (d && d.paperPnLRealized) dcApplyPaperOverride(d.paperPnLRealized);" +
+        "}).catch(function () {});" +
+      "}" +
+      "dcAugmentLabels();" +
+      "dcFetchAndApply();" +
+      "setInterval(dcAugmentLabels, 1500);" +
+      "setInterval(dcFetchAndApply, 6000);" +
+    "})();" +
+  "</script>";
+
   // Inject the tab CSS + v2 style before </head>, the tab bar + Dashboard
   // pane wrapper start right after <body>, the placeholder panes + v2
-  // modal/toast + tab JS + v2 script before </body>.
+  // modal/toast + tab JS + v2 script + paper-fix script before </body>.
   //
   // IMPORTANT: every replacement uses a function callback rather than a
   // string. JavaScript's String.replace treats $&, $`, $', $0–$9 as special
@@ -7593,7 +7664,7 @@ function dashboardCombinedHTML(_initial) {
   // parse time. Function callbacks bypass that interpretation entirely.
   html = html.replace("</head>", () => TAB_CSS + v2Style + "</head>");
   html = html.replace(/<body([^>]*)>/, (_, attrs) => "<body" + attrs + ">" + TAB_BAR);
-  html = html.replace("</body>", () => TAB_PANES_END + V2_INFRA + TAB_JS + v2Script + "</body>");
+  html = html.replace("</body>", () => TAB_PANES_END + V2_INFRA + TAB_JS + v2Script + PAPER_FIX_SCRIPT + "</body>");
 
   return html;
 }
