@@ -7636,6 +7636,44 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-h — small help-icon tooltip for Performance metrics.
+     CSS-only tooltip via ::after on the icon, keyboard-accessible via
+     :focus-visible. data-help carries the wording; title attribute is
+     a fallback for assistive tech. No JS, no click handlers. */
+  .help-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; margin-left: 6px; vertical-align: middle;
+    border-radius: 50%; background: rgba(255,255,255,0.08);
+    color: var(--muted); font-size: 9px; font-weight: 700;
+    cursor: help; position: relative; user-select: none;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .help-icon:hover, .help-icon:focus-visible {
+    background: rgba(255,255,255,0.16); color: var(--text); outline: none;
+  }
+  .help-icon::after {
+    content: attr(data-help);
+    position: absolute; bottom: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,28,0.98);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 4px; padding: 8px 10px;
+    font-size: 11px; font-weight: 400;
+    color: var(--text); line-height: 1.5;
+    text-transform: none; letter-spacing: 0;
+    white-space: normal; width: max-content; max-width: 240px;
+    text-align: left; pointer-events: none;
+    opacity: 0; visibility: hidden;
+    transition: opacity 120ms ease, visibility 120ms ease;
+    z-index: 100; box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  }
+  .help-icon:hover::after, .help-icon:focus-visible::after {
+    opacity: 1; visibility: visible;
+  }
+  @media (max-width: 780px) {
+    .help-icon::after { max-width: 200px; }
+  }
+
   /* Phase D-1-f-4 — Advanced tab Legacy Dashboard link card. Final card,
      navigation only. No POST, no JS — pure anchor. Visually quiet so it
      reads as "way out" rather than as another live data card. */
@@ -8249,7 +8287,7 @@ function dashboardV2HTML(initial) {
         <div class="kpi-sub" id="pf-winrate-sub">how often the bot wins</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">Profit Factor</div>
+        <div class="kpi-label">Profit Factor<span class="help-icon" tabindex="0" role="button" aria-label="Profit Factor explained" data-help="Total $ won divided by total $ lost on closed exits. Above 1.0 means winners outweigh losers." title="Total $ won divided by total $ lost on closed exits. Above 1.0 means winners outweigh losers.">?</span></div>
         <div class="kpi-val" id="pf-profitfactor">—</div>
         <div class="kpi-sub" id="pf-profitfactor-sub">$ made per $ lost</div>
       </div>
@@ -8259,7 +8297,7 @@ function dashboardV2HTML(initial) {
         <div class="kpi-sub">total · bot-recorded</div>
       </div>
       <div class="kpi">
-        <div class="kpi-label">Realized Drawdown</div>
+        <div class="kpi-label">Realized Drawdown<span class="help-icon" tabindex="0" role="button" aria-label="Realized Drawdown explained" data-help="Biggest peak-to-trough drop in cumulative P&amp;L across closed exits. Needs at least 5 closed exits to compute." title="Biggest peak-to-trough drop in cumulative P&L across closed exits. Needs at least 5 closed exits to compute.">?</span></div>
         <div class="kpi-val" id="pf-drawdown">—</div>
         <div class="kpi-sub" id="pf-drawdown-sub">peak-to-trough · closed exits</div>
       </div>
@@ -8279,7 +8317,7 @@ function dashboardV2HTML(initial) {
          cycle-level). The sub-label makes that scope explicit so the
          operator does not read this as account P&L. -->
     <div class="card perf-conditions-card">
-      <div class="card-title">📊 Condition Pass Rates — cycle-level</div>
+      <div class="card-title">📊 Condition Pass Rates — cycle-level<span class="help-icon" tabindex="0" role="button" aria-label="Condition Pass Rates explained" data-help="How often each strategy condition (EMA trend, RSI dip, VWAP support, Not extended) cleared in recent cycles. Cycle-level — not account performance." title="How often each strategy condition cleared in recent cycles. Cycle-level — not account performance.">?</span></div>
       <div class="card-sublabel">Cycle-level signal quality from recent bot checks. Not paper/live account performance.</div>
       <div id="pf-conditions-body"><div class="card-empty">Loading…</div></div>
     </div>
@@ -8290,7 +8328,7 @@ function dashboardV2HTML(initial) {
          load-bearing — V2 must never be read as a trade signal. -->
     <details class="card perf-v2-card">
       <summary class="perf-v2-summary">
-        <span class="card-title" style="margin:0">🔬 Strategy V2 Shadow Analysis — cycle-level</span>
+        <span class="card-title" style="margin:0">🔬 Strategy V2 Shadow Analysis — cycle-level<span class="help-icon" tabindex="0" role="button" aria-label="Strategy V2 Shadow Analysis explained" data-help="Compares the bot's actual decisions to V2's hypothetical ones. Read-only — V2 never places orders." title="Compares the bot's actual decisions to V2's hypothetical ones. Read-only — V2 never places orders.">?</span></span>
         <span class="perf-v2-toggle-hint">click to expand</span>
       </summary>
       <div class="perf-v2-body">
