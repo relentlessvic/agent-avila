@@ -60,7 +60,9 @@ async function authedSession(page) {
 test.describe("Modal recursion fix", () => {
   test.beforeEach(async ({ page }) => {
     await authedSession(page);
-    await page.goto("/dashboard");
+    // Cutover: /dashboard now serves the v2 command center; the legacy modal
+    // recursion fix this spec verifies still lives at /dashboard-legacy.
+    await page.goto("/dashboard-legacy");
     await expect(page.locator(".status-bar")).toBeVisible();
     // Sanity check: showModal must be reachable on window
     const fnType = await page.evaluate(() => typeof window.showModal);

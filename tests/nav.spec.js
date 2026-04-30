@@ -45,7 +45,9 @@ async function authedSession(page) {
 test.describe("Nav drawer on Agent 3.0 tab", () => {
   test.beforeEach(async ({ page }) => {
     await authedSession(page);
-    await page.goto("/dashboard");
+    // Cutover: /dashboard now serves the v2 command center; the legacy
+    // nav-drawer this spec verifies still lives at /dashboard-legacy.
+    await page.goto("/dashboard-legacy");
     await expect(page.locator(".status-bar")).toBeVisible();
   });
 

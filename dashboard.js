@@ -7529,7 +7529,7 @@ function dashboardV2HTML(initial) {
       <span class="preview-tag">PREVIEW · /dashboard-v2</span>
     </div>
     <div class="nav-links">
-      <a href="/dashboard">Legacy /dashboard</a>
+      <a href="/dashboard-legacy">Legacy /dashboard</a>
       <a href="/paper">/paper</a>
       <a href="/live">/live</a>
       <a href="/logout">Logout</a>
@@ -8451,23 +8451,29 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // ── /dashboard — legacy detailed UI (preserved; not the homepage) ───────
-  if (req.url === "/dashboard") {
-    res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
-    res.end(HTML);
-    return;
-  }
-
-  // ── /dashboard-v2 — Phase A read-only command-center preview ────────────
-  // Phase B: server-renders inline data from buildV2DashboardPayload(), the
-  // same builder /api/v2/dashboard uses. Client polls /api/v2/dashboard every
-  // 5 s. No POSTs, no SSE writes. Control buttons stay disabled with PREVIEW.
-  if (req.url === "/dashboard-v2") {
+  // ── /dashboard + /dashboard-v2 — command center (cutover) ──────────────
+  // Cutover: /dashboard now serves the v2 command center. /dashboard-v2 is
+  // kept as an alias so existing bookmarks and the recent QA links still
+  // work. Server-renders inline data from buildV2DashboardPayload(), the
+  // same builder /api/v2/dashboard uses. Client polls /api/v2/dashboard
+  // every 5 s. No POSTs, no SSE writes.
+  if (req.url === "/dashboard" || req.url === "/dashboard-v2") {
     res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
     let initial = null;
     try { initial = await buildV2DashboardPayload(); }
     catch (e) { initial = { error: e.message }; }
     res.end(dashboardV2HTML(initial));
+    return;
+  }
+
+  // ── /dashboard-legacy — previous detailed UI (preserved for emergency
+  // rollback). The heavy panels (Trading Terminal, full Trade History,
+  // Capital Router, RSI History, etc.) still live here until Phase D
+  // migrates them into the v2 Advanced Details. Operators with muscle
+  // memory for the old dashboard reach it explicitly via this URL.
+  if (req.url === "/dashboard-legacy") {
+    res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
+    res.end(HTML);
     return;
   }
 
