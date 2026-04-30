@@ -7393,6 +7393,124 @@ function dashboardV2BackupHTML(initial) {
   return dashboardV2HTML(initial);
 }
 
+// Phase D-2-d — combined /dashboard shell. Wraps the legacy HTML body in
+// a tab framework with the LEGACY visual style. Tab 1 ("Dashboard") shows
+// the full legacy body verbatim — every legacy script, every legacy panel,
+// every legacy CSS rule passes through unchanged. Other 5 tabs render
+// placeholders for now; later D-2 phases will move v2 content into them.
+// /dashboard-v2 (frozen v2 backup) and /dashboard-legacy (untouched legacy
+// fallback) keep their own URLs and are not affected by this shell.
+function dashboardCombinedHTML(_initial) {
+  let html = HTML;
+
+  const TAB_CSS = "<style>" +
+    /* Phase D-2-d — combined dashboard tab framework. .dc- prefix on every
+       class/attribute so we cannot collide with any legacy class or id. */
+    ".dc-tabs {" +
+      "position: sticky; top: 0; z-index: 50;" +
+      "display: flex; gap: 4px; padding: 10px 16px 0;" +
+      "background: rgba(11, 15, 26, 0.92);" +
+      "backdrop-filter: blur(10px);" +
+      "-webkit-backdrop-filter: blur(10px);" +
+      "border-bottom: 1px solid var(--border);" +
+      "overflow-x: auto;" +
+    "}" +
+    ".dc-tab {" +
+      "flex-shrink: 0; padding: 8px 14px;" +
+      "background: transparent; border: none;" +
+      "border-bottom: 2px solid transparent;" +
+      "color: var(--muted);" +
+      "font-size: 13px; font-weight: 600; letter-spacing: 0.02em;" +
+      "cursor: pointer;" +
+      "transition: color 150ms ease, border-color 150ms ease, background 150ms ease;" +
+    "}" +
+    ".dc-tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }" +
+    ".dc-tab-active {" +
+      "color: var(--blue); border-bottom-color: var(--blue);" +
+      "text-shadow: 0 0 8px var(--glow-blue);" +
+    "}" +
+    ".dc-pane[hidden] { display: none !important; }" +
+    ".dc-placeholder {" +
+      "max-width: 720px; margin: 80px auto; padding: 40px 24px;" +
+      "text-align: center; color: var(--muted);" +
+      "background: var(--card); border: 1px solid var(--border); border-radius: 12px;" +
+    "}" +
+    ".dc-placeholder h2 { color: var(--text); margin-bottom: 8px; font-size: 20px; }" +
+    ".dc-placeholder p { font-size: 14px; line-height: 1.6; }" +
+  "</style>";
+
+  const TAB_BAR =
+    '<nav class="dc-tabs" role="tablist" aria-label="Dashboard sections">' +
+      '<button class="dc-tab dc-tab-active" type="button" role="tab" data-dc-tab="dashboard">Dashboard</button>' +
+      '<button class="dc-tab" type="button" role="tab" data-dc-tab="agent3">Agent 3.0</button>' +
+      '<button class="dc-tab" type="button" role="tab" data-dc-tab="bot-thinking">Bot Thinking</button>' +
+      '<button class="dc-tab" type="button" role="tab" data-dc-tab="performance">Performance</button>' +
+      '<button class="dc-tab" type="button" role="tab" data-dc-tab="controls">Controls</button>' +
+      '<button class="dc-tab" type="button" role="tab" data-dc-tab="advanced">Advanced</button>' +
+    '</nav>' +
+    '<section class="dc-pane" data-dc-pane="dashboard">';
+
+  const TAB_PANES_END =
+    '</section>' +
+    '<section class="dc-pane" data-dc-pane="agent3" hidden>' +
+      '<div class="dc-placeholder"><h2>Agent 3.0</h2><p>Coming in next phase.</p></div>' +
+    '</section>' +
+    '<section class="dc-pane" data-dc-pane="bot-thinking" hidden>' +
+      '<div class="dc-placeholder"><h2>Bot Thinking</h2><p>Coming in next phase.</p></div>' +
+    '</section>' +
+    '<section class="dc-pane" data-dc-pane="performance" hidden>' +
+      '<div class="dc-placeholder"><h2>Performance</h2><p>Coming in next phase.</p></div>' +
+    '</section>' +
+    '<section class="dc-pane" data-dc-pane="controls" hidden>' +
+      '<div class="dc-placeholder"><h2>Controls</h2><p>Coming in next phase.</p></div>' +
+    '</section>' +
+    '<section class="dc-pane" data-dc-pane="advanced" hidden>' +
+      '<div class="dc-placeholder"><h2>Advanced</h2><p>Coming in next phase.</p></div>' +
+    '</section>';
+
+  const TAB_JS = "<script>" +
+    "(function () {" +
+      'var validTabs = ["dashboard","agent3","bot-thinking","performance","controls","advanced"];' +
+      'var tabs = document.querySelectorAll(".dc-tab");' +
+      'var panes = document.querySelectorAll(".dc-pane");' +
+      "function activate(name, fromClick) {" +
+        "for (var i = 0; i < tabs.length; i++) {" +
+          'tabs[i].classList.toggle("dc-tab-active", tabs[i].dataset.dcTab === name);' +
+        "}" +
+        "for (var j = 0; j < panes.length; j++) {" +
+          "panes[j].hidden = (panes[j].dataset.dcPane !== name);" +
+        "}" +
+        "if (fromClick) {" +
+          'try { history.replaceState(null, "", "#" + name); } catch (e) {}' +
+        "}" +
+      "}" +
+      "for (var k = 0; k < tabs.length; k++) {" +
+        "(function (btn) {" +
+          'btn.addEventListener("click", function () { activate(btn.dataset.dcTab, true); });' +
+        "})(tabs[k]);" +
+      "}" +
+      'var hash = (location.hash || "").slice(1);' +
+      'activate(validTabs.indexOf(hash) >= 0 ? hash : "dashboard", false);' +
+      // Also handle hash-only navigation (browser back/forward, anchor links
+      // pasted into the URL bar). For any hash not in validTabs the handler
+      // falls back to "dashboard" — the browser's native scroll-to-anchor
+      // still works for legacy nav-drawer links because we don't preventDefault.
+      'window.addEventListener("hashchange", function () {' +
+        'var h = (location.hash || "").slice(1);' +
+        'activate(validTabs.indexOf(h) >= 0 ? h : "dashboard", false);' +
+      '});' +
+    "})();" +
+  "</script>";
+
+  // Inject the tab CSS before </head>, the tab bar + Dashboard pane wrapper
+  // start right after <body>, the placeholder panes + tab JS before </body>.
+  html = html.replace("</head>", TAB_CSS + "</head>");
+  html = html.replace(/<body([^>]*)>/, "<body$1>" + TAB_BAR);
+  html = html.replace("</body>", TAB_PANES_END + TAB_JS + "</body>");
+
+  return html;
+}
+
 function dashboardV2HTML(initial) {
   const ctrl    = initial?.control || {};
   const isPaper = ctrl.paperTrading !== false;
@@ -10130,17 +10248,18 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // ── /dashboard — command center (cutover) ──────────────────────────────
-  // Cutover: /dashboard now serves the v2 command center. Server-renders
-  // inline data from buildV2DashboardPayload(), the same builder
-  // /api/v2/dashboard uses. Client polls /api/v2/dashboard every 5 s.
-  // No POSTs, no SSE writes.
+  // ── /dashboard — combined shell (D-2-d) ─────────────────────────────────
+  // /dashboard now serves dashboardCombinedHTML — the legacy HTML body
+  // wrapped in a tab framework. Tab 1 ("Dashboard") shows the legacy
+  // panels verbatim; the other 5 tabs render placeholders for now.
+  // /dashboard-v2 (frozen v2 backup) still serves the old command center
+  // via dashboardV2BackupHTML; /dashboard-legacy serves the byte-identical
+  // legacy HTML untouched. The combined view is read-only and does not
+  // depend on buildV2DashboardPayload — its inner legacy body polls
+  // /api/data on its own.
   if (req.url === "/dashboard") {
     res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
-    let initial = null;
-    try { initial = await buildV2DashboardPayload(); }
-    catch (e) { initial = { error: e.message }; }
-    res.end(dashboardV2HTML(initial));
+    res.end(dashboardCombinedHTML(null));
     return;
   }
 
