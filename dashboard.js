@@ -7421,6 +7421,14 @@ function dashboardCombinedHTML(_initial) {
   const v2Script      = _extract     (v2Full, /<script>[\s\S]*?<\/script>(?=\s*<\/body>)/);
   const v2BTPane      = _extract     (v2Full, /<section class="tab-pane" id="tab-bot-thinking"[\s\S]*?<\/section>/);
   const v2CtrlPane    = _extract     (v2Full, /<section class="tab-pane" id="tab-controls"[\s\S]*?<\/section>/);
+  // Phase D-2-g — Performance and Advanced sections. Performance contains
+  // the segmented [Paper][Live] selector, KPI tiles, Recent Trades table,
+  // Conditions Pass Rates + heatmap, and the V2 Shadow Analysis card. The
+  // Advanced section contains Raw Decision Log, Recent Bot Activity,
+  // Active Strategies, and the Legacy Dashboard link card. Both panes use
+  // the v2 5s polling that's already embedded for Bot Thinking + Controls.
+  const v2PerfPane    = _extract     (v2Full, /<section class="tab-pane" id="tab-performance"[\s\S]*?<\/section>(?=\s*<section class="tab-pane" id="tab-advanced")/);
+  const v2AdvPane     = _extract     (v2Full, /<section class="tab-pane" id="tab-advanced"[\s\S]*?<\/section>/);
   const v2Modal       = _extract     (v2Full, /<div id="v2-modal-overlay"[\s\S]*?<\/div>\s*<\/div>/);
   const v2ToastCont   = _extract     (v2Full, /<div id="v2-toast-container"[^>]*><\/div>/);
 
@@ -7462,12 +7470,14 @@ function dashboardCombinedHTML(_initial) {
        since the new top tabs now drive that swap. The legacy switchTab() and
        #dashboard-page / #info-page DOM are preserved unchanged. */
     ".tab-strip { display: none !important; }" +
-    /* Phase D-2-f — v2's CSS hides .tab-pane by default and only shows
-       .tab-pane.active. Inside our combined .dc-pane wrappers, the tab pane
-       should always be visible — the .dc-pane[hidden] attribute already
-       controls visibility at the outer level. Override v2 here. */
+    /* Phase D-2-f / D-2-g — v2's CSS hides .tab-pane by default and only
+       shows .tab-pane.active. Inside our combined .dc-pane wrappers, the
+       tab pane should always be visible — the .dc-pane[hidden] attribute
+       already controls visibility at the outer level. Override v2 here. */
     ".dc-pane > .tab-pane#tab-bot-thinking," +
-    ".dc-pane > .tab-pane#tab-controls { display: block !important; }" +
+    ".dc-pane > .tab-pane#tab-controls," +
+    ".dc-pane > .tab-pane#tab-performance," +
+    ".dc-pane > .tab-pane#tab-advanced { display: block !important; }" +
   "</style>";
 
   const TAB_BAR =
@@ -7495,8 +7505,12 @@ function dashboardCombinedHTML(_initial) {
     '<section class="dc-pane" data-dc-pane="bot-thinking" hidden>' +
       v2BTPane +
     '</section>' +
+    /* Phase D-2-g — Performance pane mounts the extracted v2 #tab-performance
+       block. The v2 5s refresh poll drives renderPerformance() (KPIs, Recent
+       Trades, Conditions, V2 Shadow Analysis collapsed). Help-icon tooltips
+       (D-1-h) come along verbatim. */
     '<section class="dc-pane" data-dc-pane="performance" hidden>' +
-      '<div class="dc-placeholder"><h2>Performance</h2><p>Coming in next phase.</p></div>' +
+      v2PerfPane +
     '</section>' +
     /* Phase D-2-f — Controls pane mounts the extracted v2 #tab-controls block
        plus the v2 confirm modal + toast container so Start / Stop / Reset Kill
@@ -7504,8 +7518,11 @@ function dashboardCombinedHTML(_initial) {
     '<section class="dc-pane" data-dc-pane="controls" hidden>' +
       v2CtrlPane +
     '</section>' +
+    /* Phase D-2-g — Advanced pane mounts the extracted v2 #tab-advanced block
+       (Raw Decision Log, Recent Bot Activity, Active Strategies, Legacy
+       Dashboard link). Same v2 polling drives all four cards. */
     '<section class="dc-pane" data-dc-pane="advanced" hidden>' +
-      '<div class="dc-placeholder"><h2>Advanced</h2><p>Coming in next phase.</p></div>' +
+      v2AdvPane +
     '</section>';
 
   const TAB_JS = "<script>" +
@@ -9683,8 +9700,15 @@ function initPerfModeIfNeeded() {
 }
 
 function refreshPerfIfActive() {
-  const active = document.querySelector(".tab.active")?.dataset?.tab;
-  if (active !== "performance") return;
+  // Phase D-2-g — recognize both the v2 .tab.active selector (used on
+  // /dashboard-v2) and the combined dashboard's .dc-tab.dc-tab-active
+  // selector (used on /dashboard). On /dashboard-v2 only the first
+  // selector matches; behavior is unchanged. On /dashboard only the
+  // second matches. Without this, the Performance KPI tiles never poll
+  // /api/{paper,live}-summary on /dashboard and stay stuck on "Loading…".
+  const v2Active = document.querySelector(".tab.active")?.dataset?.tab;
+  const dcActive = document.querySelector(".dc-tab.dc-tab-active")?.dataset?.dcTab;
+  if (v2Active !== "performance" && dcActive !== "performance") return;
   initPerfModeIfNeeded();
   pfFetch(_perfMode);
 }
