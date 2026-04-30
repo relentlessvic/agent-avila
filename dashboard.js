@@ -7442,15 +7442,23 @@ function dashboardV2HTML(initial) {
     color:var(--muted); margin-bottom:6px;
   }
   .ctrl-row { display:flex; flex-wrap:wrap; gap:8px; }
-  /* Phase A — every control button is disabled with Preview-only badge.
-     Phase B will wire these through the Phase 3 typed-confirm gate. */
+  /* Phase A: all buttons rendered :disabled with PREVIEW badge.
+     Phase C-1: lifecycle buttons (Pause/Resume/Start/Stop) become active;
+     remaining dangerous buttons keep :disabled until C-2/C-3. CSS now
+     supports both states via the :disabled pseudo. */
   .ctrl-btn {
-    background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.10);
-    color:var(--muted); padding:8px 14px; border-radius:8px;
-    font-size:12px; font-weight:600; cursor:not-allowed; opacity:0.65;
+    background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.14);
+    color:var(--text); padding:8px 14px; border-radius:8px;
+    font-size:12px; font-weight:600; cursor:pointer; opacity:1;
     position:relative;
+    transition:background 0.15s, border-color 0.15s, transform 0.05s;
   }
-  .ctrl-btn-danger { border-color:rgba(255,77,106,0.18); color:rgba(255,77,106,0.65); }
+  .ctrl-btn:hover:not(:disabled)  { background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.24); }
+  .ctrl-btn:active:not(:disabled) { transform:translateY(1px); }
+  .ctrl-btn:disabled { cursor:not-allowed; opacity:0.55; color:var(--muted); }
+  .ctrl-btn-danger { border-color:rgba(255,77,106,0.30); color:var(--red); }
+  .ctrl-btn-danger:hover:not(:disabled) { background:rgba(255,77,106,0.10); border-color:rgba(255,77,106,0.50); }
+  .ctrl-btn-danger:disabled { color:rgba(255,77,106,0.55); border-color:rgba(255,77,106,0.18); }
   .preview-only-badge {
     display:inline-block; margin-left:6px; padding:1px 6px; border-radius:4px;
     background:rgba(255,193,7,0.18); color:var(--yellow);
@@ -7466,6 +7474,30 @@ function dashboardV2HTML(initial) {
   }
   .stale-banner.on { display:block; }
   .stale-banner.critical { background:rgba(255,77,106,0.12); color:var(--red); border-color:rgba(255,77,106,0.4); }
+
+  /* Phase C-1 — confirm modal + toast for /dashboard-v2. requireText is
+     accepted via the same opts API as modePage's mp-modal so C-2/C-3
+     (Switch to Live, Reset Kill Switch, KILL NOW) can reuse this surface. */
+  .v2-modal-overlay { position:fixed; inset:0; background:rgba(4,7,17,0.78); display:none; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
+  .v2-modal-overlay.open { display:flex; }
+  .v2-modal { background:linear-gradient(180deg,#101725 0%,#0A0F1A 100%); border:1px solid var(--line); border-radius:14px; padding:22px 24px; width:min(440px,92vw); box-shadow:0 12px 40px rgba(0,0,0,0.6); }
+  .v2-modal-title { font-size:16px; font-weight:700; margin:0 0 8px; color:var(--text); }
+  .v2-modal-msg { font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:14px; }
+  .v2-modal-input { width:100%; box-sizing:border-box; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text); padding:10px 12px; border-radius:8px; font-family:inherit; font-size:14px; margin-bottom:14px; display:none; }
+  .v2-modal-input.show { display:block; }
+  .v2-modal-input:focus { outline:none; border-color:var(--accent); }
+  .v2-modal-row { display:flex; gap:10px; justify-content:flex-end; }
+  .v2-modal-btn { padding:9px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.06); color:var(--text); font-size:13px; font-weight:600; cursor:pointer; }
+  .v2-modal-btn-confirm { background:linear-gradient(180deg,rgba(0,212,255,0.20) 0%,rgba(0,150,200,0.15) 100%); border-color:var(--accent); }
+  .v2-modal-btn-confirm.danger { background:linear-gradient(180deg,#FF4D6A 0%,#D8334E 100%); border-color:rgba(255,77,106,0.6); color:#fff; }
+  .v2-modal-btn-confirm:disabled { opacity:0.4; cursor:not-allowed; }
+
+  .v2-toast-container { position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:999; pointer-events:none; }
+  .v2-toast { background:rgba(20,28,45,0.95); border:1px solid var(--line); border-radius:10px; padding:10px 16px; color:var(--text); font-size:13px; font-weight:500; box-shadow:0 8px 24px rgba(0,0,0,0.4); animation:v2toastin 0.2s ease-out; pointer-events:auto; }
+  .v2-toast.success { border-color:rgba(0,255,154,0.3); color:var(--green); }
+  .v2-toast.warn    { border-color:rgba(255,193,7,0.3); color:var(--yellow); }
+  .v2-toast.error   { border-color:rgba(255,77,106,0.3); color:var(--red); }
+  @keyframes v2toastin { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 </style>
 </head>
 <body>
@@ -7485,6 +7517,20 @@ function dashboardV2HTML(initial) {
   </div>
 
   <div id="stale-banner" class="stale-banner"></div>
+
+  <!-- Phase C-1 — confirm modal + toast container. -->
+  <div id="v2-modal-overlay" class="v2-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="v2-modal-title">
+    <div class="v2-modal">
+      <h3 id="v2-modal-title" class="v2-modal-title">Confirm action</h3>
+      <div id="v2-modal-msg" class="v2-modal-msg"></div>
+      <input id="v2-modal-input" class="v2-modal-input" type="text" autocomplete="off" />
+      <div class="v2-modal-row">
+        <button id="v2-modal-cancel" class="v2-modal-btn" type="button">Cancel</button>
+        <button id="v2-modal-confirm" class="v2-modal-btn v2-modal-btn-confirm" type="button">Confirm</button>
+      </div>
+    </div>
+  </div>
+  <div id="v2-toast-container" class="v2-toast-container"></div>
 
   <!-- Section 1 — Quick Status Strip -->
   <div class="strip">
@@ -7575,13 +7621,17 @@ function dashboardV2HTML(initial) {
       <div class="adv-section">
         <div class="adv-section-title">Lifecycle Controls</div>
         <div class="ctrl-row">
-          <button class="ctrl-btn" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Start Bot<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Stop Bot<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Pause<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Resume<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Switch to Live<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Reset Kill Switch<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">KILL NOW<span class="preview-only-badge">PREVIEW</span></button>
+          <!-- Phase C-1: lifecycle controls active. Pause/Resume run instantly;
+               Start/Stop go through a simple confirm modal. -->
+          <button class="ctrl-btn" id="v2-btn-start"  type="button" onclick="confirmStartBot(event)">Start Bot</button>
+          <button class="ctrl-btn ctrl-btn-danger" id="v2-btn-stop" type="button" onclick="confirmStopBot(event)">Stop Bot</button>
+          <button class="ctrl-btn" id="v2-btn-pause"  type="button" onclick="pauseBot(event)">Pause</button>
+          <button class="ctrl-btn" id="v2-btn-resume" type="button" onclick="resumeBot(event)">Resume</button>
+          <!-- Dangerous controls remain preview-only until C-2/C-3 wires them
+               through the Phase 3 typed-confirm gates + the C-0 KILL gate. -->
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-3">Switch to Live<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-3">Reset Kill Switch<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-2 (top-strip promotion)">KILL NOW<span class="preview-only-badge">PREVIEW</span></button>
         </div>
       </div>
 
@@ -7805,6 +7855,133 @@ if (init && !init.error) {
     position:     init.position,
     safetyBuffer: init.safetyBuffer,
   });
+}
+
+// Phase C-1 — confirm modal, toast, button-lock, and POST helper for the
+// lifecycle controls. Only Pause/Resume/Start/Stop are wired this round;
+// Switch to Live, Reset Kill Switch, and KILL NOW remain :disabled with
+// PREVIEW badges and are wired in C-2/C-3.
+function v2ShowConfirm(opts) {
+  return new Promise(resolve => {
+    const o   = document.getElementById("v2-modal-overlay");
+    const ttl = document.getElementById("v2-modal-title");
+    const msg = document.getElementById("v2-modal-msg");
+    const inp = document.getElementById("v2-modal-input");
+    const cnf = document.getElementById("v2-modal-confirm");
+    const cnl = document.getElementById("v2-modal-cancel");
+    ttl.textContent = opts.title || "Confirm action";
+    msg.innerHTML   = opts.msg   || "";
+    cnf.textContent = opts.confirmText || "Confirm";
+    cnf.className   = "v2-modal-btn v2-modal-btn-confirm" + (opts.danger ? " danger" : "");
+    if (opts.requireText) {
+      inp.classList.add("show");
+      inp.value = "";
+      inp.placeholder = 'Type "' + opts.requireText + '"';
+      cnf.disabled = true;
+      inp.oninput = () => { cnf.disabled = inp.value.trim() !== opts.requireText; };
+      setTimeout(() => inp.focus(), 80);
+    } else {
+      inp.classList.remove("show");
+      cnf.disabled = false;
+    }
+    const close = (val) => {
+      o.classList.remove("open");
+      inp.oninput = null;
+      cnf.onclick = null; cnl.onclick = null;
+      resolve(val);
+    };
+    cnf.onclick = () => close(true);
+    cnl.onclick = () => close(false);
+    o.classList.add("open");
+  });
+}
+
+function v2Toast(msg, type) {
+  const c = document.getElementById("v2-toast-container");
+  if (!c) return;
+  const t = document.createElement("div");
+  t.className = "v2-toast" + (type ? " " + type : "");
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+}
+
+function v2LockBtn(btn) {
+  if (!btn || btn.disabled) return () => {};
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>' + original;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    btn.disabled = false;
+    btn.innerHTML = original;
+  };
+}
+
+// POST to /api/control with optional confirm token. /api/control already
+// enforces the Phase 3 + C-0 typed-confirm gates server-side, so v2 cannot
+// bypass them by omitting the token — the server will simply return 403.
+async function v2SendCmd(command, btn, confirm) {
+  const release = v2LockBtn(btn);
+  try {
+    const body = { command };
+    if (confirm) body.confirm = confirm;
+    const r = await fetch("/api/control", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.ok !== false) {
+      v2Toast(commandSuccessText(command), "success");
+      refresh();
+    } else {
+      v2Toast("Failed: " + (j.error || ("HTTP " + r.status)), "error");
+    }
+  } catch (e) {
+    v2Toast("Error: " + e.message, "error");
+  } finally { release(); }
+}
+
+function commandSuccessText(command) {
+  switch (command) {
+    case "PAUSE_TRADING":   return "⏸ Trading paused";
+    case "RESUME_TRADING":  return "▶ Trading resumed";
+    case "START_BOT":       return "✅ Bot started";
+    case "STOP_BOT":        return "⛔ Bot stopped";
+    default:                return "✓ " + command + " applied";
+  }
+}
+
+// Pause/Resume: instant; safety-up actions; no modal (avoids confirmation fatigue).
+function pauseBot(e)  { v2SendCmd("PAUSE_TRADING",  e?.currentTarget); }
+function resumeBot(e) { v2SendCmd("RESUME_TRADING", e?.currentTarget); }
+
+// Start/Stop: simple confirm (no typed text). Stop carries the live-position
+// warning copy verbatim from the Phase C-1 spec.
+async function confirmStartBot(e) {
+  const btn = e?.currentTarget;
+  const ok = await v2ShowConfirm({
+    title: "Start the bot?",
+    msg: "The bot will resume looking for entry signals on its next cycle.",
+    confirmText: "Start Bot",
+  });
+  if (!ok) return;
+  v2SendCmd("START_BOT", btn);
+}
+async function confirmStopBot(e) {
+  const btn = e?.currentTarget;
+  const ok = await v2ShowConfirm({
+    title: "Stop the bot?",
+    msg: '<strong style="color:var(--yellow)">Trading halted. Open positions will NOT be closed by the bot. You must manage them manually via the exchange until the bot is restarted to resume auto-exit logic.</strong>',
+    confirmText: "Stop Bot",
+    danger: true,
+  });
+  if (!ok) return;
+  v2SendCmd("STOP_BOT", btn);
 }
 
 // Phase B — single read-only poll to /api/v2/dashboard (no POSTs).
