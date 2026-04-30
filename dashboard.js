@@ -142,7 +142,33 @@ function getApiData() {
   };
   const modeWinLoss = { paper: modeWL(true), live: modeWL(false) };
 
-  return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperStartingBalance, position, control, perfState, capitalState, portfolioState, modeWinLoss, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
+  // Phase D-2-c — additive realized paper P&L payload, sourced the same way
+  // /paper does (safety-check-log paper-filtered EXIT rows + PAPER_STARTING_BALANCE).
+  // The legacy `paperPnL` field above (calcPaperPnL on cumulative BUY rows from
+  // trades.csv) stays in place for backwards compatibility; later D-2 phases
+  // will switch render sites to read from this new field. Do not consume both
+  // simultaneously — they measure different things by design.
+  const paperExits = log.trades.filter(t =>
+    t && Boolean(t.paperTrading) === true && t.type === "EXIT");
+  const paperWins = paperExits.filter(t => parseFloat(t.pnlUSD) > 0).length;
+  const paperLosses = paperExits.filter(t => parseFloat(t.pnlUSD) < 0).length;
+  const paperBreakeven = paperExits.filter(t => parseFloat(t.pnlUSD) === 0).length;
+  const paperRealizedPnL = paperExits.reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
+  const paperWLTotal = paperWins + paperLosses;
+  const paperPnLRealized = {
+    source: "safety-check-log.json paper-filtered EXIT rows + PAPER_STARTING_BALANCE",
+    realizedPnL_USD: paperRealizedPnL,
+    exitCount: paperExits.length,
+    wins: paperWins,
+    losses: paperLosses,
+    breakeven: paperBreakeven,
+    winRate: paperWLTotal > 0 ? (paperWins / paperWLTotal) * 100 : null,
+    startingBalance: paperStartingBalance,
+    currentBalance: paperStartingBalance + paperRealizedPnL,
+    asOf: paperExits.length ? paperExits[paperExits.length - 1].timestamp : null,
+  };
+
+  return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperPnLRealized, paperStartingBalance, position, control, perfState, capitalState, portfolioState, modeWinLoss, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
 }
 
 // ─── Home summary (Phase 6e + 8d) ────────────────────────────────────────────
