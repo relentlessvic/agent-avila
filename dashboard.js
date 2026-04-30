@@ -446,6 +446,24 @@ async function buildV2DashboardPayload() {
       .slice(-30)
       .map(t => ({ timestamp: t.timestamp ?? null, decisionLog: t.decisionLog ?? null }))
       .reverse(),
+    // Phase D-1-f-2 — last 20 cycles projected for the Advanced tab Recent
+    // Bot Activity timeline. Mode-blind, read-only. Includes paperTrading
+    // only so the timeline can render a PAPER/LIVE pill on traded/exited
+    // rows; never aggregated as account P&L.
+    recentActivity: allTrades
+      .slice(-20)
+      .map(t => ({
+        timestamp:    t.timestamp ?? null,
+        type:         t.type ?? null,
+        allPass:      t.allPass === true,
+        exitReason:   t.exitReason ?? null,
+        price:        t.price ?? null,
+        pct:          t.pct ?? null,
+        pnlUSD:       t.pnlUSD ?? null,
+        paperTrading: t.paperTrading !== false,
+        decisionLog:  t.decisionLog ?? null,
+      }))
+      .reverse(),
     // Phase D-1-e-4 — last 15 cycles' V1 outcome (allPass) + V2 verdict for
     // the cycle-level shadow-analysis card. Same scope as recentDecisionLogs:
     // mode-blind, read-only, last 15 cycles, newest-first. V2 is shadow only;
@@ -7618,6 +7636,57 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-f-2 — Advanced tab Recent Bot Activity timeline. Compact
+     vertical list, one row per cycle, with a left action badge, optional
+     mode pill, and a plain-English summary. Read-only narrative view. */
+  .adv-activity-card { padding:14px 18px; margin-top:14px; }
+  .adv-activity-card .card-title { margin-bottom:4px; }
+  .adv-activity-card .card-sublabel {
+    font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.45;
+  }
+  .adv-activity-list { display: flex; flex-direction: column; }
+  .adv-activity-row {
+    display: grid;
+    grid-template-columns: 80px 170px 1fr;
+    gap: 12px; align-items: start;
+    padding: 8px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 12px;
+  }
+  .adv-activity-row:last-child { border-bottom: 0; }
+  .adv-activity-time {
+    color: var(--muted); white-space: nowrap;
+    font-variant-numeric: tabular-nums; font-size: 11px;
+  }
+  .adv-activity-action-col { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .adv-activity-action {
+    font-weight: 700; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 8px; border-radius: 3px;
+    display: inline-block; line-height: 1.3;
+  }
+  .adv-activity-action.trade   { background: rgba(46,204,113,0.15);  color: var(--green); }
+  .adv-activity-action.exit    { background: rgba(251,191, 36,0.14); color: rgba(251,191, 36, 0.95); }
+  .adv-activity-action.skip    { background: rgba(255,255,255,0.06); color: var(--muted); }
+  .adv-activity-action.limit   { background: rgba(244, 63, 94,0.12); color: rgba(244, 63, 94, 0.90); }
+  .adv-activity-action.halt    { background: rgba(244, 63, 94,0.22); color: rgba(244, 63, 94, 1.00); }
+  .adv-activity-action.unknown { background: rgba(255,255,255,0.06); color: var(--muted); }
+  .adv-activity-mode {
+    font-weight: 600; font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 6px; border-radius: 3px;
+    display: inline-block; line-height: 1.3;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .adv-activity-mode.paper { color: rgba(0,210,255,0.85); border-color: rgba(0,210,255,0.25); }
+  .adv-activity-mode.live  { color: rgba(255, 80,200,0.90); border-color: rgba(255, 80,200,0.30); }
+  .adv-activity-summary { color: var(--text); line-height: 1.45; word-break: break-word; }
+  @media (max-width: 780px) {
+    .adv-activity-row { grid-template-columns: 70px 1fr; }
+    .adv-activity-action-col { grid-column: 2; }
+    .adv-activity-summary { grid-column: 2; }
+  }
+
   /* Phase D-1-f-1 — Advanced tab Raw Decision Log. Scrollable monospace
      list of recent decisionLog strings. Read-only debug view; the sub-label
      is load-bearing — operators must not read this as account performance. */
@@ -8154,6 +8223,15 @@ function dashboardV2HTML(initial) {
       <div class="card-sublabel">Raw debug view — for troubleshooting. Not account performance.</div>
       <div id="adv-rawlog-body"><div class="card-empty">Loading…</div></div>
     </div>
+
+    <!-- Phase D-1-f-2 — Advanced tab Recent Bot Activity timeline. Read-only,
+         narrative view of the last 20 cycles. Mode pill shows on TRADED and
+         EXITED rows only. Reuses recentActivity from /api/v2/dashboard. -->
+    <div class="card adv-activity-card">
+      <div class="card-title">📜 Recent Bot Activity</div>
+      <div class="card-sublabel">Last 20 cycles, newest first. Action narrative — not account performance.</div>
+      <div id="adv-activity-body"><div class="card-empty">Loading…</div></div>
+    </div>
   </section>
 
 </div>
@@ -8178,6 +8256,9 @@ let _recentDecisionLogs = window.__INIT__?.recentDecisionLogs ?? null;
 // Phase D-1-e-4 — recent cycle V1/V2 outcomes for the Strategy V2 Shadow
 // Analysis card. Mode-blind, read-only. Same TDZ reasoning as above.
 let _recentStrategyV2 = window.__INIT__?.recentStrategyV2 ?? null;
+// Phase D-1-f-2 — recent cycle activity projection for the Advanced tab
+// Recent Bot Activity timeline. Mode-blind, read-only. TDZ-safe hoist.
+let _recentActivity = window.__INIT__?.recentActivity ?? null;
 
 // Phase D-1-a — tab routing via URL hash. Hashes: #overview, #bot-thinking,
 // #controls, #performance, #advanced. Default = overview. Invalid hash falls
@@ -8892,6 +8973,83 @@ function renderAdvancedRawLog() {
   body.innerHTML = '<div class="adv-rawlog-list">' + rows + '</div>';
 }
 
+// Phase D-1-f-2 — Advanced tab Recent Bot Activity timeline. Pure render.
+// Classifies each cycle into TRADED / EXITED / SKIPPED / LIMIT / HALTED
+// from the projected fields server-side, then formats a plain-English
+// summary. All dynamic text escaped via btEsc. Read-only.
+function pfFmtPriceShort(p) {
+  const n = parseFloat(p);
+  if (!Number.isFinite(n)) return "—";
+  return "$" + (n < 10 ? n.toFixed(4) : n.toFixed(2));
+}
+function renderAdvancedActivity() {
+  const body = document.getElementById("adv-activity-body");
+  if (!body) return;
+  const arr = Array.isArray(_recentActivity) ? _recentActivity : [];
+  if (arr.length === 0) {
+    body.innerHTML = '<div class="card-empty">No recent bot activity available.</div>';
+    return;
+  }
+  let rows = '';
+  for (const e of arr) {
+    const ts = e && e.timestamp;
+    const type = e && e.type;
+    const allPass = e && e.allPass === true;
+    const decisionLog = (e && typeof e.decisionLog === "string") ? e.decisionLog : "";
+    const exitReason = e && e.exitReason ? String(e.exitReason) : "";
+    const isPaper = !(e && e.paperTrading === false);
+    const upperLog = decisionLog.toUpperCase();
+
+    let action = "UNKNOWN", actionClass = "unknown", summary = "", showMode = false;
+
+    if (type === "EXIT") {
+      action = "EXITED"; actionClass = "exit"; showMode = true;
+      const pct = parseFloat(e && e.pct);
+      const pctStr = Number.isFinite(pct) ? (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%" : "—";
+      summary = "Exited at " + pfFmtPriceShort(e && e.price) + (exitReason ? " · " + exitReason : "") + " · " + pctStr;
+    } else if (upperLog.includes("DAILY LIMIT")) {
+      action = "LIMIT"; actionClass = "limit";
+      summary = "Daily limit reached";
+    } else if (upperLog.includes("KILL") || upperLog.includes("HALT") || upperLog.includes("STOPPED")) {
+      action = "HALTED"; actionClass = "halt";
+      summary = "Bot halted";
+    } else if (allPass === true || type === "MANUAL_BUY") {
+      action = "TRADED"; actionClass = "trade"; showMode = true;
+      summary = "Bought at " + pfFmtPriceShort(e && e.price);
+    } else {
+      action = "SKIPPED"; actionClass = "skip";
+      try {
+        const p = btParseDecisionLog(decisionLog);
+        if (p && !p.parseFailed) {
+          if (p.total != null && p.threshold != null) {
+            summary = "Score " + p.total + "/" + p.threshold + " (needs " + p.threshold + ")";
+            if (p.missing && p.missing.length) summary += " · missing " + p.missing[0];
+          } else if (p.missing && p.missing.length) {
+            summary = "Missing " + p.missing[0];
+          } else {
+            summary = "Conditions not met";
+          }
+        } else {
+          summary = "Conditions not met";
+        }
+      } catch { summary = "Conditions not met"; }
+    }
+
+    const modeText = isPaper ? "PAPER" : "LIVE";
+    const modeClass = isPaper ? "paper" : "live";
+
+    rows += '<div class="adv-activity-row">' +
+              '<div class="adv-activity-time">' + btEsc(timeAgo(ts)) + '</div>' +
+              '<div class="adv-activity-action-col">' +
+                '<span class="adv-activity-action ' + actionClass + '">' + btEsc(action) + '</span>' +
+                (showMode ? '<span class="adv-activity-mode ' + modeClass + '">' + btEsc(modeText) + '</span>' : '') +
+              '</div>' +
+              '<div class="adv-activity-summary">' + btEsc(summary) + '</div>' +
+            '</div>';
+  }
+  body.innerHTML = '<div class="adv-activity-list">' + rows + '</div>';
+}
+
 // Phase D-1-e-4 — Strategy V2 Shadow Analysis. Cycle-level (mode-blind),
 // read-only. Three sub-sections inside the collapsed card body: V2 verdict
 // frequency, latest V2 verdict + skip reason, and a V1-vs-V2 outcome
@@ -9075,7 +9233,7 @@ function renderBotThinking(d) {
   renderBtSafe(ctrl, health, sb);
 }
 
-function applyData({ control, health, summary, latest, position, safetyBuffer, recentDecisionLogs, recentStrategyV2 }) {
+function applyData({ control, health, summary, latest, position, safetyBuffer, recentDecisionLogs, recentStrategyV2, recentActivity }) {
   if (control) _lastCtrl = control;
   if (control)  renderStrip(control, health, latest);
   if (control || health || latest)  renderKpis(control || {}, health, position, latest, summary, safetyBuffer);
@@ -9095,6 +9253,11 @@ function applyData({ control, health, summary, latest, position, safetyBuffer, r
   // the conditions card; rendered on every tick so the Advanced tab is
   // up-to-date when the operator switches into it.
   renderAdvancedRawLog();
+
+  // Phase D-1-f-2 — Advanced tab Recent Bot Activity timeline. Mode-blind,
+  // read-only. Cache update + render every tick.
+  if (Array.isArray(recentActivity)) _recentActivity = recentActivity;
+  renderAdvancedActivity();
 
   // Phase D-1-e-4 — same lifecycle for the V2 Shadow card. Cache update
   // and render every tick; visible only when the operator expands it.
@@ -9124,6 +9287,7 @@ if (init && !init.error) {
     safetyBuffer: init.safetyBuffer,
     recentDecisionLogs: init.recentDecisionLogs,
     recentStrategyV2:   init.recentStrategyV2,
+    recentActivity:     init.recentActivity,
   });
 }
 
@@ -9307,6 +9471,7 @@ async function refresh() {
       safetyBuffer: d.safetyBuffer,
       recentDecisionLogs: d.recentDecisionLogs,
       recentStrategyV2:   d.recentStrategyV2,
+      recentActivity:     d.recentActivity,
     });
   } catch (e) { /* keep prior values; next tick may succeed */ }
   // Phase D-1-e-1 — Performance tab refresh, only when active (avoids
