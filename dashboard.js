@@ -7368,6 +7368,23 @@ function dashboardV2HTML(initial) {
   .dot { width:8px; height:8px; border-radius:50%; background:var(--green); display:inline-block; }
   .dot.warn { background:var(--yellow); }
   .dot.err  { background:var(--red); }
+  /* Phase C-2 — KILL NOW pill at the far right of the Quick Status Strip.
+     Outlined red by default; fills solid red on hover. Click opens the
+     v2 modal requiring typed "KILL" — the server-side C-0 gate also
+     enforces { confirm: "KILL" }, so a stray POST cannot bypass it. */
+  .strip-kill {
+    margin-left:auto;
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 14px; border-radius:999px;
+    background:transparent; color:var(--red);
+    border:1.5px solid var(--red);
+    font-family:inherit; font-size:12px; font-weight:700; letter-spacing:0.6px;
+    cursor:pointer;
+    transition:background 0.15s, color 0.15s, transform 0.05s, box-shadow 0.15s;
+  }
+  .strip-kill:hover:not(:disabled)  { background:var(--red); color:#fff; box-shadow:0 0 14px rgba(255,77,106,0.35); }
+  .strip-kill:active:not(:disabled) { transform:translateY(1px); }
+  .strip-kill:disabled { opacity:0.55; cursor:not-allowed; }
 
   /* Hero KPI Strip (Section 2) */
   .kpis { display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; margin-bottom:14px; }
@@ -7539,6 +7556,8 @@ function dashboardV2HTML(initial) {
     <span class="pill" id="strip-buffer"><span id="strip-buffer-text">Daily-loss buffer: —</span></span>
     <span class="pill pill-muted" id="strip-cooldown"><span id="strip-cooldown-text">Cooldown: —</span></span>
     <span class="pill pill-muted" id="strip-data"><span id="strip-data-text">Data: —</span></span>
+    <!-- Phase C-2: emergency override, always visible. Typed "KILL" required. -->
+    <button id="strip-kill" class="strip-kill" type="button" aria-label="Activate kill switch — halts the bot immediately" title="Activate kill switch — halts the bot immediately (typed KILL required)" onclick="confirmKillNow(event)">⚠ KILL NOW</button>
   </div>
 
   <!-- Section 2 — Hero KPI Strip -->
@@ -7631,7 +7650,10 @@ function dashboardV2HTML(initial) {
                through the Phase 3 typed-confirm gates + the C-0 KILL gate. -->
           <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-3">Switch to Live<span class="preview-only-badge">PREVIEW</span></button>
           <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-3">Reset Kill Switch<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-2 (top-strip promotion)">KILL NOW<span class="preview-only-badge">PREVIEW</span></button>
+          <!-- Phase C-2: active KILL is now at the top of the page in the
+               Quick Status Strip. This entry stays disabled to avoid
+               duplicate code paths but points operators to the active one. -->
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Active KILL is in the Quick Status Strip at the top of the page">KILL NOW (also at top ↑)</button>
         </div>
       </div>
 
@@ -7982,6 +8004,22 @@ async function confirmStopBot(e) {
   });
   if (!ok) return;
   v2SendCmd("STOP_BOT", btn);
+}
+
+// Phase C-2 — typed-KILL emergency override. The Phase C-0 server gate at
+// /api/control rejects any KILL_NOW POST without { confirm: "KILL" }, so
+// even an authenticated session cannot bypass this confirmation.
+async function confirmKillNow(e) {
+  const btn = e?.currentTarget;
+  const ok = await v2ShowConfirm({
+    title: "🚨 Activate Kill Switch?",
+    msg: '<strong style="color:var(--red)">This halts the bot immediately and disables trading.</strong><br><br>Open positions will NOT be auto-managed until you reset the kill switch from /dashboard.<br><br>Type <strong>KILL</strong> to confirm.',
+    confirmText: "Activate Kill Switch",
+    requireText: "KILL",
+    danger: true,
+  });
+  if (!ok) return;
+  v2SendCmd("KILL_NOW", btn, "KILL");
 }
 
 // Phase B — single read-only poll to /api/v2/dashboard (no POSTs).
