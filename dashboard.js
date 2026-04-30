@@ -7518,6 +7518,32 @@ function dashboardV2HTML(initial) {
   .v2-toast.warn    { border-color:rgba(255,193,7,0.3); color:var(--yellow); }
   .v2-toast.error   { border-color:rgba(255,77,106,0.3); color:var(--red); }
   @keyframes v2toastin { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+  /* Phase D-1-a — tab framework. Quick Status Strip stays ABOVE the tabs so
+     KILL NOW + bot status are always one click away. Tab content sits in
+     panes — only the active pane renders. URL hash drives selection. */
+  .tabs {
+    display:flex; gap:4px; max-width:1100px; margin:0 auto 14px;
+    border-bottom:1px solid var(--line); flex-wrap:wrap;
+    position:relative; z-index:1;
+  }
+  .tab {
+    padding:10px 18px; background:transparent; color:var(--muted);
+    border:0; border-bottom:2px solid transparent;
+    font-family:inherit; font-size:13px; font-weight:600; letter-spacing:0.2px;
+    cursor:pointer; margin-bottom:-1px;
+    transition:color 0.15s, border-color 0.15s, background 0.15s;
+  }
+  .tab:hover:not(.active) { color:var(--text); background:rgba(255,255,255,0.03); }
+  .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+  .tab:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:4px 4px 0 0; }
+  .tab-pane { display:none; }
+  .tab-pane.active { display:block; }
+
+  .placeholder-card { text-align:center; padding:48px 24px; }
+  .placeholder-icon { font-size:42px; margin-bottom:12px; line-height:1; }
+  .placeholder-title { font-size:16px; font-weight:700; color:var(--text); margin-bottom:8px; letter-spacing:0.3px; }
+  .placeholder-body { color:var(--muted); font-size:14px; line-height:1.5; max-width:480px; margin:0 auto; }
 </style>
 </head>
 <body>
@@ -7562,6 +7588,18 @@ function dashboardV2HTML(initial) {
     <!-- Phase C-2: emergency override, always visible. Typed "KILL" required. -->
     <button id="strip-kill" class="strip-kill" type="button" aria-label="Activate kill switch — halts the bot immediately" title="Activate kill switch — halts the bot immediately (typed KILL required)" onclick="confirmKillNow(event)">⚠ KILL NOW</button>
   </div>
+
+  <!-- Phase D-1-a — tab bar. Strip above stays sticky/visible across tabs;
+       only this section and below switches per active tab. -->
+  <nav class="tabs" role="tablist" aria-label="Dashboard sections">
+    <button class="tab active" type="button" role="tab" data-tab="overview">Overview</button>
+    <button class="tab"        type="button" role="tab" data-tab="bot-thinking">Bot Thinking</button>
+    <button class="tab"        type="button" role="tab" data-tab="controls">Controls</button>
+    <button class="tab"        type="button" role="tab" data-tab="performance">Performance</button>
+    <button class="tab"        type="button" role="tab" data-tab="advanced">Advanced</button>
+  </nav>
+
+  <section class="tab-pane active" id="tab-overview" role="tabpanel" aria-labelledby="tab-overview">
 
   <!-- Section 2 — Hero KPI Strip -->
   <div class="kpis">
@@ -7683,6 +7721,44 @@ function dashboardV2HTML(initial) {
     </div>
   </details>
 
+  </section><!-- /#tab-overview -->
+
+  <!-- Phase D-1-a — placeholder panes. Each tab below ships its real
+       content in a follow-up phase (D-1-b … D-1-e). For now they hold
+       only a one-line "coming next" card so the route is wired and the
+       tab bar feels complete. No data sources are added by these panes. -->
+  <section class="tab-pane" id="tab-bot-thinking" role="tabpanel" aria-labelledby="tab-bot-thinking">
+    <div class="card placeholder-card">
+      <div class="placeholder-icon">🤖</div>
+      <div class="placeholder-title">Bot Thinking</div>
+      <div class="placeholder-body">Coming next — plain-English bot reasoning.</div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="tab-controls" role="tabpanel" aria-labelledby="tab-controls">
+    <div class="card placeholder-card">
+      <div class="placeholder-icon">🎛</div>
+      <div class="placeholder-title">Controls</div>
+      <div class="placeholder-body">Coming next — organized controls. The Overview tab still has the active Pause / Resume / Start / Stop / Reset Kill Switch buttons inside Advanced Details, and KILL NOW remains in the top strip at all times.</div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="tab-performance" role="tabpanel" aria-labelledby="tab-performance">
+    <div class="card placeholder-card">
+      <div class="placeholder-icon">📊</div>
+      <div class="placeholder-title">Performance</div>
+      <div class="placeholder-body">Coming next — strategy and trade performance.</div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="tab-advanced" role="tabpanel" aria-labelledby="tab-advanced">
+    <div class="card placeholder-card">
+      <div class="placeholder-icon">⚙</div>
+      <div class="placeholder-title">Advanced</div>
+      <div class="placeholder-body">Coming next — raw/debug tools.</div>
+    </div>
+  </section>
+
 </div>
 
 <script>
@@ -7690,6 +7766,29 @@ function dashboardV2HTML(initial) {
 // No POST. No SSE writes. No /api/control, /api/trade, /api/run-bot.
 window.__INIT__ = ${initialJson};
 let _lastTickAt = Date.now();
+
+// Phase D-1-a — tab routing via URL hash. Hashes: #overview, #bot-thinking,
+// #controls, #performance, #advanced. Default = overview. Invalid hash falls
+// back to overview. The Quick Status Strip (with KILL) lives ABOVE the tab
+// bar so it stays visible regardless of which tab is active.
+const TAB_NAMES = ["overview","bot-thinking","controls","performance","advanced"];
+function activateTab(name) {
+  if (!TAB_NAMES.includes(name)) name = "overview";
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === "tab-" + name));
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  const name = t.dataset.tab;
+  if (window.location.hash !== "#" + name) {
+    window.location.hash = name;
+  } else {
+    activateTab(name);
+  }
+}));
+window.addEventListener("hashchange", () => {
+  activateTab(window.location.hash.slice(1) || "overview");
+});
+activateTab(window.location.hash.slice(1) || "overview");
 // Phase C-3 — last seen control snapshot. Confirms-and-mode-aware handlers
 // read this to decide whether the typed-CONFIRM gate applies (live) or a
 // simple confirm is enough (paper). Updated on every applyData tick.
