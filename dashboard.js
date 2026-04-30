@@ -7593,7 +7593,7 @@ function dashboardV2HTML(initial) {
       <span class="preview-tag">PREVIEW · /dashboard-v2</span>
     </div>
     <div class="nav-links">
-      <a href="/dashboard-legacy">Legacy /dashboard</a>
+      <a href="/dashboard-legacy">Legacy Dashboard</a>
       <a href="/paper">/paper</a>
       <a href="/live">/live</a>
       <a href="/logout">Logout</a>
@@ -7734,7 +7734,7 @@ function dashboardV2HTML(initial) {
           <li>RSI History, Stats Overview (currently on /dashboard-legacy)</li>
           <li>How Agent 3.0 Works docs (currently on /dashboard-legacy)</li>
         </ul>
-        <div style="font-size:11px;color:var(--muted)">Until Phase D ships, use <a href="/dashboard-legacy" style="color:var(--accent)">legacy /dashboard</a> for these views.</div>
+        <div style="font-size:11px;color:var(--muted)">Until Phase D ships, use the <a href="/dashboard-legacy" style="color:var(--accent)">Legacy Dashboard</a> for these views.</div>
       </div>
 
     </div>
@@ -7759,8 +7759,8 @@ function dashboardV2HTML(initial) {
       <div id="bt-why"><div class="card-empty">Loading…</div></div>
     </div>
     <div class="card bt-card">
-      <div class="card-title">🎯 Next Trade Waiting For</div>
-      <div class="bt-interpretive-note">Based on the last bot check, it appears to be waiting for the conditions below. The bot's entry rules can adapt cycle-to-cycle, so this reflects the most recent reasoning rather than a guaranteed trigger.</div>
+      <div class="card-title">📋 Last Check Snapshot — Missing Conditions</div>
+      <div class="bt-interpretive-note">Based on the last bot check, these are the conditions that were still missing.</div>
       <div id="bt-waiting"><div class="card-empty">Loading…</div></div>
     </div>
     <div class="card bt-card">
@@ -8099,7 +8099,7 @@ function renderBtRightNow(ctrl, latest, parsed) {
   el.innerHTML =
     '<div class="card-row"><span class="card-row-label">Mode</span><span class="card-row-val">' + modeLabel + '</span></div>' +
     '<div class="card-row"><span class="card-row-label">Current price</span><span class="card-row-val">' + price + '</span></div>' +
-    '<div class="card-row"><span class="card-row-label">Market regime</span><span class="card-row-val">' + regime + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Market Environment</span><span class="card-row-val">' + regime + '</span></div>' +
     '<div class="card-row"><span class="card-row-label">Last cycle</span><span class="card-row-val">' + ago + '</span></div>' +
     '<div class="card-row"><span class="card-row-label">Verdict</span><span class="card-row-val">' + btEsc(verdictRaw) + (score ? ' <span class="bt-pts">' + score + '</span>' : '') + '</span></div>';
 }
