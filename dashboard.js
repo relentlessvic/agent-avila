@@ -4218,7 +4218,8 @@ const HTML = `<!DOCTYPE html>
     });
     if (!ok) return;
     try {
-      await sendCmd("KILL_NOW");
+      // Phase C-0 — pass typed "KILL" to satisfy the new server-side gate.
+      await sendCmd("KILL_NOW", undefined, undefined, "KILL");
       // sendCmd already updates status pills + shows toast on success.
     } catch (e) {
       showToast("Kill switch failed: " + (e?.message || "unknown error"), "error");
@@ -8253,6 +8254,14 @@ const server = createServer(async (req, res) => {
       if (requiresConfirm && body.confirm !== "CONFIRM") {
         res.writeHead(403, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: "Confirmation required for " + command }));
+        return;
+      }
+      // Phase C-0 — KILL_NOW gains its own typed-confirm gate. Mirrors the
+      // existing client-side "KILL" modal so an authenticated POST cannot
+      // bypass it. No back-compat: every caller MUST send { confirm: "KILL" }.
+      if (command === "KILL_NOW" && body.confirm !== "KILL") {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Confirmation required for KILL_NOW" }));
         return;
       }
       switch (command) {
