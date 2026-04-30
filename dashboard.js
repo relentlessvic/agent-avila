@@ -7404,8 +7404,8 @@ function dashboardCombinedHTML(_initial) {
   let html = HTML;
 
   const TAB_CSS = "<style>" +
-    /* Phase D-2-d — combined dashboard tab framework. .dc- prefix on every
-       class/attribute so we cannot collide with any legacy class or id. */
+    /* Phase D-2-d / D-2-e — combined dashboard tab framework. .dc- prefix on
+       every class/attribute so we cannot collide with any legacy class or id. */
     ".dc-tabs {" +
       "position: sticky; top: 0; z-index: 50;" +
       "display: flex; gap: 4px; padding: 10px 16px 0;" +
@@ -7437,6 +7437,10 @@ function dashboardCombinedHTML(_initial) {
     "}" +
     ".dc-placeholder h2 { color: var(--text); margin-bottom: 8px; font-size: 20px; }" +
     ".dc-placeholder p { font-size: 14px; line-height: 1.6; }" +
+    /* Phase D-2-e — hide the legacy .tab-strip (Dashboard/Agent 3.0 sub-tabs)
+       since the new top tabs now drive that swap. The legacy switchTab() and
+       #dashboard-page / #info-page DOM are preserved unchanged. */
+    ".tab-strip { display: none !important; }" +
   "</style>";
 
   const TAB_BAR =
@@ -7452,9 +7456,12 @@ function dashboardCombinedHTML(_initial) {
 
   const TAB_PANES_END =
     '</section>' +
-    '<section class="dc-pane" data-dc-pane="agent3" hidden>' +
-      '<div class="dc-placeholder"><h2>Agent 3.0</h2><p>Coming in next phase.</p></div>' +
-    '</section>' +
+    /* Phase D-2-e — Agent 3.0 pane is intentionally empty. The Agent 3.0
+       content lives in the legacy #info-page element inside the Dashboard
+       pane; the new top-tab JS calls legacy switchTab("info") to reveal it
+       while keeping the Dashboard pane visible. This keeps every legacy
+       script that references getElementById("info-page") working unchanged. */
+    '<section class="dc-pane" data-dc-pane="agent3" hidden></section>' +
     '<section class="dc-pane" data-dc-pane="bot-thinking" hidden>' +
       '<div class="dc-placeholder"><h2>Bot Thinking</h2><p>Coming in next phase.</p></div>' +
     '</section>' +
@@ -7477,8 +7484,22 @@ function dashboardCombinedHTML(_initial) {
         "for (var i = 0; i < tabs.length; i++) {" +
           'tabs[i].classList.toggle("dc-tab-active", tabs[i].dataset.dcTab === name);' +
         "}" +
+        // Phase D-2-e — Dashboard and Agent 3.0 both share the legacy body
+        // pane; instead of swapping our own panes for those two we keep the
+        // Dashboard pane visible and call legacy switchTab() to flip between
+        // #dashboard-page and #info-page. Other tabs use the standard pane
+        // swap. Legacy DOM untouched either way.
+        'var isLegacyTab = (name === "dashboard" || name === "agent3");' +
         "for (var j = 0; j < panes.length; j++) {" +
-          "panes[j].hidden = (panes[j].dataset.dcPane !== name);" +
+          "var paneName = panes[j].dataset.dcPane;" +
+          'if (paneName === "dashboard") {' +
+            "panes[j].hidden = !isLegacyTab;" +
+          "} else {" +
+            "panes[j].hidden = (paneName !== name);" +
+          "}" +
+        "}" +
+        'if (isLegacyTab && typeof switchTab === "function") {' +
+          'try { switchTab(name === "dashboard" ? "dashboard" : "info"); } catch (e) {}' +
         "}" +
         "if (fromClick) {" +
           'try { history.replaceState(null, "", "#" + name); } catch (e) {}' +
