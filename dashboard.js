@@ -7476,6 +7476,9 @@ function dashboardV2HTML(initial) {
   .ctrl-btn-danger { border-color:rgba(255,77,106,0.30); color:var(--red); }
   .ctrl-btn-danger:hover:not(:disabled) { background:rgba(255,77,106,0.10); border-color:rgba(255,77,106,0.50); }
   .ctrl-btn-danger:disabled { color:rgba(255,77,106,0.55); border-color:rgba(255,77,106,0.18); }
+  /* Phase C-4-b — link variant. Used for "Manage Mode → /paper" so the
+     element is an <a> (navigates), not a <button> (would imply a POST). */
+  .ctrl-btn-link { text-decoration:none; }
   .preview-only-badge {
     display:inline-block; margin-left:6px; padding:1px 6px; border-radius:4px;
     background:rgba(255,193,7,0.18); color:var(--yellow);
@@ -7648,7 +7651,12 @@ function dashboardV2HTML(initial) {
           <button class="ctrl-btn" id="v2-btn-resume" type="button" onclick="resumeBot(event)">Resume</button>
           <!-- Dangerous controls remain preview-only until C-2/C-3 wires them
                through the Phase 3 typed-confirm gates + the C-0 KILL gate. -->
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-3">Switch to Live<span class="preview-only-badge">PREVIEW</span></button>
+          <!-- Phase C-4-b — Switch to Live is intentionally NOT wired on
+               /dashboard-v2. The official mode-switch flow lives on /paper
+               (and /live), where the operator can audit current positions and
+               balance before flipping. The C-4-a server-side preflight blocks
+               unsafe flips with 409 regardless of which client triggers them. -->
+          <a class="ctrl-btn ctrl-btn-link" href="/paper" title="Mode switching lives on the canonical /paper view, where you can audit positions and balance before flipping. Server-side preflight blocks unsafe flips with 409 regardless of source.">Manage Account Mode →</a>
           <!-- Phase C-3: Reset Kill Switch active. Paper mode → simple
                confirm. Live mode → typed CONFIRM (Phase 3 server gate
                independently enforces { confirm: "CONFIRM" } in live). -->
