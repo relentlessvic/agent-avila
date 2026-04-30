@@ -7593,6 +7593,38 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-e-2 — Recent Trades table inside the Performance tab.
+     Compact rows, tabular-num alignment, mode-scoped (rendered from the
+     selected segment's recentTrades). Hides the Exit Reason column on
+     narrow viewports rather than wrapping. */
+  .perf-trades-card { padding:14px 18px; margin-top:14px; }
+  .perf-trades-card .card-title { margin-bottom:10px; }
+  .perf-trades-table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+  .perf-trades-table th {
+    text-align:left; padding:8px 8px;
+    color:var(--muted); font-weight:600; font-size:10px;
+    text-transform:uppercase; letter-spacing:0.06em;
+    border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,0.02);
+  }
+  .perf-trades-table td {
+    padding:8px 8px; color:var(--text);
+    border-bottom:1px solid rgba(255,255,255,0.04);
+  }
+  .perf-trades-table tbody tr:last-child td { border-bottom:0; }
+  .perf-trades-table tbody tr:hover { background:rgba(255,255,255,0.02); }
+  .perf-trades-table .col-time   { color:var(--muted); white-space:nowrap; font-size:11px; }
+  .perf-trades-table .col-pct,
+  .perf-trades-table .col-usd    { text-align:right; font-weight:600; }
+  .perf-trades-table .col-reason { color:var(--muted); font-size:11px; }
+  .perf-trades-table .pnl-good   { color:var(--green); }
+  .perf-trades-table .pnl-bad    { color:var(--red); }
+  @media (max-width: 780px) {
+    .perf-trades-table th, .perf-trades-table td { padding:6px 6px; }
+    .perf-trades-table .col-reason { display:none; }
+    .perf-trades-table th:nth-child(7), .perf-trades-table td:nth-child(7) { display:none; }
+  }
+
   /* Phase D-1-b — Bot Thinking tab. Visual language consistent with the
      existing .card rows; one new interpretive-note style and a list. */
   .bt-card { padding:14px 18px; }
@@ -7882,8 +7914,17 @@ function dashboardV2HTML(initial) {
       </div>
     </div>
 
+    <!-- Phase D-1-e-2 — Recent Trades table for the selected mode segment.
+         Reads recentTrades from /api/paper-summary or /api/live-summary
+         (already shipped); shows the last EXIT entries with orderPlaced=true.
+         No new endpoint, no POST, no bot.js change. -->
+    <div class="card perf-trades-card">
+      <div class="card-title">📜 Recent Trades — bot-recorded P&amp;L</div>
+      <div id="pf-trades-body"><div class="card-empty">Loading…</div></div>
+    </div>
+
     <div class="perf-context">
-      <strong>Note:</strong> P&amp;L values are bot-recorded and may differ from the broker on live trades due to fees and slippage. Live mode reconciliation lives on <a href="/live" style="color:var(--accent)">/live</a>. This tab will gain a Recent Trades table, condition pass-rates heatmap, and a Strategy V2 shadow comparison in follow-up phases.
+      <strong>Note:</strong> P&amp;L values are bot-recorded and may differ from the broker on live trades due to fees and slippage. Live mode reconciliation lives on <a href="/live" style="color:var(--accent)">/live</a>. This tab will gain a condition pass-rates heatmap and a Strategy V2 shadow comparison in follow-up phases.
     </div>
   </section>
 
@@ -8436,6 +8477,60 @@ function renderPerformanceLoading() {
     const el = document.getElementById(id);
     if (el) { el.textContent = "…"; el.className = "kpi-val"; }
   }
+  const tbody = document.getElementById("pf-trades-body");
+  if (tbody) tbody.innerHTML = '<div class="card-empty">Loading…</div>';
+}
+
+// Phase D-1-e-2 — Recent Trades table. Pure render: reads exits straight
+// out of the mode-segment cache (already filtered by /api/paper-summary or
+// /api/live-summary on the server). Top 20 EXITs with orderPlaced=true,
+// newest first. Empty state mirrors the Profit Factor wording so the two
+// stay consistent when the 30-row recentTrades window has no exits.
+function renderPerfTrades() {
+  const body = document.getElementById("pf-trades-body");
+  if (!body) return;
+  const data = _perfCache[_perfMode];
+  if (!data) { body.innerHTML = '<div class="card-empty">Loading…</div>'; return; }
+  const exits = (data.recentTrades || []).filter(t =>
+    t && t.type === "EXIT" && t.orderPlaced === true);
+  if (exits.length === 0) {
+    const modeLabel = _perfMode === "live" ? "Live" : "Paper";
+    body.innerHTML = '<div class="card-empty">No closed trades in the last 30 cycles for ' + modeLabel + ' mode.</div>';
+    return;
+  }
+  const top = exits.slice(0, 20);  // recentTrades is already newest-first
+  let html = '<table class="perf-trades-table"><thead><tr>' +
+    '<th class="col-time">Time</th>' +
+    '<th>Side</th>' +
+    '<th>Entry</th>' +
+    '<th>Exit</th>' +
+    '<th class="col-pct">P&amp;L %</th>' +
+    '<th class="col-usd">P&amp;L $</th>' +
+    '<th class="col-reason">Exit Reason</th>' +
+    '</tr></thead><tbody>';
+  for (const e of top) {
+    const pct = parseFloat(e.pct);
+    const usd = parseFloat(e.pnlUSD);
+    const entry = parseFloat(e.entryPrice);
+    const exit  = parseFloat(e.price);
+    const pctClass = Number.isFinite(pct) ? (pct >= 0 ? "pnl-good" : "pnl-bad") : "";
+    const usdClass = Number.isFinite(usd) ? (usd >= 0 ? "pnl-good" : "pnl-bad") : "";
+    const pctStr = Number.isFinite(pct) ? (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%" : "—";
+    const usdStr = Number.isFinite(usd) ? (usd >= 0 ? "+$" : "−$") + Math.abs(usd).toFixed(2) : "—";
+    const entryStr = Number.isFinite(entry) ? "$" + entry.toFixed(4) : "—";
+    const exitStr  = Number.isFinite(exit)  ? "$" + exit.toFixed(4)  : "—";
+    html += '<tr>' +
+      '<td class="col-time">' + btEsc(timeAgo(e.timestamp)) + '</td>' +
+      '<td>Long</td>' +
+      '<td>' + entryStr + '</td>' +
+      '<td>' + exitStr + '</td>' +
+      '<td class="col-pct ' + pctClass + '">' + pctStr + '</td>' +
+      '<td class="col-usd ' + usdClass + '">' + usdStr + '</td>' +
+      '<td class="col-reason">' + btEsc(e.exitReason || "—") + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
 }
 
 function renderPerformance() {
@@ -8494,6 +8589,9 @@ function renderPerformance() {
     ddEl.className = dd.label === "—" ? "kpi-val" : "kpi-val kpi-warn";
   }
   if (ddSub) ddSub.textContent = dd.subLabel;
+
+  // Phase D-1-e-2 — Recent Trades table for the selected mode.
+  renderPerfTrades();
 }
 
 function setPerfMode(mode) {
