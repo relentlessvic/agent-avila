@@ -7636,6 +7636,74 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-f-3 — Advanced tab Active Strategies card. Two side-by-side
+     tiles describing V1 (primary) and V2 (shadow). Description-only;
+     parameters live on Controls / Bot Thinking. Read-only badges. */
+  .adv-strategies-card { padding:14px 18px; margin-top:14px; }
+  .adv-strategies-card .card-title { margin-bottom:4px; }
+  .adv-strategies-card .card-sublabel {
+    font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.45;
+  }
+  .adv-strategies-grid {
+    display:grid; grid-template-columns: repeat(2, 1fr); gap:12px;
+  }
+  .strategy-tile {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 6px; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .strategy-tile-head {
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .strategy-tile-name {
+    font-weight: 700; font-size: 13px;
+  }
+  .strategy-role {
+    font-weight: 700; font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 8px; border-radius: 3px;
+    display: inline-block; line-height: 1.3;
+  }
+  .strategy-role.primary { background: rgba(46,204,113,0.15); color: var(--green); }
+  .strategy-role.shadow  { background: rgba(245,158,11,0.18); color: rgba(255,210,120,0.95);
+                           border: 1px solid rgba(245,158,11,0.45); }
+  .strategy-status {
+    font-weight: 600; font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 6px; border-radius: 3px;
+    display: inline-block; line-height: 1.3;
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+  .strategy-status.running { color: var(--green); border-color: rgba(46,204,113,0.40); }
+  .strategy-status.paused  { color: rgba(251,191,36,0.95); border-color: rgba(251,191,36,0.40); }
+  .strategy-status.stopped { color: rgba(244,63,94,0.90); border-color: rgba(244,63,94,0.40); }
+  .strategy-status.killed  { color: rgba(244,63,94,1.00); border-color: rgba(244,63,94,0.65);
+                              background: rgba(244,63,94,0.10); }
+  .strategy-status.analyzing { color: rgba(180,180,255,0.90); border-color: rgba(180,180,255,0.30); }
+  .strategy-mode {
+    font-weight: 600; font-size: 9px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 6px; border-radius: 3px;
+    display: inline-block; line-height: 1.3;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .strategy-mode.paper { color: rgba(0,210,255,0.85); border-color: rgba(0,210,255,0.25); }
+  .strategy-mode.live  { color: rgba(255, 80,200,0.90); border-color: rgba(255, 80,200,0.30); }
+  .strategy-warning {
+    font-size: 11px; line-height: 1.45;
+    color: rgba(255,210,120,0.95);
+    background: rgba(245,158,11,0.10);
+    border: 1px solid rgba(245,158,11,0.40);
+    border-radius: 4px;
+    padding: 6px 10px;
+  }
+  .strategy-desc { font-size: 12px; color: var(--text); line-height: 1.55; }
+  .strategy-note { font-size: 11px; color: var(--muted); line-height: 1.45; }
+  @media (max-width: 780px) {
+    .adv-strategies-grid { grid-template-columns: 1fr; }
+  }
+
   /* Phase D-1-f-2 — Advanced tab Recent Bot Activity timeline. Compact
      vertical list, one row per cycle, with a left action badge, optional
      mode pill, and a plain-English summary. Read-only narrative view. */
@@ -8231,6 +8299,15 @@ function dashboardV2HTML(initial) {
       <div class="card-title">📜 Recent Bot Activity</div>
       <div class="card-sublabel">Last 20 cycles, newest first. Action narrative — not account performance.</div>
       <div id="adv-activity-body"><div class="card-empty">Loading…</div></div>
+    </div>
+
+    <!-- Phase D-1-f-3 — Advanced tab Active Strategies. Description-only.
+         No parameter rows; tunables live on Controls / Bot Thinking. Reads
+         only the existing control snapshot for V1 status + mode badges. -->
+    <div class="card adv-strategies-card">
+      <div class="card-title">🧠 Active Strategies</div>
+      <div class="card-sublabel">Which strategies are wired and how. Read-only — strategy logic lives in the bot.</div>
+      <div id="adv-strategies-body"><div class="card-empty">Loading…</div></div>
     </div>
   </section>
 
@@ -9050,6 +9127,55 @@ function renderAdvancedActivity() {
   body.innerHTML = '<div class="adv-activity-list">' + rows + '</div>';
 }
 
+// Phase D-1-f-3 — Advanced tab Active Strategies. Description-only.
+// Reads _lastCtrl for V1 status + mode badges; V2 is hardcoded SHADOW.
+// Wording is intentionally explicit — V2 must never look "active" or
+// "tradeable" to an operator scanning this card.
+function pfStrategyV1Status(ctrl) {
+  if (!ctrl) return { label: "Unknown", cls: "stopped" };
+  if (ctrl.killed)  return { label: "Killed",  cls: "killed"  };
+  if (ctrl.stopped) return { label: "Stopped", cls: "stopped" };
+  if (ctrl.paused)  return { label: "Paused",  cls: "paused"  };
+  return { label: "Running", cls: "running" };
+}
+function renderAdvancedStrategies() {
+  const body = document.getElementById("adv-strategies-body");
+  if (!body) return;
+  if (!_lastCtrl) {
+    body.innerHTML = '<div class="card-empty">Strategy info unavailable — no control snapshot yet.</div>';
+    return;
+  }
+  const v1Status = pfStrategyV1Status(_lastCtrl);
+  const isPaper = _lastCtrl.paperTrading !== false;
+  const v1ModeLabel = isPaper ? "Paper" : "Live";
+  const v1ModeClass = isPaper ? "paper" : "live";
+
+  const v1Tile =
+    '<div class="strategy-tile">' +
+      '<div class="strategy-tile-head">' +
+        '<span class="strategy-tile-name">Strategy V1</span>' +
+        '<span class="strategy-role primary">Primary</span>' +
+        '<span class="strategy-status ' + v1Status.cls + '">' + btEsc(v1Status.label) + '</span>' +
+        '<span class="strategy-mode ' + v1ModeClass + '">' + btEsc(v1ModeLabel) + '</span>' +
+      '</div>' +
+      '<div class="strategy-desc">Primary live bot strategy. Uses EMA trend, RSI dip, VWAP buyer support, and not-overextended scoring before allowing entries.</div>' +
+    '</div>';
+
+  const v2Tile =
+    '<div class="strategy-tile">' +
+      '<div class="strategy-tile-head">' +
+        '<span class="strategy-tile-name">Strategy V2</span>' +
+        '<span class="strategy-role shadow">Shadow</span>' +
+        '<span class="strategy-status analyzing">Analyzing</span>' +
+      '</div>' +
+      '<div class="strategy-warning">Shadow only — does not place orders.</div>' +
+      '<div class="strategy-desc">Prototype multi-timeframe strategy using 4H trend, 15M liquidity sweep, and 5M BOS/pullback checks.</div>' +
+      '<div class="strategy-note">Short setups remain deferred until shorting/margin support is safely confirmed.</div>' +
+    '</div>';
+
+  body.innerHTML = '<div class="adv-strategies-grid">' + v1Tile + v2Tile + '</div>';
+}
+
 // Phase D-1-e-4 — Strategy V2 Shadow Analysis. Cycle-level (mode-blind),
 // read-only. Three sub-sections inside the collapsed card body: V2 verdict
 // frequency, latest V2 verdict + skip reason, and a V1-vs-V2 outcome
@@ -9258,6 +9384,10 @@ function applyData({ control, health, summary, latest, position, safetyBuffer, r
   // read-only. Cache update + render every tick.
   if (Array.isArray(recentActivity)) _recentActivity = recentActivity;
   renderAdvancedActivity();
+
+  // Phase D-1-f-3 — Advanced tab Active Strategies. Description-only.
+  // Re-renders cheaply each tick so V1 status + mode badges stay current.
+  renderAdvancedStrategies();
 
   // Phase D-1-e-4 — same lifecycle for the V2 Shadow card. Cache update
   // and render every tick; visible only when the operator expands it.
