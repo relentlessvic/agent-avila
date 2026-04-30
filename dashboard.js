@@ -294,6 +294,163 @@ async function getLiveSummary() {
   return { ...base, balance };
 }
 
+// ─── Phase B — /api/v2/dashboard payload builder ─────────────────────────────
+// Cached Kraken health probe so /api/v2/dashboard polled every 5s doesn't hit
+// Kraken's /Time endpoint 720× per hour. /api/health stays the place that
+// always probes fresh; this cache is consumed by the v2 endpoint only.
+let _krakenHealthCache = { ts: 0, result: null };
+async function getCachedKrakenHealth(maxAgeMs = 30_000) {
+  const now = Date.now();
+  if (_krakenHealthCache.result && (now - _krakenHealthCache.ts) < maxAgeMs) {
+    return _krakenHealthCache.result;
+  }
+  const t0 = now;
+  let kraken = "offline", krakenOk = false, krakenLatency = 0;
+  const errors = [];
+  try {
+    const r = await fetch("https://api.kraken.com/0/public/Time", { signal: AbortSignal.timeout(5000) });
+    krakenLatency = Date.now() - t0; krakenOk = r.ok;
+    if (r.ok) kraken = "online";
+    else errors.push({ source: "kraken", message: "HTTP " + r.status });
+  } catch (e) {
+    errors.push({ source: "kraken", message: e.message });
+  }
+  const result = { kraken, krakenOk, krakenLatency, errors };
+  _krakenHealthCache = { ts: now, result };
+  return result;
+}
+
+// Single mode-tagged payload for /dashboard-v2 (server-render + 5s polling).
+// Wraps existing safe helpers — no new state files, no bot-logic changes,
+// no writes. Includes a Safety Buffer that accounts for BOTH realized
+// today's loss AND unrealized open-position exposure, so an operator
+// cannot be misled by a "healthy" buffer while a position is bleeding.
+async function buildV2DashboardPayload() {
+  let ctrl = {};
+  try { if (existsSync("bot-control.json")) ctrl = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
+  const isPaper = ctrl.paperTrading !== false;
+
+  // Mode-scoped summary (paper or live, never both).
+  const summary = isPaper
+    ? getPaperSummary()
+    : await getLiveSummary().catch(() => modeScopedSummary(false));
+
+  // Latest log entry (last decision + V2 shadow data) and current position.
+  let latest = null, position = { open: false };
+  let allTrades = [];
+  try {
+    if (existsSync("safety-check-log.json")) {
+      const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+      allTrades = log.trades || [];
+      latest = allTrades.length ? allTrades[allTrades.length - 1] : null;
+    }
+  } catch {}
+  try { if (existsSync("position.json")) position = JSON.parse(readFileSync("position.json","utf8")); } catch {}
+
+  // Today-only realized P&L for the active mode.
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const todayUsd = allTrades
+    .filter(t => t.type === "EXIT"
+              && Boolean(t.paperTrading) === isPaper
+              && (t.timestamp || "").startsWith(todayDate))
+    .reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
+
+  // Unrealized P&L from current open position (mode-aware: only count if
+  // the current bot mode matches the view).
+  const currentPrice = latest?.price ?? null;
+  let unrealizedUsd = 0;
+  const positionMatchesMode = position?.open && (Boolean(position.paperTrading ?? isPaper) === isPaper);
+  if (positionMatchesMode && currentPrice && position.entryPrice && position.tradeSize) {
+    const lev = position.leverage || 1;
+    unrealizedUsd = ((currentPrice - position.entryPrice) / position.entryPrice) * (position.tradeSize * lev);
+  }
+
+  // Safety Buffer — single source of truth for daily-loss room.
+  const baselineUsd = isPaper
+    ? parseFloat(process.env.PAPER_STARTING_BALANCE || "500")
+    : parseFloat(process.env.PORTFOLIO_VALUE_USD || "850");
+  const capPct = Number(ctrl.maxDailyLossPct ?? 3);
+  const realizedLossTodayPct = todayUsd < 0 ? Math.abs(todayUsd) / baselineUsd * 100 : 0;
+  const unrealizedLossPct    = unrealizedUsd < 0 ? Math.abs(unrealizedUsd) / baselineUsd * 100 : 0;
+  const totalExposurePct     = realizedLossTodayPct + unrealizedLossPct;
+  const remainingHardPct     = Math.max(0, capPct - realizedLossTodayPct);    // what kill switch sees right now
+  const remainingSoftPct     = Math.max(0, capPct - totalExposurePct);        // includes unrealized
+  const openPositionPct      = (positionMatchesMode && unrealizedUsd !== 0)
+    ? unrealizedUsd / baselineUsd * 100
+    : null;
+
+  // Health snapshot — cached Kraken probe + bot status from log freshness.
+  const k = await getCachedKrakenHealth();
+  const lastRunAge = latest?.timestamp ? (Date.now() - new Date(latest.timestamp).getTime()) / 60000 : null;
+  const botStatus = ctrl.killed  ? "killed"
+                  : ctrl.stopped ? "stopped"
+                  : ctrl.paused  ? "paused"
+                  : (lastRunAge != null && lastRunAge <= 15) ? "running"
+                  : "stale";
+
+  return {
+    mode: isPaper ? "paper" : "live",
+    serverTime: Date.now(),
+    control: {
+      paperTrading: isPaper,
+      stopped: !!ctrl.stopped,
+      paused: !!ctrl.paused,
+      killed: !!ctrl.killed,
+      leverage: ctrl.leverage ?? 2,
+      riskPct: ctrl.riskPct ?? 1,
+      maxDailyLossPct: capPct,
+      cooldownMinutes: ctrl.cooldownMinutes ?? null,
+      lastTradeTime: ctrl.lastTradeTime ?? null,
+      consecutiveLosses: ctrl.consecutiveLosses ?? 0,
+    },
+    health: {
+      kraken: k.kraken,
+      krakenOk: k.krakenOk,
+      krakenLatency: k.krakenLatency,
+      websocket: "client-managed",
+      bot: botStatus,
+      lastRunAge,
+      errors: k.errors,
+    },
+    summary: {
+      mode: summary.mode,
+      isActive: summary.isActive,
+      totalTrades: summary.totalTrades,
+      fired: summary.fired,
+      exits: summary.exits,
+      winLoss: summary.winLoss,
+      pnl: {
+        totalUsd: summary.pnl?.totalUSD ?? 0,
+        todayUsd,
+        exitCount: summary.pnl?.exitCount ?? 0,
+      },
+    },
+    position: positionMatchesMode ? position : null,
+    latest: latest ? {
+      timestamp:    latest.timestamp,
+      type:         latest.type ?? null,
+      price:        latest.price ?? null,
+      exitReason:   latest.exitReason ?? null,
+      orderPlaced:  latest.orderPlaced === true,
+      allPass:      latest.allPass === true,
+      signalScore:  latest.signalScore ?? null,
+      decisionLog:  latest.decisionLog ?? null,
+      perfState:    latest.perfState ?? null,
+      strategyV2:   latest.strategyV2 ?? null,
+    } : null,
+    safetyBuffer: {
+      capPct,
+      baselineUsd,
+      realizedLossTodayPct,
+      unrealizedLossPct,
+      totalExposurePct,
+      remainingHardPct,
+      remainingSoftPct,
+      openPositionPct,
+    },
+  };
+}
+
 // ─── Chart Data ───────────────────────────────────────────────────────────────
 
 const PAIR_MAP = {
@@ -7448,8 +7605,6 @@ function dashboardV2HTML(initial) {
 // Phase A — read-only client. ONLY GET requests, ONLY existing endpoints.
 // No POST. No SSE writes. No /api/control, /api/trade, /api/run-bot.
 window.__INIT__ = ${initialJson};
-const IS_PAPER = ${isPaper ? "true" : "false"};
-const SUMMARY_URL = IS_PAPER ? "/api/paper-summary" : "/api/live-summary";
 let _lastTickAt = Date.now();
 
 function fmtMoney(n) { if (n == null || isNaN(n)) return "—"; const sign = n >= 0 ? "+" : "−"; return sign + "$" + Math.abs(n).toFixed(2); }
@@ -7487,7 +7642,7 @@ function renderStrip(ctrl, health, latest) {
   }
 }
 
-function renderKpis(ctrl, health, position, latest, summary) {
+function renderKpis(ctrl, health, position, latest, summary, safetyBuffer) {
   // System health
   const allOk = health?.krakenOk && health?.bot === "running" && (health?.lastRunAge ?? 99) < 10;
   const el = document.getElementById("kpi-health");
@@ -7510,16 +7665,33 @@ function renderKpis(ctrl, health, position, latest, summary) {
     setText("kpi-pos-sub", "No open trade");
   }
 
-  // Safety buffer (daily-loss remaining): use today's realized P&L vs cap.
-  const cap = Number(ctrl?.maxDailyLossPct ?? 3);
-  const todayPnL = summary?.pnl?.totalUSD ?? 0;
-  const startBal = ${isPaper ? "(parseFloat(window.__INIT__?.paperStartingBalance ?? 500) || 500)" : "1"};
-  const dailyDrawdownPct = todayPnL < 0 ? Math.abs(todayPnL) / startBal * 100 : 0;
-  const remaining = Math.max(0, cap - dailyDrawdownPct);
+  // Safety Buffer — Phase B: server-computed, includes BOTH realized today
+  // AND unrealized open-position exposure. Shows the SOFT remaining (after
+  // unrealized) as the headline so the operator can't see "Healthy" while
+  // a position is bleeding. The hard remaining (kill-switch view) lives in
+  // the sub-line when an open position is in the red.
+  const sb = safetyBuffer || {};
+  const cap            = Number(sb.capPct ?? ctrl?.maxDailyLossPct ?? 3);
+  const realizedPct    = Number(sb.realizedLossTodayPct ?? 0);
+  const unrealizedPct  = Number(sb.unrealizedLossPct ?? 0);
+  const remainingSoft  = Number(sb.remainingSoftPct ?? cap);
+  const openPosPct     = sb.openPositionPct;
   const bufEl = document.getElementById("kpi-buffer");
-  bufEl.textContent = remaining.toFixed(2) + "%";
-  bufEl.className = "kpi-val " + (remaining > cap * 0.5 ? "kpi-good" : remaining > 0 ? "kpi-warn" : "kpi-bad");
-  setText("kpi-buffer-sub", "of " + cap + "% daily cap");
+  bufEl.textContent = remainingSoft.toFixed(2) + "%";
+  bufEl.className = "kpi-val " + (remainingSoft > cap * 0.5 ? "kpi-good" : remainingSoft > 0 ? "kpi-warn" : "kpi-bad");
+  let sub;
+  if (openPosPct != null && openPosPct < 0) {
+    // Open position is in the red — the buffer headline already includes
+    // its unrealized hit. Surface the breakdown so the math is auditable.
+    sub = "Realized: " + realizedPct.toFixed(2) + "% · Open: " + openPosPct.toFixed(2) + "% (incl.)";
+  } else if (openPosPct != null && openPosPct >= 0) {
+    sub = "Realized: " + realizedPct.toFixed(2) + "% · Open: +" + openPosPct.toFixed(2) + "% (excluded)";
+  } else if (realizedPct > 0) {
+    sub = "Realized today: " + realizedPct.toFixed(2) + "% of " + cap + "% cap";
+  } else {
+    sub = "of " + cap + "% daily cap";
+  }
+  setText("kpi-buffer-sub", sub);
 
   // Signal score
   if (latest?.signalScore != null) {
@@ -7602,9 +7774,9 @@ function renderV2(latest) {
     skip;
 }
 
-function applyData({ control, health, summary, latest, position }) {
+function applyData({ control, health, summary, latest, position, safetyBuffer }) {
   if (control)  renderStrip(control, health, latest);
-  if (control || health || latest)  renderKpis(control || {}, health, position, latest, summary);
+  if (control || health || latest)  renderKpis(control || {}, health, position, latest, summary, safetyBuffer);
   renderPosition(position, latest);
   renderDecision(latest);
   if (health)   renderHealth(health);
@@ -7621,33 +7793,34 @@ function applyData({ control, health, summary, latest, position }) {
   _lastTickAt = Date.now();
 }
 
-// Initial render from inline data.
+// Initial render from inline data (same shape as /api/v2/dashboard).
 const init = window.__INIT__;
-if (init) {
+if (init && !init.error) {
   applyData({
-    control: init.control,
-    health:  init.health,
-    summary: IS_PAPER ? init.paper : init.live,
-    latest:  init.latest,
-    position: init.position,
+    control:      init.control,
+    health:       init.health,
+    summary:      init.summary,
+    latest:       init.latest,
+    position:     init.position,
+    safetyBuffer: init.safetyBuffer,
   });
 }
 
-// Refresh loop — read-only GETs. NO POSTS. Polls every 5s.
+// Phase B — single read-only poll to /api/v2/dashboard (no POSTs).
 async function refresh() {
   try {
-    const [healthR, summaryR, controlR] = await Promise.all([
-      fetch("/api/health",     { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch(SUMMARY_URL,       { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).catch(() => null),
-      fetch("/api/control",    { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).catch(() => null),
-    ]);
-    const summary  = summaryR?.data ?? summaryR;
+    const r = await fetch("/api/v2/dashboard", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const j = await r.json();
+    const d = j?.data;
+    if (!d) return;
     applyData({
-      control:  controlR ?? null,
-      health:   healthR ?? null,
-      summary:  summary,
-      latest:   summary?.latestDecision ?? null,
-      position: summary?.position ?? null,
+      control:      d.control,
+      health:       d.health,
+      summary:      d.summary,
+      latest:       d.latest,
+      position:     d.position,
+      safetyBuffer: d.safetyBuffer,
     });
   } catch (e) { /* keep prior values; next tick may succeed */ }
 }
@@ -7972,6 +8145,22 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ── /api/v2/dashboard — Phase B slim mode-tagged payload ────────────────
+  // Single GET that wraps existing safe helpers. Powers /dashboard-v2's 5s
+  // refresh and its inline server-render. Read-only; no body parsing; no
+  // writes. Strategy V2 is included only as latest.strategyV2 (read-only).
+  if (req.url === "/api/v2/dashboard" && req.method === "GET") {
+    try {
+      const data = await buildV2DashboardPayload();
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ success: true, data }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+    return;
+  }
+
   // ── /paper and /live mode-scoped pages (Phase 1: data separation only) ──
   if (req.url === "/paper" || req.url === "/live") {
     res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
@@ -7992,48 +8181,14 @@ const server = createServer(async (req, res) => {
   }
 
   // ── /dashboard-v2 — Phase A read-only command-center preview ────────────
-  // Server-renders with inline data from existing safe helpers. Client side
-  // only polls existing read-only GETs. No POSTs. Every control button is
-  // rendered disabled with a "PREVIEW" badge.
+  // Phase B: server-renders inline data from buildV2DashboardPayload(), the
+  // same builder /api/v2/dashboard uses. Client polls /api/v2/dashboard every
+  // 5 s. No POSTs, no SSE writes. Control buttons stay disabled with PREVIEW.
   if (req.url === "/dashboard-v2") {
     res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
     let initial = null;
-    try {
-      const ctrl = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
-      const isPaper = ctrl.paperTrading !== false;
-      const paper = (() => { try { return getPaperSummary(); } catch { return null; } })();
-      const live  = isPaper ? null : await getLiveSummary().catch(() => null);
-      let latest = null, position = { open: false };
-      try {
-        if (existsSync("safety-check-log.json")) {
-          const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
-          latest = log.trades.length ? log.trades[log.trades.length - 1] : null;
-        }
-      } catch {}
-      try {
-        if (existsSync("position.json")) position = JSON.parse(readFileSync("position.json","utf8"));
-      } catch {}
-      // Inline a snapshot of /api/health so first paint already shows status.
-      let health = null;
-      try {
-        let lastRunAge = null;
-        if (existsSync("safety-check-log.json")) {
-          const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
-          const last = log.trades[log.trades.length - 1];
-          if (last) lastRunAge = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
-        }
-        health = {
-          kraken: "online", krakenOk: true, krakenLatency: null,
-          websocket: "client-managed",
-          bot: ctrl.stopped ? "stopped" : ctrl.paused ? "paused" : "running",
-          lastRunAge,
-        };
-      } catch {}
-      const paperStartingBalance = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
-      initial = { control: ctrl, paper, live, latest, position, health, paperStartingBalance };
-    } catch (e) {
-      initial = { error: e.message };
-    }
+    try { initial = await buildV2DashboardPayload(); }
+    catch (e) { initial = { error: e.message }; }
     res.end(dashboardV2HTML(initial));
     return;
   }
