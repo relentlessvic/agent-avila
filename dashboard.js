@@ -7649,7 +7649,10 @@ function dashboardV2HTML(initial) {
           <!-- Dangerous controls remain preview-only until C-2/C-3 wires them
                through the Phase 3 typed-confirm gates + the C-0 KILL gate. -->
           <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-3">Switch to Live<span class="preview-only-badge">PREVIEW</span></button>
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — wired in Phase C-3">Reset Kill Switch<span class="preview-only-badge">PREVIEW</span></button>
+          <!-- Phase C-3: Reset Kill Switch active. Paper mode → simple
+               confirm. Live mode → typed CONFIRM (Phase 3 server gate
+               independently enforces { confirm: "CONFIRM" } in live). -->
+          <button class="ctrl-btn ctrl-btn-danger" id="v2-btn-reset-kill" type="button" onclick="confirmResetKill(event)">Reset Kill Switch</button>
           <!-- Phase C-2: active KILL is now at the top of the page in the
                Quick Status Strip. This entry stays disabled to avoid
                duplicate code paths but points operators to the active one. -->
@@ -7679,6 +7682,10 @@ function dashboardV2HTML(initial) {
 // No POST. No SSE writes. No /api/control, /api/trade, /api/run-bot.
 window.__INIT__ = ${initialJson};
 let _lastTickAt = Date.now();
+// Phase C-3 — last seen control snapshot. Confirms-and-mode-aware handlers
+// read this to decide whether the typed-CONFIRM gate applies (live) or a
+// simple confirm is enough (paper). Updated on every applyData tick.
+let _lastCtrl = window.__INIT__?.control ?? null;
 
 function fmtMoney(n) { if (n == null || isNaN(n)) return "—"; const sign = n >= 0 ? "+" : "−"; return sign + "$" + Math.abs(n).toFixed(2); }
 function fmtPct(n)   { if (n == null || isNaN(n)) return "—"; return (n >= 0 ? "+" : "") + n.toFixed(2) + "%"; }
@@ -7848,6 +7855,7 @@ function renderV2(latest) {
 }
 
 function applyData({ control, health, summary, latest, position, safetyBuffer }) {
+  if (control) _lastCtrl = control;
   if (control)  renderStrip(control, health, latest);
   if (control || health || latest)  renderKpis(control || {}, health, position, latest, summary, safetyBuffer);
   renderPosition(position, latest);
@@ -8004,6 +8012,26 @@ async function confirmStopBot(e) {
   });
   if (!ok) return;
   v2SendCmd("STOP_BOT", btn);
+}
+
+// Phase C-3 — Reset Kill Switch. Paper mode: simple confirm. Live mode:
+// typed-CONFIRM (the Phase 3 server gate at /api/control already requires
+// { confirm: "CONFIRM" } when paperTrading=false, so the typed token cannot
+// be bypassed by a stray authenticated POST).
+async function confirmResetKill(e) {
+  const btn = e?.currentTarget;
+  const isPaper = (_lastCtrl?.paperTrading !== false);
+  const ok = await v2ShowConfirm({
+    title: isPaper ? "Reset kill switch?" : "🔓 Reset LIVE kill switch?",
+    msg: isPaper
+      ? "This re-enables trading after a forced halt. The bot can resume placing trades on its next cycle."
+      : '<strong style="color:var(--red)">This re-enables LIVE trading.</strong><br><br>The bot can resume placing real-money orders on its next cycle.<br><br>Type <strong>CONFIRM</strong> to proceed.',
+    confirmText: "Reset Kill Switch",
+    requireText: isPaper ? null : "CONFIRM",
+    danger: !isPaper,
+  });
+  if (!ok) return;
+  v2SendCmd("RESET_KILL_SWITCH", btn, isPaper ? undefined : "CONFIRM");
 }
 
 // Phase C-2 — typed-KILL emergency override. The Phase C-0 server gate at
