@@ -438,6 +438,14 @@ async function buildV2DashboardPayload() {
       perfState:    latest.perfState ?? null,
       strategyV2:   latest.strategyV2 ?? null,
     } : null,
+    // Phase D-1-e-3 — last 15 cycle decisionLogs for the cycle-level
+    // condition pass-rate card. Mode-blind on purpose (decisionLog has no
+    // mode tag). Newest-first. Strings only — same field already shown in
+    // latest.decisionLog, just extended over a 15-row window.
+    recentDecisionLogs: allTrades
+      .slice(-15)
+      .map(t => ({ timestamp: t.timestamp ?? null, decisionLog: t.decisionLog ?? null }))
+      .reverse(),
     safetyBuffer: {
       capPct,
       baselineUsd,
@@ -7593,6 +7601,62 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-e-3 — Condition Pass Rates card. Cycle-level (mode-blind),
+     intentionally separate visual treatment from the mode-scoped KPIs and
+     trades table so the operator does not read it as account performance. */
+  .perf-conditions-card { padding:14px 18px; margin-top:14px; }
+  .perf-conditions-card .card-title { margin-bottom:4px; }
+  .perf-conditions-card .card-sublabel {
+    font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.45;
+  }
+  .perf-cond-list { display:flex; flex-direction:column; gap:10px; margin-bottom:18px; }
+  .perf-cond-row {
+    display:grid; grid-template-columns: 130px 1fr 180px;
+    gap:12px; align-items:center; font-size:12px;
+  }
+  .perf-cond-label { color:var(--text); font-weight:500; }
+  .perf-cond-bar {
+    height:8px; background:rgba(255,255,255,0.06);
+    border-radius:4px; overflow:hidden;
+  }
+  .perf-cond-bar-fill {
+    height:100%;
+    background:linear-gradient(90deg, var(--accent), var(--green));
+    transition: width 200ms ease;
+  }
+  .perf-cond-count {
+    color:var(--muted); font-size:11px; text-align:right;
+    font-variant-numeric:tabular-nums;
+  }
+  .perf-heatmap {
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding-top:12px;
+  }
+  .perf-heatmap-header, .perf-heatmap-row {
+    display:grid; grid-template-columns: 80px repeat(4, 1fr); gap:6px; align-items:center;
+  }
+  .perf-heatmap-header {
+    margin-bottom:6px; padding-bottom:6px;
+    border-bottom:1px solid rgba(255,255,255,0.04);
+  }
+  .perf-heatmap-col {
+    font-size:10px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:0.06em; font-weight:600; text-align:center;
+  }
+  .perf-heatmap-row { padding:4px 0; font-size:11px; }
+  .perf-heatmap-time { color:var(--muted); white-space:nowrap; font-size:11px; }
+  .perf-heatmap-dot {
+    display:block; width:12px; height:12px; border-radius:50%;
+    margin:0 auto;
+  }
+  .perf-heatmap-dot.pass { background: var(--green); box-shadow: 0 0 4px rgba(46,204,113,0.35); }
+  .perf-heatmap-dot.fail { background: rgba(244, 63, 94, 0.55); }
+  .perf-heatmap-dot.na   { background: rgba(255,255,255,0.10); }
+  @media (max-width: 780px) {
+    .perf-cond-row { grid-template-columns: 100px 1fr 120px; gap:8px; }
+    .perf-heatmap-header, .perf-heatmap-row { grid-template-columns: 60px repeat(4, 1fr); gap:4px; }
+  }
+
   /* Phase D-1-e-2 — Recent Trades table inside the Performance tab.
      Compact rows, tabular-num alignment, mode-scoped (rendered from the
      selected segment's recentTrades). Hides the Exit Reason column on
@@ -7923,8 +7987,18 @@ function dashboardV2HTML(initial) {
       <div id="pf-trades-body"><div class="card-empty">Loading…</div></div>
     </div>
 
+    <!-- Phase D-1-e-3 — Condition Pass Rates + 10-cycle heatmap. Reads
+         decisionLog strings from the v2 dashboard payload (mode-blind,
+         cycle-level). The sub-label makes that scope explicit so the
+         operator does not read this as account P&L. -->
+    <div class="card perf-conditions-card">
+      <div class="card-title">📊 Condition Pass Rates — cycle-level</div>
+      <div class="card-sublabel">Cycle-level signal quality from recent bot checks. Not paper/live account performance.</div>
+      <div id="pf-conditions-body"><div class="card-empty">Loading…</div></div>
+    </div>
+
     <div class="perf-context">
-      <strong>Note:</strong> P&amp;L values are bot-recorded and may differ from the broker on live trades due to fees and slippage. Live mode reconciliation lives on <a href="/live" style="color:var(--accent)">/live</a>. This tab will gain a condition pass-rates heatmap and a Strategy V2 shadow comparison in follow-up phases.
+      <strong>Note:</strong> P&amp;L values are bot-recorded and may differ from the broker on live trades due to fees and slippage. Live mode reconciliation lives on <a href="/live" style="color:var(--accent)">/live</a>. This tab will gain a Strategy V2 shadow comparison in a follow-up phase.
     </div>
   </section>
 
@@ -7952,6 +8026,9 @@ let _lastCtrl = window.__INIT__?.control ?? null;
 // which reads these.
 let _perfMode = null;
 const _perfCache = { paper: null, live: null };
+// Phase D-1-e-3 — recent cycle decisionLogs for the cycle-level Condition
+// Pass Rates card. Mode-blind on purpose. Same TDZ reasoning as above.
+let _recentDecisionLogs = window.__INIT__?.recentDecisionLogs ?? null;
 
 // Phase D-1-a — tab routing via URL hash. Hashes: #overview, #bot-thinking,
 // #controls, #performance, #advanced. Default = overview. Invalid hash falls
@@ -8479,6 +8556,95 @@ function renderPerformanceLoading() {
   }
   const tbody = document.getElementById("pf-trades-body");
   if (tbody) tbody.innerHTML = '<div class="card-empty">Loading…</div>';
+  // Phase D-1-e-3 — only show "Loading…" if we don't already have parseable
+  // cycle data cached. The conditions card is mode-blind, so a segment
+  // switch shouldn't flicker it back to a loading state.
+  const cbody = document.getElementById("pf-conditions-body");
+  if (cbody && !_recentDecisionLogs) cbody.innerHTML = '<div class="card-empty">Loading…</div>';
+}
+
+// Phase D-1-e-3 — Condition Pass Rates + 10-cycle heatmap. Cycle-level,
+// mode-blind. Uses the existing btParseDecisionLog parser; if fewer than 5
+// cycles are parseable, shows the "need at least 5" empty state instead of
+// rendering a misleading partial chart.
+const PF_COND_KEYS = ["ema trend", "rsi dip", "vwap support", "not extended"];
+const PF_COND_LABELS = {
+  "ema trend":     "EMA trend",
+  "rsi dip":       "RSI dip",
+  "vwap support":  "VWAP support",
+  "not extended":  "Not extended",
+};
+function pfNormCondName(name) {
+  if (!name) return null;
+  const k = String(name).toLowerCase().trim();
+  return PF_COND_KEYS.includes(k) ? k : null;
+}
+function renderPerfConditions() {
+  const body = document.getElementById("pf-conditions-body");
+  if (!body) return;
+  const logs = Array.isArray(_recentDecisionLogs) ? _recentDecisionLogs : [];
+  if (logs.length === 0) {
+    body.innerHTML = '<div class="card-empty">Need at least 5 cycles with decision data.</div>';
+    return;
+  }
+  const parsed = logs.map(l => {
+    let p = null;
+    try { p = btParseDecisionLog(l && l.decisionLog); } catch { p = { parseFailed: true, raw: "" }; }
+    return { ts: l && l.timestamp, parsed: p };
+  });
+  const parseable = parsed.filter(x =>
+    x.parsed && !x.parsed.parseFailed && Array.isArray(x.parsed.conditions) && x.parsed.conditions.length > 0);
+  if (parseable.length < 5) {
+    body.innerHTML = '<div class="card-empty">Need at least 5 cycles with decision data.</div>';
+    return;
+  }
+  const window15 = parseable.slice(0, 15);
+  const passCounts = { "ema trend": 0, "rsi dip": 0, "vwap support": 0, "not extended": 0 };
+  for (const x of window15) {
+    for (const c of x.parsed.conditions) {
+      const k = pfNormCondName(c.name);
+      if (k && Number(c.points) > 0) passCounts[k]++;
+    }
+  }
+  const denom = window15.length;
+  let html = '<div class="perf-cond-list">';
+  for (const k of PF_COND_KEYS) {
+    const passed = passCounts[k];
+    const pct = denom > 0 ? (passed / denom * 100) : 0;
+    html += '<div class="perf-cond-row">' +
+              '<div class="perf-cond-label">' + btEsc(PF_COND_LABELS[k]) + '</div>' +
+              '<div class="perf-cond-bar"><div class="perf-cond-bar-fill" style="width:' + pct.toFixed(0) + '%"></div></div>' +
+              '<div class="perf-cond-count">Passed in ' + passed + ' of last ' + denom + ' cycles</div>' +
+            '</div>';
+  }
+  html += '</div>';
+  // 10-cycle heatmap, newest first, dot per condition.
+  const window10 = parseable.slice(0, 10);
+  html += '<div class="perf-heatmap">' +
+            '<div class="perf-heatmap-header">' +
+              '<div></div>' +
+              PF_COND_KEYS.map(k => '<div class="perf-heatmap-col">' + btEsc(PF_COND_LABELS[k]) + '</div>').join('') +
+            '</div>';
+  for (const x of window10) {
+    const passByKey = {};
+    for (const c of x.parsed.conditions) {
+      const k = pfNormCondName(c.name);
+      if (k) passByKey[k] = Number(c.points) > 0;
+    }
+    html += '<div class="perf-heatmap-row">' +
+              '<div class="perf-heatmap-time">' + btEsc(timeAgo(x.ts)) + '</div>';
+    for (const k of PF_COND_KEYS) {
+      const has = Object.prototype.hasOwnProperty.call(passByKey, k);
+      const cls = !has ? "na" : (passByKey[k] ? "pass" : "fail");
+      const tip = !has
+        ? PF_COND_LABELS[k] + " — not evaluated"
+        : (passByKey[k] ? PF_COND_LABELS[k] + " — passed" : PF_COND_LABELS[k] + " — failed");
+      html += '<div><span class="perf-heatmap-dot ' + cls + '" title="' + btEsc(tip) + '"></span></div>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  body.innerHTML = html;
 }
 
 // Phase D-1-e-2 — Recent Trades table. Pure render: reads exits straight
@@ -8592,6 +8758,10 @@ function renderPerformance() {
 
   // Phase D-1-e-2 — Recent Trades table for the selected mode.
   renderPerfTrades();
+
+  // Phase D-1-e-3 — Condition Pass Rates card. Mode-blind (cycle-level), so
+  // the segment switch redraws the same data — no flicker, no mode mixing.
+  renderPerfConditions();
 }
 
 function setPerfMode(mode) {
@@ -8635,7 +8805,7 @@ function renderBotThinking(d) {
   renderBtSafe(ctrl, health, sb);
 }
 
-function applyData({ control, health, summary, latest, position, safetyBuffer }) {
+function applyData({ control, health, summary, latest, position, safetyBuffer, recentDecisionLogs }) {
   if (control) _lastCtrl = control;
   if (control)  renderStrip(control, health, latest);
   if (control || health || latest)  renderKpis(control || {}, health, position, latest, summary, safetyBuffer);
@@ -8645,6 +8815,12 @@ function applyData({ control, health, summary, latest, position, safetyBuffer })
   renderV2(latest);
   // Phase D-1-b — Bot Thinking tab. Read-only, derived from the same payload.
   renderBotThinking({ control, health, summary, latest, position, safetyBuffer });
+
+  // Phase D-1-e-3 — refresh cycle-level conditions cache + render. Card lives
+  // on the Performance tab, but we redraw on every tick regardless of which
+  // tab is active so it's already up-to-date when the operator switches in.
+  if (Array.isArray(recentDecisionLogs)) _recentDecisionLogs = recentDecisionLogs;
+  renderPerfConditions();
 
   // Stale banner — turn on if last cycle > 60s
   const banner = document.getElementById("stale-banner");
@@ -8667,6 +8843,7 @@ if (init && !init.error) {
     latest:       init.latest,
     position:     init.position,
     safetyBuffer: init.safetyBuffer,
+    recentDecisionLogs: init.recentDecisionLogs,
   });
 }
 
@@ -8848,6 +9025,7 @@ async function refresh() {
       latest:       d.latest,
       position:     d.position,
       safetyBuffer: d.safetyBuffer,
+      recentDecisionLogs: d.recentDecisionLogs,
     });
   } catch (e) { /* keep prior values; next tick may succeed */ }
   // Phase D-1-e-1 — Performance tab refresh, only when active (avoids
