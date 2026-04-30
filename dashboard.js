@@ -7400,8 +7400,29 @@ function dashboardV2BackupHTML(initial) {
 // placeholders for now; later D-2 phases will move v2 content into them.
 // /dashboard-v2 (frozen v2 backup) and /dashboard-legacy (untouched legacy
 // fallback) keep their own URLs and are not affected by this shell.
+//
+// Phase D-2-f — Bot Thinking and Controls panes are populated by reusing
+// the v2 dashboard's render lifecycle. We call dashboardV2HTML(null) once
+// per request, extract its inline <style> + <script> + the two tab-pane
+// blocks (#tab-bot-thinking and #tab-controls) + the confirm modal/toast
+// infrastructure, and inject them into the combined page. The v2 5s
+// refresh poll then drives renderBotThinking and the Controls button
+// handlers exactly as it does on /dashboard-v2.
 function dashboardCombinedHTML(_initial) {
   let html = HTML;
+
+  // Phase D-2-f — pull the v2 dashboard chunks. dashboardV2HTML is the
+  // frozen-by-D-2-b backup body that /dashboard-v2 also serves; we don't
+  // modify it here, just regex out the parts the combined view needs.
+  const v2Full = dashboardV2HTML(null);
+  function _extract(str, re) { const m = str.match(re); return m ? m[0] : ''; }
+  function _extractInner(str, re) { const m = str.match(re); return m ? m[1] : ''; }
+  const v2Style       = _extract     (v2Full, /<style>[\s\S]*?<\/style>/);
+  const v2Script      = _extract     (v2Full, /<script>[\s\S]*?<\/script>(?=\s*<\/body>)/);
+  const v2BTPane      = _extract     (v2Full, /<section class="tab-pane" id="tab-bot-thinking"[\s\S]*?<\/section>/);
+  const v2CtrlPane    = _extract     (v2Full, /<section class="tab-pane" id="tab-controls"[\s\S]*?<\/section>/);
+  const v2Modal       = _extract     (v2Full, /<div id="v2-modal-overlay"[\s\S]*?<\/div>\s*<\/div>/);
+  const v2ToastCont   = _extract     (v2Full, /<div id="v2-toast-container"[^>]*><\/div>/);
 
   const TAB_CSS = "<style>" +
     /* Phase D-2-d / D-2-e — combined dashboard tab framework. .dc- prefix on
@@ -7441,6 +7462,12 @@ function dashboardCombinedHTML(_initial) {
        since the new top tabs now drive that swap. The legacy switchTab() and
        #dashboard-page / #info-page DOM are preserved unchanged. */
     ".tab-strip { display: none !important; }" +
+    /* Phase D-2-f — v2's CSS hides .tab-pane by default and only shows
+       .tab-pane.active. Inside our combined .dc-pane wrappers, the tab pane
+       should always be visible — the .dc-pane[hidden] attribute already
+       controls visibility at the outer level. Override v2 here. */
+    ".dc-pane > .tab-pane#tab-bot-thinking," +
+    ".dc-pane > .tab-pane#tab-controls { display: block !important; }" +
   "</style>";
 
   const TAB_BAR =
@@ -7462,14 +7489,20 @@ function dashboardCombinedHTML(_initial) {
        while keeping the Dashboard pane visible. This keeps every legacy
        script that references getElementById("info-page") working unchanged. */
     '<section class="dc-pane" data-dc-pane="agent3" hidden></section>' +
+    /* Phase D-2-f — Bot Thinking pane mounts the extracted v2 #tab-bot-thinking
+       block. The v2 5s refresh poll drives renderBotThinking() which populates
+       these cards. */
     '<section class="dc-pane" data-dc-pane="bot-thinking" hidden>' +
-      '<div class="dc-placeholder"><h2>Bot Thinking</h2><p>Coming in next phase.</p></div>' +
+      v2BTPane +
     '</section>' +
     '<section class="dc-pane" data-dc-pane="performance" hidden>' +
       '<div class="dc-placeholder"><h2>Performance</h2><p>Coming in next phase.</p></div>' +
     '</section>' +
+    /* Phase D-2-f — Controls pane mounts the extracted v2 #tab-controls block
+       plus the v2 confirm modal + toast container so Start / Stop / Reset Kill
+       buttons show their existing typed-confirm dialogs. */
     '<section class="dc-pane" data-dc-pane="controls" hidden>' +
-      '<div class="dc-placeholder"><h2>Controls</h2><p>Coming in next phase.</p></div>' +
+      v2CtrlPane +
     '</section>' +
     '<section class="dc-pane" data-dc-pane="advanced" hidden>' +
       '<div class="dc-placeholder"><h2>Advanced</h2><p>Coming in next phase.</p></div>' +
@@ -7523,11 +7556,27 @@ function dashboardCombinedHTML(_initial) {
     "})();" +
   "</script>";
 
-  // Inject the tab CSS before </head>, the tab bar + Dashboard pane wrapper
-  // start right after <body>, the placeholder panes + tab JS before </body>.
-  html = html.replace("</head>", TAB_CSS + "</head>");
-  html = html.replace(/<body([^>]*)>/, "<body$1>" + TAB_BAR);
-  html = html.replace("</body>", TAB_PANES_END + TAB_JS + "</body>");
+  // Phase D-2-f — v2's confirm modal + toast container live at the bottom of
+  // the v2 body. They are referenced by ID from the v2 control button
+  // handlers (v2ShowConfirm reads #v2-modal-overlay, v2Toast reads
+  // #v2-toast-container). Append them after the placeholder panes so the
+  // global IDs are available regardless of which top tab is active.
+  const V2_INFRA = v2Modal + v2ToastCont;
+
+  // Inject the tab CSS + v2 style before </head>, the tab bar + Dashboard
+  // pane wrapper start right after <body>, the placeholder panes + v2
+  // modal/toast + tab JS + v2 script before </body>.
+  //
+  // IMPORTANT: every replacement uses a function callback rather than a
+  // string. JavaScript's String.replace treats $&, $`, $', $0–$9 as special
+  // tokens inside string replacements — and the v2 script body contains
+  // literal "$'" sequences (e.g. '...val">$' + Number(...)) which would
+  // otherwise be substituted with the post-match text "</html>", silently
+  // corrupting the script and producing "Invalid or unexpected token" at
+  // parse time. Function callbacks bypass that interpretation entirely.
+  html = html.replace("</head>", () => TAB_CSS + v2Style + "</head>");
+  html = html.replace(/<body([^>]*)>/, (_, attrs) => "<body" + attrs + ">" + TAB_BAR);
+  html = html.replace("</body>", () => TAB_PANES_END + V2_INFRA + TAB_JS + v2Script + "</body>");
 
   return html;
 }
@@ -8652,6 +8701,10 @@ function renderStrip(ctrl, health, latest) {
   // Bot status pill
   const botDot   = document.getElementById("strip-bot-dot");
   const botTxt   = document.getElementById("strip-bot-text");
+  // Phase D-2-f — defensive guard. The strip lives on /dashboard-v2 only;
+  // on the combined /dashboard the strip elements are absent. Skip silently
+  // so applyData can continue to renderBotThinking / Controls etc.
+  if (!botDot || !botTxt) return;
   if (ctrl?.killed)        { botDot.className = "dot err";  botTxt.textContent = "KILLED"; }
   else if (ctrl?.stopped)  { botDot.className = "dot err";  botTxt.textContent = "STOPPED"; }
   else if (ctrl?.paused)   { botDot.className = "dot warn"; botTxt.textContent = "PAUSED"; }
@@ -8675,6 +8728,8 @@ function renderKpis(ctrl, health, position, latest, summary, safetyBuffer) {
   // System health
   const allOk = health?.krakenOk && health?.bot === "running" && (health?.lastRunAge ?? 99) < 10;
   const el = document.getElementById("kpi-health");
+  // Phase D-2-f — defensive guard for combined /dashboard (KPI tiles absent).
+  if (!el) return;
   el.textContent = allOk ? "✓ Healthy" : "⚠ Degraded";
   el.className = "kpi-val " + (allOk ? "kpi-good" : "kpi-warn");
   setText("kpi-health-sub",
@@ -8738,6 +8793,8 @@ function renderKpis(ctrl, health, position, latest, summary, safetyBuffer) {
 
 function renderPosition(position, latest) {
   const el = document.getElementById("pos-body");
+  // Phase D-2-f — defensive guard for combined /dashboard (pos-body absent).
+  if (!el) return;
   if (!position?.open) {
     el.innerHTML = '<div class="card-empty">No open trade — bot is watching for the next entry signal.</div>';
     return;
@@ -8757,6 +8814,8 @@ function renderPosition(position, latest) {
 
 function renderDecision(latest) {
   const el = document.getElementById("dec-body");
+  // Phase D-2-f — defensive guard for combined /dashboard (dec-body absent).
+  if (!el) return;
   if (!latest) { el.innerHTML = '<div class="card-empty">No decision logged yet.</div>'; return; }
   const verdict = latest.type === "EXIT"
     ? "EXIT · " + (latest.exitReason || "—")
@@ -8773,6 +8832,8 @@ function renderDecision(latest) {
 
 function renderHealth(health) {
   const el = document.getElementById("health-body");
+  // Phase D-2-f — defensive guard for combined /dashboard (health-body absent).
+  if (!el) return;
   if (!health) { el.innerHTML = '<div class="card-empty">Health data unavailable.</div>'; return; }
   el.innerHTML =
     '<div class="card-row"><span class="card-row-label">Kraken API</span><span class="card-row-val" style="color:' + (health.krakenOk ? 'var(--green)' : 'var(--red)') + '">' + (health.kraken || "?") + ' · ' + (health.krakenLatency || "—") + 'ms</span></div>' +
@@ -8784,6 +8845,8 @@ function renderHealth(health) {
 function renderV2(latest) {
   const v2 = latest?.strategyV2;
   const el = document.getElementById("v2-body");
+  // Phase D-2-f — defensive guard for combined /dashboard (v2-body absent).
+  if (!el) return;
   if (!v2 || typeof v2 !== "object") {
     el.innerHTML = '<div class="card-empty">No V2 shadow data yet.</div>';
     return;
