@@ -7331,6 +7331,19 @@ async function switchMode(toLive) {
 // /api/live-summary, /api/control). Every control button renders disabled with
 // a "Preview only" badge — Phase B will wire actions through the Phase 3
 // typed-confirm gate. Strategy V2 stays shadow-only end to end.
+
+// Phase D-2-b — frozen v2 backup wrapper.
+// /dashboard-v2 routes through this wrapper instead of calling dashboardV2HTML
+// directly. While /dashboard is still on dashboardV2HTML the two are visually
+// identical, but they are now independent function references so future D-2
+// phases (D-2-d onward) can change /dashboard's body without touching this
+// backup URL. Once /dashboard switches to dashboardCombinedHTML, the function
+// dashboardV2HTML below becomes reachable ONLY through this wrapper — at that
+// point it must not be edited under D-2 work or the backup will drift.
+function dashboardV2BackupHTML(initial) {
+  return dashboardV2HTML(initial);
+}
+
 function dashboardV2HTML(initial) {
   const ctrl    = initial?.control || {};
   const isPaper = ctrl.paperTrading !== false;
@@ -10057,18 +10070,33 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // ── /dashboard + /dashboard-v2 — command center (cutover) ──────────────
-  // Cutover: /dashboard now serves the v2 command center. /dashboard-v2 is
-  // kept as an alias so existing bookmarks and the recent QA links still
-  // work. Server-renders inline data from buildV2DashboardPayload(), the
-  // same builder /api/v2/dashboard uses. Client polls /api/v2/dashboard
-  // every 5 s. No POSTs, no SSE writes.
-  if (req.url === "/dashboard" || req.url === "/dashboard-v2") {
+  // ── /dashboard — command center (cutover) ──────────────────────────────
+  // Cutover: /dashboard now serves the v2 command center. Server-renders
+  // inline data from buildV2DashboardPayload(), the same builder
+  // /api/v2/dashboard uses. Client polls /api/v2/dashboard every 5 s.
+  // No POSTs, no SSE writes.
+  if (req.url === "/dashboard") {
     res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
     let initial = null;
     try { initial = await buildV2DashboardPayload(); }
     catch (e) { initial = { error: e.message }; }
     res.end(dashboardV2HTML(initial));
+    return;
+  }
+
+  // ── /dashboard-v2 — frozen backup of the current command center (D-2-b)
+  // /dashboard-v2 is intentionally split off from /dashboard's handler so
+  // that future D-2 phases can change /dashboard's body without changing
+  // this URL. dashboardV2BackupHTML is a thin wrapper that delegates to the
+  // current dashboardV2HTML; once /dashboard switches to the new combined
+  // view in D-2-d, dashboardV2HTML becomes unreachable except through this
+  // backup URL — at which point it MUST NOT be edited under D-2 work.
+  if (req.url === "/dashboard-v2") {
+    res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
+    let initial = null;
+    try { initial = await buildV2DashboardPayload(); }
+    catch (e) { initial = { error: e.message }; }
+    res.end(dashboardV2BackupHTML(initial));
     return;
   }
 
