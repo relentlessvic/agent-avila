@@ -7544,6 +7544,30 @@ function dashboardV2HTML(initial) {
   .placeholder-icon { font-size:42px; margin-bottom:12px; line-height:1; }
   .placeholder-title { font-size:16px; font-weight:700; color:var(--text); margin-bottom:8px; letter-spacing:0.3px; }
   .placeholder-body { color:var(--muted); font-size:14px; line-height:1.5; max-width:480px; margin:0 auto; }
+
+  /* Phase D-1-b — Bot Thinking tab. Visual language consistent with the
+     existing .card rows; one new interpretive-note style and a list. */
+  .bt-card { padding:14px 18px; }
+  .bt-score { font-size:14px; color:var(--text); margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+  .bt-section-label { font-size:11px; text-transform:uppercase; color:var(--muted); margin-top:8px; margin-bottom:4px; letter-spacing:0.06em; }
+  .bt-list { list-style:none; padding:0; margin:0; font-size:13px; }
+  .bt-list li { padding:4px 0; color:var(--text); }
+  .bt-pts { font-size:11px; color:var(--muted); margin-left:6px; }
+  .bt-context { font-size:11px; color:var(--muted); margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  .bt-interpretive-note {
+    font-size:12px; color:var(--yellow); font-style:italic;
+    margin-bottom:10px; padding:8px 12px;
+    background:rgba(255,193,7,0.06); border-left:2px solid var(--yellow);
+    border-radius:0 6px 6px 0; line-height:1.45;
+  }
+  .bt-verdict { font-size:18px; font-weight:700; margin-bottom:10px; line-height:1.3; }
+  .bt-raw {
+    background:rgba(255,255,255,0.04); padding:8px 10px; border-radius:6px;
+    font-family:ui-monospace,Menlo,Monaco,monospace; font-size:11px;
+    color:var(--muted); white-space:pre-wrap; word-break:break-word;
+    border:1px solid var(--line);
+  }
+  .bt-raw-label { font-size:11px; color:var(--yellow); margin-bottom:6px; font-style:italic; }
 </style>
 </head>
 <body>
@@ -7728,10 +7752,34 @@ function dashboardV2HTML(initial) {
        only a one-line "coming next" card so the route is wired and the
        tab bar feels complete. No data sources are added by these panes. -->
   <section class="tab-pane" id="tab-bot-thinking" role="tabpanel" aria-labelledby="tab-bot-thinking">
-    <div class="card placeholder-card">
-      <div class="placeholder-icon">🤖</div>
-      <div class="placeholder-title">Bot Thinking</div>
-      <div class="placeholder-body">Coming next — plain-English bot reasoning.</div>
+    <!-- Phase D-1-b — Bot Thinking. Read-only plain-English explanation
+         derived entirely from the existing /api/v2/dashboard payload.
+         No POSTs, no new endpoints, no bot.js coupling. -->
+    <div class="card bt-card">
+      <div class="card-title">📍 Right Now</div>
+      <div id="bt-rightnow"><div class="card-empty">Loading…</div></div>
+    </div>
+    <div class="card bt-card">
+      <div class="card-title" id="bt-why-title">🤔 Why It Skipped or Traded</div>
+      <div id="bt-why"><div class="card-empty">Loading…</div></div>
+    </div>
+    <div class="card bt-card">
+      <div class="card-title">🎯 Next Trade Waiting For</div>
+      <div class="bt-interpretive-note">Based on the last bot check, it appears to be waiting for the conditions below. The bot's entry rules can adapt cycle-to-cycle, so this reflects the most recent reasoning rather than a guaranteed trigger.</div>
+      <div id="bt-waiting"><div class="card-empty">Loading…</div></div>
+    </div>
+    <div class="card bt-card">
+      <div class="card-title">🛡 Risk Status</div>
+      <div id="bt-risk"><div class="card-empty">Loading…</div></div>
+    </div>
+    <div class="card bt-card">
+      <div class="card-title">🛰 Strategy V2 — Shadow Only</div>
+      <div class="v2-disclaimer">Shadow only — informational only — does not place orders.</div>
+      <div id="bt-v2"><div class="card-empty">Loading…</div></div>
+    </div>
+    <div class="card bt-card">
+      <div class="card-title">✅ Is the Bot Safe to Keep Running?</div>
+      <div id="bt-safe"><div class="card-empty">Loading…</div></div>
     </div>
   </section>
 
@@ -7961,6 +8009,274 @@ function renderV2(latest) {
     skip;
 }
 
+// Phase D-1-b — Bot Thinking helpers. Defensive parser + plain-English
+// translator. Read-only: never POSTs, never mutates state, never imports
+// from bot.js. Per Codex guardrails:
+//  - parser wrapped in try/catch; unknown tokens silently ignored
+//  - parseFailed → display escaped raw decisionLog
+//  - never hardcode the score threshold (75) or RSI cutoff (35) — read from
+//    the parsed decisionLog itself or perfState.adaptedThreshold
+//  - all dynamic text escaped via btEsc()
+//  - V2 surfaced read-only with the unconditional shadow disclaimer
+//  - "Next trade waiting for" prefaced as interpretive
+function btEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+const BT_CONDITION_PLAIN = {
+  "ema trend":     "Price uptrend (EMA(8) rising)",
+  "ema":           "Price uptrend (EMA(8) rising)",
+  "rsi dip":       "RSI(3) showing oversold dip",
+  "rsi":           "RSI(3) showing oversold dip",
+  "vwap support":  "VWAP buyers in control",
+  "vwap":          "VWAP buyers in control",
+  "not extended":  "Price not stretched from recent peaks",
+};
+function btConditionPlain(name) {
+  if (!name) return "—";
+  const key = String(name).toLowerCase().trim();
+  return BT_CONDITION_PLAIN[key] || name;
+}
+function btParseDecisionLog(str) {
+  if (!str || typeof str !== "string") return { parseFailed: true, raw: "" };
+  try {
+    const segments = str.split("|").map(s => s.trim()).filter(Boolean);
+    if (segments.length === 0) throw new Error("empty");
+    const result = {
+      verdict: null, conditions: [], total: null, threshold: null,
+      regime: null, leverage: null, missing: [], parseFailed: false, raw: str,
+    };
+    result.verdict = segments[0].replace(/^[^A-Za-z]+/, "").trim() || segments[0];
+    // NOTE: this script body lives inside a backtick template literal in
+    // dashboard.js, which silently swallows unknown JS escape sequences in
+    // regex literals (\\d → d, \\s → s, \\/ → /). Use double-escaped forms
+    // here so the *emitted* regex receives \\d, \\s, \\/ as intended.
+    for (let i = 1; i < segments.length; i++) {
+      const seg = segments[i];
+      let m;
+      if      ((m = seg.match(/^TOTAL SCORE:\\s*(\\d+)\\s*\\/\\s*\\d+/i))) result.total = parseInt(m[1], 10);
+      else if ((m = seg.match(/^THRESHOLD:\\s*(\\d+)/i)))                   result.threshold = parseInt(m[1], 10);
+      else if ((m = seg.match(/^REGIME:\\s*(.+)/i)))                       result.regime = m[1].trim();
+      else if ((m = seg.match(/^LEVERAGE:\\s*(.+)/i)))                     result.leverage = m[1].trim();
+      else if ((m = seg.match(/^MISSING:\\s*(.+)/i)))                      result.missing = m[1].split(",").map(s => s.trim()).filter(Boolean);
+      else if ((m = seg.match(/^([^:]+):\\s*\\+?(-?\\d+)\\s*$/)))           result.conditions.push({ name: m[1].trim(), points: parseInt(m[2], 10) });
+      // unknown segments silently ignored
+    }
+    return result;
+  } catch (e) {
+    return { parseFailed: true, raw: str };
+  }
+}
+
+function renderBtRightNow(ctrl, latest, parsed) {
+  const el = document.getElementById("bt-rightnow");
+  if (!el) return;
+  if (!latest) { el.innerHTML = '<div class="card-empty">No bot cycle logged yet.</div>'; return; }
+  const price = latest.price != null ? "$" + Number(latest.price).toFixed(4) : "—";
+  const regime = parsed && !parsed.parseFailed && parsed.regime ? btEsc(parsed.regime) : "—";
+  const ago = timeAgo(latest.timestamp);
+  const verdictRaw = parsed && !parsed.parseFailed && parsed.verdict
+    ? parsed.verdict
+    : (latest.type === "EXIT" ? "EXITED" : (latest.allPass ? "TRADE FIRED" : "SKIPPED"));
+  const score = (parsed && !parsed.parseFailed && parsed.total != null && parsed.threshold != null)
+    ? parsed.total + "/100 (needs " + parsed.threshold + ")" : "";
+  const modeLabel = ctrl?.paperTrading !== false ? "📋 PAPER" : "🔴 LIVE";
+  el.innerHTML =
+    '<div class="card-row"><span class="card-row-label">Mode</span><span class="card-row-val">' + modeLabel + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Current price</span><span class="card-row-val">' + price + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Market regime</span><span class="card-row-val">' + regime + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Last cycle</span><span class="card-row-val">' + ago + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Verdict</span><span class="card-row-val">' + btEsc(verdictRaw) + (score ? ' <span class="bt-pts">' + score + '</span>' : '') + '</span></div>';
+}
+
+function renderBtWhy(latest, parsed) {
+  const titleEl = document.getElementById("bt-why-title");
+  const bodyEl = document.getElementById("bt-why");
+  if (!bodyEl) return;
+  if (!latest) { bodyEl.innerHTML = '<div class="card-empty">No bot decision logged yet.</div>'; return; }
+  const verb = latest.type === "EXIT" ? "Exited"
+             : (parsed && !parsed.parseFailed && parsed.verdict && parsed.verdict.toUpperCase().includes("TRADE")) ? "Traded"
+             : (latest.allPass ? "Traded" : "Skipped");
+  if (titleEl) titleEl.textContent = "🤔 Why It " + verb;
+  if (parsed && parsed.parseFailed) {
+    bodyEl.innerHTML =
+      '<div class="bt-raw-label">Raw — parsing failed:</div>' +
+      '<div class="bt-raw">' + btEsc(parsed.raw) + '</div>';
+    return;
+  }
+  let html = '';
+  if (parsed.total != null && parsed.threshold != null) {
+    const passed = parsed.total >= parsed.threshold;
+    html += '<div class="bt-score">Score: <strong>' + parsed.total + '/100</strong> — needs ' + parsed.threshold + (passed ? ' ✓' : ' (not met)') + '</div>';
+  }
+  if (latest.type === "EXIT" && latest.exitReason) {
+    html += '<div class="bt-context" style="margin-top:0;border-top:0;padding-top:0">Exit reason: <strong>' + btEsc(latest.exitReason) + '</strong></div>';
+  }
+  if (parsed.conditions && parsed.conditions.length > 0) {
+    const passedC = parsed.conditions.filter(c => c.points > 0);
+    const failedC = parsed.conditions.filter(c => c.points <= 0);
+    if (passedC.length > 0) {
+      html += '<div class="bt-section-label">✓ Passed</div><ul class="bt-list">';
+      for (const c of passedC) html += '<li>🟢 ' + btEsc(btConditionPlain(c.name)) + ' <span class="bt-pts">+' + c.points + ' pts · ' + btEsc(c.name) + '</span></li>';
+      html += '</ul>';
+    }
+    if (failedC.length > 0) {
+      html += '<div class="bt-section-label">✗ Did not pass</div><ul class="bt-list">';
+      for (const c of failedC) html += '<li>🔴 ' + btEsc(btConditionPlain(c.name)) + ' <span class="bt-pts">+' + c.points + ' pts · ' + btEsc(c.name) + '</span></li>';
+      html += '</ul>';
+    }
+  } else if (latest.type !== "EXIT") {
+    html += '<div class="card-empty">No condition breakdown available for this cycle.</div>';
+  }
+  if (parsed.regime || parsed.leverage) {
+    html += '<div class="bt-context">' + (parsed.regime ? 'Regime: <strong>' + btEsc(parsed.regime) + '</strong>' : '') +
+            (parsed.regime && parsed.leverage ? ' · ' : '') +
+            (parsed.leverage ? 'Leverage: <strong>' + btEsc(parsed.leverage) + '</strong>' : '') + '</div>';
+  }
+  bodyEl.innerHTML = html || '<div class="card-empty">No further detail.</div>';
+}
+
+function renderBtWaiting(latest, parsed) {
+  const el = document.getElementById("bt-waiting");
+  if (!el) return;
+  if (!latest || !parsed || parsed.parseFailed) {
+    el.innerHTML = '<div class="card-empty">No data on what the bot is waiting for.</div>';
+    return;
+  }
+  if (latest.type === "EXIT") {
+    el.innerHTML = '<div class="card-empty">Bot just exited a position. Watching for the next entry signal.</div>';
+    return;
+  }
+  if (parsed.verdict && parsed.verdict.toUpperCase().includes("TRADE")) {
+    el.innerHTML = '<div class="card-empty">Bot just opened a trade. Monitoring exit conditions.</div>';
+    return;
+  }
+  if (Array.isArray(parsed.missing) && parsed.missing.length > 0) {
+    let html = '<ul class="bt-list">';
+    for (const item of parsed.missing) html += '<li>▸ ' + btEsc(item) + '</li>';
+    html += '</ul>';
+    if (parsed.threshold != null && parsed.total != null) {
+      const gap = parsed.threshold - parsed.total;
+      html += '<div class="bt-context">Score gap: needs ' + Math.max(0, gap) + ' more points before threshold (' + parsed.threshold + ').</div>';
+    }
+    el.innerHTML = html;
+  } else {
+    el.innerHTML = '<div class="card-empty">No specific conditions listed in the latest cycle.</div>';
+  }
+}
+
+function renderBtRisk(ctrl, sb) {
+  const el = document.getElementById("bt-risk");
+  if (!el) return;
+  const cap = Number(sb?.capPct ?? ctrl?.maxDailyLossPct ?? 3);
+  const realized = Number(sb?.realizedLossTodayPct ?? 0);
+  const unrealized = Number(sb?.unrealizedLossPct ?? 0);
+  const remainingSoft = Number(sb?.remainingSoftPct ?? cap);
+  const consec = ctrl?.consecutiveLosses ?? 0;
+  const pauseAt = ctrl?.pauseAfterLosses ?? null;
+  const bufferIcon = remainingSoft > cap * 0.5 ? "🟢" : remainingSoft > 0 ? "🟡" : "🔴";
+  const cooldownState = ctrl?.lastTradeTime ? "⏳ active" : "✓ clear";
+  const killedState = ctrl?.killed ? "🚨 ACTIVE — bot halted" : "🛡 armed";
+  let html = '';
+  html += '<div class="card-row"><span class="card-row-label">Daily-loss buffer</span><span class="card-row-val">' + bufferIcon + ' ' + remainingSoft.toFixed(2) + '% of ' + cap + '% cap</span></div>';
+  html += '<div class="card-row" style="font-size:11px"><span class="card-row-label" style="padding-left:14px">↳ Realized today</span><span class="card-row-val">' + realized.toFixed(2) + '%</span></div>';
+  if (unrealized > 0) {
+    html += '<div class="card-row" style="font-size:11px"><span class="card-row-label" style="padding-left:14px">↳ Unrealized open</span><span class="card-row-val">' + unrealized.toFixed(2) + '%</span></div>';
+  }
+  html += '<div class="card-row"><span class="card-row-label">Consecutive losses</span><span class="card-row-val">' + consec + (pauseAt != null ? ' (auto-pauses at ' + pauseAt + ')' : '') + '</span></div>';
+  html += '<div class="card-row"><span class="card-row-label">Kill switch</span><span class="card-row-val">' + killedState + '</span></div>';
+  html += '<div class="card-row"><span class="card-row-label">Cooldown</span><span class="card-row-val">' + cooldownState + '</span></div>';
+  el.innerHTML = html;
+}
+
+function renderBtV2(latest) {
+  const el = document.getElementById("bt-v2");
+  if (!el) return;
+  const v2 = latest?.strategyV2;
+  if (!v2 || typeof v2 !== "object") {
+    el.innerHTML = '<div class="card-empty">No V2 shadow data yet.</div>';
+    return;
+  }
+  const tIcon = (t) => t === "bullish" ? "📈" : t === "bearish" ? "📉" : "—";
+  const cIcon = (b) => b ? "✓" : "✗";
+  const cCol  = (b) => b ? "var(--green)" : "var(--muted)";
+  const decision = String(v2.decision || "NO_TRADE");
+  let html = '';
+  html += '<div class="card-row"><span class="card-row-label">4H trend</span><span class="card-row-val">' + tIcon(v2.trend4h) + ' ' + btEsc(v2.trend4h || "—") + '</span></div>';
+  html += '<div class="card-row"><span class="card-row-label">15M trend</span><span class="card-row-val">' + tIcon(v2.trend15m) + ' ' + btEsc(v2.trend15m || "—") + '</span></div>';
+  html += '<div class="card-row"><span class="card-row-label">Liquidity sweep</span><span class="card-row-val" style="color:' + cCol(v2.sweep?.detected) + '">' + cIcon(v2.sweep?.detected) + ' ' + (v2.sweep?.detected ? "detected" : "not detected") + '</span></div>';
+  html += '<div class="card-row"><span class="card-row-label">5M BOS</span><span class="card-row-val" style="color:' + cCol(v2.bos?.detected) + '">' + cIcon(v2.bos?.detected) + ' ' + (v2.bos?.detected ? "confirmed" : "not confirmed") + '</span></div>';
+  html += '<div class="card-row"><span class="card-row-label">Pullback</span><span class="card-row-val" style="color:' + cCol(v2.pullback?.ok) + '">' + cIcon(v2.pullback?.ok) + ' ' + (v2.pullback?.ok ? "valid" : "not valid") + '</span></div>';
+  html += '<div class="card-row"><span class="card-row-label">V2 verdict</span><span class="card-row-val" style="font-weight:700">' + btEsc(decision) + ' (shadow)</span></div>';
+  if (v2.skipReason) {
+    html += '<div class="card-row"><span class="card-row-label">Reason</span><span class="card-row-val" style="font-size:11px;text-align:right;max-width:60%">' + btEsc(v2.skipReason) + '</span></div>';
+  }
+  if (v2.setupQuality) {
+    html += '<div class="card-row"><span class="card-row-label">Setup quality</span><span class="card-row-val">' + btEsc(v2.setupQuality) + '</span></div>';
+  }
+  el.innerHTML = html;
+}
+
+function renderBtSafe(ctrl, health, sb) {
+  const el = document.getElementById("bt-safe");
+  if (!el) return;
+  const cap = Number(sb?.capPct ?? ctrl?.maxDailyLossPct ?? 3);
+  const remainingSoft = Number(sb?.remainingSoftPct ?? cap);
+  const lastRunAge = health?.lastRunAge;
+  const krakenLatency = health?.krakenLatency;
+  const krakenOk = health?.krakenOk !== false;
+  const consec = ctrl?.consecutiveLosses ?? 0;
+  let verdictText = "✅ SAFE — clear to keep running";
+  let verdictColor = "var(--green)";
+  if (ctrl?.killed) {
+    verdictText = "🚨 HALTED — kill switch active. Reset before continuing.";
+    verdictColor = "var(--red)";
+  } else if (ctrl?.stopped) {
+    verdictText = "🚨 STOPPED — bot is not running.";
+    verdictColor = "var(--red)";
+  } else if (lastRunAge != null && lastRunAge > 15) {
+    verdictText = "🚨 STALE — no bot cycle in over 15 minutes.";
+    verdictColor = "var(--red)";
+  } else if (remainingSoft <= 0) {
+    verdictText = "🚨 NO BUFFER — daily-loss cap exhausted.";
+    verdictColor = "var(--red)";
+  } else if (
+    (lastRunAge != null && lastRunAge > 10) ||
+    (krakenLatency != null && krakenLatency > 1000) ||
+    !krakenOk ||
+    remainingSoft < cap * 0.5 ||
+    consec > 0
+  ) {
+    verdictText = "⚠ DEGRADED — keep an eye on it.";
+    verdictColor = "var(--yellow)";
+  }
+  const ws = health?.websocket || "—";
+  const lat = krakenLatency != null ? krakenLatency + "ms" : "—";
+  const age = lastRunAge != null ? Math.round(lastRunAge) + "m" : "—";
+  el.innerHTML =
+    '<div class="bt-verdict" style="color:' + verdictColor + '">' + btEsc(verdictText) + '</div>' +
+    '<div class="card-row"><span class="card-row-label">Kraken latency</span><span class="card-row-val">' + lat + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">WebSocket</span><span class="card-row-val">' + btEsc(ws) + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Last bot cycle</span><span class="card-row-val">' + age + ' ago</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Buffer remaining</span><span class="card-row-val">' + remainingSoft.toFixed(2) + '% / ' + cap + '%</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Consecutive losses</span><span class="card-row-val">' + consec + '</span></div>';
+}
+
+function renderBotThinking(d) {
+  const ctrl = d?.control || {};
+  const health = d?.health || {};
+  const latest = d?.latest;
+  const sb = d?.safetyBuffer || {};
+  const parsed = latest ? btParseDecisionLog(latest.decisionLog) : null;
+  renderBtRightNow(ctrl, latest, parsed);
+  renderBtWhy(latest, parsed);
+  renderBtWaiting(latest, parsed);
+  renderBtRisk(ctrl, sb);
+  renderBtV2(latest);
+  renderBtSafe(ctrl, health, sb);
+}
+
 function applyData({ control, health, summary, latest, position, safetyBuffer }) {
   if (control) _lastCtrl = control;
   if (control)  renderStrip(control, health, latest);
@@ -7969,6 +8285,8 @@ function applyData({ control, health, summary, latest, position, safetyBuffer })
   renderDecision(latest);
   if (health)   renderHealth(health);
   renderV2(latest);
+  // Phase D-1-b — Bot Thinking tab. Read-only, derived from the same payload.
+  renderBotThinking({ control, health, summary, latest, position, safetyBuffer });
 
   // Stale banner — turn on if last cycle > 60s
   const banner = document.getElementById("stale-banner");
