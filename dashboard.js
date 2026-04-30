@@ -7559,6 +7559,40 @@ function dashboardV2HTML(initial) {
   .placeholder-title { font-size:16px; font-weight:700; color:var(--text); margin-bottom:8px; letter-spacing:0.3px; }
   .placeholder-body { color:var(--muted); font-size:14px; line-height:1.5; max-width:480px; margin:0 auto; }
 
+  /* Phase D-1-e-1 — Performance tab segmented mode tabs + bot-recorded
+     P&L caveat. KPI grid reuses the existing .kpis / .kpi rules from the
+     Hero KPI Strip — five tiles in one row, two-up on narrow viewports. */
+  .perf-seg-row {
+    display:flex; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .perf-seg-label {
+    font-size:11px; color:var(--muted);
+    text-transform:uppercase; letter-spacing:0.08em;
+  }
+  .perf-seg-group {
+    display:inline-flex;
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--line);
+    border-radius:999px; padding:3px; gap:2px;
+  }
+  .perf-seg {
+    padding:6px 18px; border-radius:999px; border:0;
+    background:transparent; color:var(--muted);
+    font-family:inherit; font-size:12px; font-weight:600; letter-spacing:0.4px;
+    cursor:pointer;
+    transition:background 0.15s, color 0.15s;
+  }
+  .perf-seg:hover:not(.active) { color:var(--text); background:rgba(255,255,255,0.04); }
+  .perf-seg.active {
+    background:var(--accent-soft); color:var(--accent);
+    box-shadow:0 1px 4px rgba(0,0,0,0.18) inset;
+  }
+  .perf-seg:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .perf-context {
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
+  }
+
   /* Phase D-1-b — Bot Thinking tab. Visual language consistent with the
      existing .card rows; one new interpretive-note style and a list. */
   .bt-card { padding:14px 18px; }
@@ -7806,10 +7840,50 @@ function dashboardV2HTML(initial) {
   </section>
 
   <section class="tab-pane" id="tab-performance" role="tabpanel" aria-labelledby="tab-performance">
-    <div class="card placeholder-card">
-      <div class="placeholder-icon">📊</div>
-      <div class="placeholder-title">Performance</div>
-      <div class="placeholder-body">Coming next — strategy and trade performance.</div>
+    <!-- Phase D-1-e-1 — Performance tab (KPI tiles only). Read-only, no
+         new endpoints, no POST. Reads /api/paper-summary or /api/live-summary
+         (already shipped, mode-scoped) based on the segmented tab below.
+         Profit Factor + Realized Drawdown computed client-side from the
+         mode-filtered EXIT entries in summary.recentTrades. perfState is
+         intentionally NOT read here (mode-blind). -->
+    <div class="perf-seg-row">
+      <span class="perf-seg-label">Showing performance for:</span>
+      <div class="perf-seg-group" role="tablist" aria-label="Performance mode">
+        <button class="perf-seg" type="button" role="tab" data-perf-mode="paper">Paper</button>
+        <button class="perf-seg" type="button" role="tab" data-perf-mode="live">Live</button>
+      </div>
+    </div>
+
+    <div class="kpis perf-kpis">
+      <div class="kpi">
+        <div class="kpi-label">Today's P&amp;L</div>
+        <div class="kpi-val" id="pf-today">—</div>
+        <div class="kpi-sub">today's results · bot-recorded</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Win Rate</div>
+        <div class="kpi-val" id="pf-winrate">—</div>
+        <div class="kpi-sub" id="pf-winrate-sub">how often the bot wins</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Profit Factor</div>
+        <div class="kpi-val" id="pf-profitfactor">—</div>
+        <div class="kpi-sub" id="pf-profitfactor-sub">$ made per $ lost</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">All-time P&amp;L</div>
+        <div class="kpi-val" id="pf-alltime">—</div>
+        <div class="kpi-sub">total · bot-recorded</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Realized Drawdown</div>
+        <div class="kpi-val" id="pf-drawdown">—</div>
+        <div class="kpi-sub" id="pf-drawdown-sub">peak-to-trough · closed exits</div>
+      </div>
+    </div>
+
+    <div class="perf-context">
+      <strong>Note:</strong> P&amp;L values are bot-recorded and may differ from the broker on live trades due to fees and slippage. Live mode reconciliation lives on <a href="/live" style="color:var(--accent)">/live</a>. This tab will gain a Recent Trades table, condition pass-rates heatmap, and a Strategy V2 shadow comparison in follow-up phases.
     </div>
   </section>
 
@@ -7828,6 +7902,15 @@ function dashboardV2HTML(initial) {
 // No POST. No SSE writes. No /api/control, /api/trade, /api/run-bot.
 window.__INIT__ = ${initialJson};
 let _lastTickAt = Date.now();
+// Phase C-3 / D-1-e-1 — last-seen control snapshot. Hoisted ABOVE the
+// initial activateTab() call below so handlers wired into tab activation
+// (e.g. initPerfModeIfNeeded) can read it without hitting the TDZ.
+let _lastCtrl = window.__INIT__?.control ?? null;
+// Phase D-1-e-1 — Performance tab state. Hoisted for the same TDZ reason:
+// activateTab("performance") on initial hash-load triggers initPerfModeIfNeeded
+// which reads these.
+let _perfMode = null;
+const _perfCache = { paper: null, live: null };
 
 // Phase D-1-a — tab routing via URL hash. Hashes: #overview, #bot-thinking,
 // #controls, #performance, #advanced. Default = overview. Invalid hash falls
@@ -7838,6 +7921,8 @@ function activateTab(name) {
   if (!TAB_NAMES.includes(name)) name = "overview";
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
   document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === "tab-" + name));
+  // Phase D-1-e-1 — populate the Performance tab the first time it's opened.
+  if (name === "performance" && typeof initPerfModeIfNeeded === "function") initPerfModeIfNeeded();
 }
 document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
   const name = t.dataset.tab;
@@ -7851,10 +7936,6 @@ window.addEventListener("hashchange", () => {
   activateTab(window.location.hash.slice(1) || "overview");
 });
 activateTab(window.location.hash.slice(1) || "overview");
-// Phase C-3 — last seen control snapshot. Confirms-and-mode-aware handlers
-// read this to decide whether the typed-CONFIRM gate applies (live) or a
-// simple confirm is enough (paper). Updated on every applyData tick.
-let _lastCtrl = window.__INIT__?.control ?? null;
 
 function fmtMoney(n) { if (n == null || isNaN(n)) return "—"; const sign = n >= 0 ? "+" : "−"; return sign + "$" + Math.abs(n).toFixed(2); }
 function fmtPct(n)   { if (n == null || isNaN(n)) return "—"; return (n >= 0 ? "+" : "") + n.toFixed(2) + "%"; }
@@ -8277,6 +8358,171 @@ function renderBtSafe(ctrl, health, sb) {
     '<div class="card-row"><span class="card-row-label">Consecutive losses</span><span class="card-row-val">' + consec + '</span></div>';
 }
 
+// Phase D-1-e-1 — Performance tab. Read-only KPI tiles only (Today's P&L,
+// Win Rate, Profit Factor, All-time P&L, Realized Drawdown). Reads
+// /api/paper-summary or /api/live-summary — both already shipped, both
+// mode-scoped. Profit Factor + Realized Drawdown computed client-side from
+// the recentTrades EXIT entries. Never reads perfState.* (mode-blind).
+// State (_perfMode, _perfCache) is hoisted above activateTab — see top of
+// this script — so the initial activateTab("performance") on hash-load
+// can call initPerfModeIfNeeded without hitting the TDZ.
+
+function pfFmtMoney(n) {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const sign = n >= 0 ? "+" : "−";
+  return sign + "$" + Math.abs(n).toFixed(2);
+}
+function pfClassFor(n) {
+  if (n == null || !Number.isFinite(n)) return "kpi-val";
+  if (n > 0) return "kpi-val kpi-good";
+  if (n < 0) return "kpi-val kpi-bad";
+  return "kpi-val";
+}
+
+function pfComputeProfitFactor(exits) {
+  if (!Array.isArray(exits) || exits.length === 0) {
+    return { label: "—", subLabel: "no recent EXITs in last 30 cycles" };
+  }
+  let gp = 0, gl = 0, count = 0;
+  for (const e of exits) {
+    if (e.orderPlaced !== true) continue;
+    const pnl = parseFloat(e.pnlUSD);
+    if (!Number.isFinite(pnl)) continue;
+    count++;
+    if (pnl > 0) gp += pnl;
+    else if (pnl < 0) gl += -pnl;
+  }
+  if (count === 0) return { label: "—", subLabel: "no recent EXITs in last 30 cycles" };
+  if (gl === 0) {
+    if (gp === 0) return { label: "—", subLabel: "no realized P&L yet" };
+    return { label: "∞", subLabel: "no losing exits" };
+  }
+  const ratio = gp / gl;
+  return { label: ratio.toFixed(2), subLabel: "$ made per $ lost" };
+}
+
+function pfComputeRealizedDrawdown(chronoExits) {
+  if (!Array.isArray(chronoExits) || chronoExits.length < 5) {
+    return { label: "—", subLabel: "needs more closed trades" };
+  }
+  let cum = 0, peak = 0, maxDD = 0, count = 0;
+  for (const e of chronoExits) {
+    if (e.orderPlaced !== true) continue;
+    const pnl = parseFloat(e.pnlUSD);
+    if (!Number.isFinite(pnl)) continue;
+    cum += pnl;
+    if (cum > peak) peak = cum;
+    const dd = peak - cum;
+    if (dd > maxDD) maxDD = dd;
+    count++;
+  }
+  if (count < 5) return { label: "—", subLabel: "needs more closed trades" };
+  return { label: "$" + maxDD.toFixed(2), subLabel: "peak-to-trough · last " + count + " exits" };
+}
+
+async function pfFetch(mode) {
+  if (mode !== "paper" && mode !== "live") return;
+  try {
+    const r = await fetch("/api/" + mode + "-summary", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const j = await r.json();
+    _perfCache[mode] = j?.data ?? j;
+    if (_perfMode === mode) renderPerformance();
+  } catch (e) { /* keep prior cache */ }
+}
+
+function renderPerformanceLoading() {
+  for (const id of ["pf-today","pf-winrate","pf-profitfactor","pf-alltime","pf-drawdown"]) {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = "…"; el.className = "kpi-val"; }
+  }
+}
+
+function renderPerformance() {
+  const data = _perfCache[_perfMode];
+  if (!data) return renderPerformanceLoading();
+
+  // Today's P&L (mode-scoped, server-computed)
+  const todayUsd = Number.isFinite(data?.pnl?.todayUsd) ? data.pnl.todayUsd : 0;
+  const todayEl = document.getElementById("pf-today");
+  if (todayEl) {
+    todayEl.textContent = pfFmtMoney(todayUsd);
+    todayEl.className = pfClassFor(todayUsd);
+  }
+
+  // Win Rate (mode-scoped via modeScopedSummary's filter)
+  const wl = data?.winLoss || {};
+  const wlEl = document.getElementById("pf-winrate");
+  const wlSub = document.getElementById("pf-winrate-sub");
+  if (wl.total > 0 && Number.isFinite(wl.winRate)) {
+    wlEl.textContent = wl.winRate.toFixed(0) + "%";
+    wlEl.className = wl.winRate >= 50 ? "kpi-val kpi-good" : wl.winRate >= 30 ? "kpi-val kpi-warn" : "kpi-val kpi-bad";
+    if (wlSub) wlSub.textContent = (wl.wins ?? 0) + "W / " + (wl.losses ?? 0) + "L · " + wl.total + " closed";
+  } else {
+    wlEl.textContent = "—";
+    wlEl.className = "kpi-val";
+    if (wlSub) wlSub.textContent = "no closed trades yet";
+  }
+
+  // Profit Factor (computed from mode-filtered EXIT entries)
+  const exits = (data.recentTrades || []).filter(t => t && t.type === "EXIT");
+  const pf = pfComputeProfitFactor(exits);
+  const pfEl = document.getElementById("pf-profitfactor");
+  const pfSub = document.getElementById("pf-profitfactor-sub");
+  if (pfEl) {
+    pfEl.textContent = pf.label;
+    pfEl.className = "kpi-val" + (pf.label !== "—" && pf.label !== "∞" && parseFloat(pf.label) >= 1.5 ? " kpi-good" : pf.label === "∞" ? " kpi-good" : "");
+  }
+  if (pfSub) pfSub.textContent = pf.subLabel;
+
+  // All-time P&L (mode-scoped)
+  const totalUsd = Number.isFinite(data?.pnl?.totalUsd) ? data.pnl.totalUsd : 0;
+  const allEl = document.getElementById("pf-alltime");
+  if (allEl) {
+    allEl.textContent = pfFmtMoney(totalUsd);
+    allEl.className = pfClassFor(totalUsd);
+  }
+
+  // Realized Drawdown (computed peak-to-trough from chronologically-ordered EXIT entries)
+  // recentTrades is newest-first; reverse for chronological cumulative-equity walk.
+  const chronoExits = exits.slice().reverse();
+  const dd = pfComputeRealizedDrawdown(chronoExits);
+  const ddEl = document.getElementById("pf-drawdown");
+  const ddSub = document.getElementById("pf-drawdown-sub");
+  if (ddEl) {
+    ddEl.textContent = dd.label;
+    ddEl.className = dd.label === "—" ? "kpi-val" : "kpi-val kpi-warn";
+  }
+  if (ddSub) ddSub.textContent = dd.subLabel;
+}
+
+function setPerfMode(mode) {
+  if (mode !== "paper" && mode !== "live") return;
+  _perfMode = mode;
+  document.querySelectorAll(".perf-seg").forEach(b =>
+    b.classList.toggle("active", b.dataset.perfMode === mode));
+  if (_perfCache[mode]) renderPerformance(); else renderPerformanceLoading();
+  pfFetch(mode);
+}
+
+function initPerfModeIfNeeded() {
+  if (_perfMode != null) return;
+  // Default to current bot mode (paper unless explicitly live).
+  const startingMode = (_lastCtrl?.paperTrading === false) ? "live" : "paper";
+  setPerfMode(startingMode);
+}
+
+function refreshPerfIfActive() {
+  const active = document.querySelector(".tab.active")?.dataset?.tab;
+  if (active !== "performance") return;
+  initPerfModeIfNeeded();
+  pfFetch(_perfMode);
+}
+
+// Wire segmented-tab clicks once on script load.
+document.querySelectorAll(".perf-seg").forEach(b =>
+  b.addEventListener("click", () => setPerfMode(b.dataset.perfMode)));
+
 function renderBotThinking(d) {
   const ctrl = d?.control || {};
   const health = d?.health || {};
@@ -8506,6 +8752,10 @@ async function refresh() {
       safetyBuffer: d.safetyBuffer,
     });
   } catch (e) { /* keep prior values; next tick may succeed */ }
+  // Phase D-1-e-1 — Performance tab refresh, only when active (avoids
+  // hitting /api/live-summary's Kraken balance call every 5s when not
+  // viewing Performance).
+  refreshPerfIfActive();
 }
 refresh();
 setInterval(refresh, 5000);
