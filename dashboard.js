@@ -6942,14 +6942,37 @@ function maybeSelfHeal(latestTimestamp) {
 async function loadSummary() {
   try {
     const r = await fetch(API, { credentials: "same-origin" });
+    // Phase D-2-paper-json-fix-a — guard against non-JSON responses. The
+    // server auth catch-all returns 302 -> /login on session expiry; fetch
+    // follows the redirect transparently, lands on the login HTML page,
+    // and r.json() would otherwise throw "Unexpected token '<'..." which
+    // surfaces as a confusing "JSON parse error" in the balance and trades
+    // panels. Detect redirect-to-login or non-JSON content-type and surface
+    // a clear "session expired" message instead.
+    const ct = r.headers.get("content-type") || "";
+    const looksLikeLogin =
+      r.redirected ||
+      /\\/login(\\?|$)/.test(r.url || "") ||
+      !ct.includes("application/json");
+    if (looksLikeLogin) {
+      const err = new Error("Session expired — please reload and log in again.");
+      err.code = "session-expired";
+      throw err;
+    }
     if (!r.ok) throw new Error("HTTP " + r.status);
     const j = await r.json();
     if (!j.success) throw new Error(j.error || "load failed");
     render(j.data);
   } catch (e) {
-    document.getElementById("balance-stat").textContent = "Unavailable";
-    document.getElementById("balance-sub").textContent  = e.message;
-    document.getElementById("trades-body").innerHTML    = '<div class="empty">Unavailable: ' + escapeHtml(e.message) + '</div>';
+    if (e && e.code === "session-expired") {
+      document.getElementById("balance-stat").textContent = "Session expired";
+      document.getElementById("balance-sub").innerHTML    = 'Please <a href="/login" style="color:var(--accent)">reload and log in again</a>.';
+      document.getElementById("trades-body").innerHTML    = '<div class="empty">Session expired — please <a href="/login" style="color:var(--accent)">reload and log in again</a>.</div>';
+    } else {
+      document.getElementById("balance-stat").textContent = "Unavailable";
+      document.getElementById("balance-sub").textContent  = e.message;
+      document.getElementById("trades-body").innerHTML    = '<div class="empty">Unavailable: ' + escapeHtml(e.message) + '</div>';
+    }
     throw e;
   }
 }
@@ -8961,6 +8984,17 @@ async function pfFetch(mode) {
   if (mode !== "paper" && mode !== "live") return;
   try {
     const r = await fetch("/api/" + mode + "-summary", { credentials: "same-origin" });
+    // Phase D-2-paper-json-fix-a — same non-JSON guard as /paper's loadSummary.
+    // On session expiry the auth gate redirects to /login (HTML); without this
+    // guard, r.json() would throw and pollute the console with "Unexpected
+    // token '<'..." every poll tick. Silent return preserves the existing
+    // "keep prior cache" behavior for the Performance tab.
+    const ct = r.headers.get("content-type") || "";
+    const looksLikeLogin =
+      r.redirected ||
+      /\\/login(\\?|$)/.test(r.url || "") ||
+      !ct.includes("application/json");
+    if (looksLikeLogin) return;
     if (!r.ok) return;
     const j = await r.json();
     _perfCache[mode] = j?.data ?? j;
