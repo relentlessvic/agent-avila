@@ -438,12 +438,12 @@ async function buildV2DashboardPayload() {
       perfState:    latest.perfState ?? null,
       strategyV2:   latest.strategyV2 ?? null,
     } : null,
-    // Phase D-1-e-3 — last 15 cycle decisionLogs for the cycle-level
-    // condition pass-rate card. Mode-blind on purpose (decisionLog has no
-    // mode tag). Newest-first. Strings only — same field already shown in
-    // latest.decisionLog, just extended over a 15-row window.
+    // Phase D-1-e-3 / D-1-f-1 — recent cycle decisionLogs. The Conditions
+    // Pass Rates card caps internally at 15 cycles; the Advanced tab Raw
+    // Decision Log shows up to 30 (D-1-f-1). Mode-blind on purpose
+    // (decisionLog has no mode tag). Newest-first. Strings only.
     recentDecisionLogs: allTrades
-      .slice(-15)
+      .slice(-30)
       .map(t => ({ timestamp: t.timestamp ?? null, decisionLog: t.decisionLog ?? null }))
       .reverse(),
     // Phase D-1-e-4 — last 15 cycles' V1 outcome (allPass) + V2 verdict for
@@ -7618,6 +7618,56 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-f-1 — Advanced tab Raw Decision Log. Scrollable monospace
+     list of recent decisionLog strings. Read-only debug view; the sub-label
+     is load-bearing — operators must not read this as account performance. */
+  .adv-rawlog-card { padding:14px 18px; }
+  .adv-rawlog-card .card-title { margin-bottom:4px; }
+  .adv-rawlog-card .card-sublabel {
+    font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.45;
+  }
+  .adv-rawlog-list {
+    max-height: 480px; overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 6px;
+    background: rgba(0,0,0,0.18);
+  }
+  .adv-rawlog-row {
+    display: grid;
+    grid-template-columns: 80px 110px 1fr;
+    gap: 10px; align-items: start;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 11px;
+  }
+  .adv-rawlog-row:last-child { border-bottom: 0; }
+  .adv-rawlog-time {
+    color: var(--muted); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .adv-rawlog-verdict {
+    font-weight: 600; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 2px 6px; border-radius: 3px;
+    display: inline-block; line-height: 1.3;
+    word-break: break-word;
+  }
+  .adv-rawlog-verdict.trade   { background: rgba(46,204,113,0.15);  color: var(--green); }
+  .adv-rawlog-verdict.skip    { background: rgba(244, 63, 94,0.12); color: rgba(244, 63, 94, 0.85); }
+  .adv-rawlog-verdict.exit    { background: rgba(251,191, 36,0.12); color: rgba(251,191, 36, 0.90); }
+  .adv-rawlog-verdict.unknown { background: rgba(255,255,255,0.06); color: var(--muted); }
+  .adv-rawlog-text {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color: var(--text);
+    word-break: break-word;
+    line-height: 1.45;
+  }
+  @media (max-width: 780px) {
+    .adv-rawlog-row { grid-template-columns: 70px 1fr; }
+    .adv-rawlog-row > :nth-child(2) { grid-column: 2; }
+    .adv-rawlog-text { grid-column: 2; }
+  }
+
   /* Phase D-1-e-4 — Strategy V2 Shadow Analysis card. Collapsed by default
      via a native <details> element. Loud disclaimer banner at the top of the
      expanded body in a warning hue so an operator cannot mistake V2 numbers
@@ -8096,10 +8146,13 @@ function dashboardV2HTML(initial) {
   </section>
 
   <section class="tab-pane" id="tab-advanced" role="tabpanel" aria-labelledby="tab-advanced">
-    <div class="card placeholder-card">
-      <div class="placeholder-icon">⚙</div>
-      <div class="placeholder-title">Advanced</div>
-      <div class="placeholder-body">Coming next — raw/debug tools.</div>
+    <!-- Phase D-1-f-1 — Advanced tab Raw Decision Log. Read-only,
+         cycle-level (mode-blind), reuses recentDecisionLogs already
+         exposed on /api/v2/dashboard. No new endpoint, no POST. -->
+    <div class="card adv-rawlog-card">
+      <div class="card-title">🐛 Raw Decision Log</div>
+      <div class="card-sublabel">Raw debug view — for troubleshooting. Not account performance.</div>
+      <div id="adv-rawlog-body"><div class="card-empty">Loading…</div></div>
     </div>
   </section>
 
@@ -8798,6 +8851,47 @@ function renderPerfTrades() {
   body.innerHTML = html;
 }
 
+// Phase D-1-f-1 — Advanced tab Raw Decision Log. Pure render: takes the
+// already-cached _recentDecisionLogs (max 30 entries from /api/v2/dashboard),
+// classifies each verdict for color, and emits a scrollable monospace list.
+// All dynamic text escaped. Never modifies bot state.
+function advRawlogVerdictClass(v) {
+  if (!v) return "unknown";
+  const s = String(v).toUpperCase();
+  if (s.includes("EXIT")) return "exit";
+  if (s.includes("TRADE")) return "trade";
+  if (s.includes("SKIP") || s.includes("LIMIT") || s.includes("KILL") || s.includes("STOP")) return "skip";
+  return "unknown";
+}
+function renderAdvancedRawLog() {
+  const body = document.getElementById("adv-rawlog-body");
+  if (!body) return;
+  const arr = Array.isArray(_recentDecisionLogs) ? _recentDecisionLogs : [];
+  if (arr.length === 0) {
+    body.innerHTML = '<div class="card-empty">No recent decision logs available.</div>';
+    return;
+  }
+  let rows = '';
+  for (const e of arr) {
+    const t = e && e.timestamp ? timeAgo(e.timestamp) : "—";
+    const raw = e && typeof e.decisionLog === "string" ? e.decisionLog : "";
+    let verdict = "";
+    if (raw) {
+      try {
+        const p = btParseDecisionLog(raw);
+        if (p && !p.parseFailed && p.verdict) verdict = p.verdict;
+      } catch { /* unparseable → blank verdict + unknown class */ }
+    }
+    const cls = advRawlogVerdictClass(verdict);
+    rows += '<div class="adv-rawlog-row">' +
+              '<div class="adv-rawlog-time">' + btEsc(t) + '</div>' +
+              '<div><span class="adv-rawlog-verdict ' + cls + '">' + btEsc(verdict || "—") + '</span></div>' +
+              '<div class="adv-rawlog-text">' + btEsc(raw || "—") + '</div>' +
+            '</div>';
+  }
+  body.innerHTML = '<div class="adv-rawlog-list">' + rows + '</div>';
+}
+
 // Phase D-1-e-4 — Strategy V2 Shadow Analysis. Cycle-level (mode-blind),
 // read-only. Three sub-sections inside the collapsed card body: V2 verdict
 // frequency, latest V2 verdict + skip reason, and a V1-vs-V2 outcome
@@ -8997,6 +9091,10 @@ function applyData({ control, health, summary, latest, position, safetyBuffer, r
   // tab is active so it's already up-to-date when the operator switches in.
   if (Array.isArray(recentDecisionLogs)) _recentDecisionLogs = recentDecisionLogs;
   renderPerfConditions();
+  // Phase D-1-f-1 — Advanced tab Raw Decision Log. Same source array as
+  // the conditions card; rendered on every tick so the Advanced tab is
+  // up-to-date when the operator switches into it.
+  renderAdvancedRawLog();
 
   // Phase D-1-e-4 — same lifecycle for the V2 Shadow card. Cache update
   // and render every tick; visible only when the operator expands it.
