@@ -446,6 +446,23 @@ async function buildV2DashboardPayload() {
       .slice(-15)
       .map(t => ({ timestamp: t.timestamp ?? null, decisionLog: t.decisionLog ?? null }))
       .reverse(),
+    // Phase D-1-e-4 — last 15 cycles' V1 outcome (allPass) + V2 verdict for
+    // the cycle-level shadow-analysis card. Same scope as recentDecisionLogs:
+    // mode-blind, read-only, last 15 cycles, newest-first. V2 is shadow only;
+    // this surface never feeds back into trading. Projects strategyV2 to the
+    // two fields the card actually renders so we don't bloat the payload.
+    recentStrategyV2: allTrades
+      .slice(-15)
+      .map(t => ({
+        timestamp: t.timestamp ?? null,
+        type: t.type ?? null,
+        allPass: t.allPass === true,
+        strategyV2: t.strategyV2 ? {
+          decision:   t.strategyV2.decision ?? null,
+          skipReason: t.strategyV2.skipReason ?? null,
+        } : null,
+      }))
+      .reverse(),
     safetyBuffer: {
       capPct,
       baselineUsd,
@@ -7601,6 +7618,64 @@ function dashboardV2HTML(initial) {
     padding:10px 14px; font-size:11px; color:var(--muted); line-height:1.55;
   }
 
+  /* Phase D-1-e-4 — Strategy V2 Shadow Analysis card. Collapsed by default
+     via a native <details> element. Loud disclaimer banner at the top of the
+     expanded body in a warning hue so an operator cannot mistake V2 numbers
+     for account performance or as a signal to act on. Cycle-level only —
+     never aggregated as account P&L. */
+  .perf-v2-card { padding:0; margin-top:14px; }
+  .perf-v2-card[open] { padding-bottom:14px; }
+  .perf-v2-summary {
+    list-style: none; cursor: pointer;
+    padding:14px 18px; display:flex; align-items:center; justify-content:space-between;
+    gap:12px; user-select:none;
+  }
+  .perf-v2-summary::-webkit-details-marker { display:none; }
+  .perf-v2-summary::before {
+    content: "▸"; color: var(--muted); font-size: 12px;
+    transition: transform 150ms ease; display:inline-block;
+  }
+  .perf-v2-card[open] > .perf-v2-summary::before { transform: rotate(90deg); }
+  .perf-v2-summary .card-title { margin:0; flex:1; }
+  .perf-v2-toggle-hint {
+    color: var(--muted); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .perf-v2-card[open] .perf-v2-toggle-hint { opacity: 0.6; }
+  .perf-v2-body { padding:0 18px; }
+  .perf-v2-disclaimer {
+    background: rgba(245, 158, 11, 0.10);
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    color: rgba(255, 220, 160, 0.95);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 11px; line-height: 1.55;
+    margin-bottom: 12px;
+  }
+  .perf-v2-card .card-sublabel {
+    font-size:11px; color:var(--muted); margin-bottom:14px; line-height:1.45;
+  }
+  .perf-v2-section { margin-bottom:14px; }
+  .perf-v2-section:last-child { margin-bottom:0; }
+  .perf-v2-section-title {
+    font-size:10px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:0.06em; font-weight:600; margin-bottom:8px;
+  }
+  .perf-v2-grid {
+    display:grid; grid-template-columns: repeat(2, 1fr); gap:8px 14px;
+  }
+  .perf-v2-stat {
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 6px 10px; background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04); border-radius: 5px;
+    font-size: 12px;
+  }
+  .perf-v2-stat-label { color: var(--muted); font-size: 11px; }
+  .perf-v2-stat-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+  @media (max-width: 780px) {
+    .perf-v2-grid { grid-template-columns: 1fr; }
+  }
+
   /* Phase D-1-e-3 — Condition Pass Rates card. Cycle-level (mode-blind),
      intentionally separate visual treatment from the mode-scoped KPIs and
      trades table so the operator does not read it as account performance. */
@@ -7997,8 +8072,26 @@ function dashboardV2HTML(initial) {
       <div id="pf-conditions-body"><div class="card-empty">Loading…</div></div>
     </div>
 
+    <!-- Phase D-1-e-4 — Strategy V2 Shadow Analysis. Collapsed by default
+         (native <details>). Reads recentStrategyV2 from /api/v2/dashboard;
+         shadow-only. The disclaimer at the top of the expanded body is
+         load-bearing — V2 must never be read as a trade signal. -->
+    <details class="card perf-v2-card">
+      <summary class="perf-v2-summary">
+        <span class="card-title" style="margin:0">🔬 Strategy V2 Shadow Analysis — cycle-level</span>
+        <span class="perf-v2-toggle-hint">click to expand</span>
+      </summary>
+      <div class="perf-v2-body">
+        <div class="perf-v2-disclaimer">
+          Strategy V2 is shadow analysis only. It does not place orders, alter sizing, pause trading, or change V1 decisions. These numbers compare V1 decisions with V2 hypothetical verdicts for observation only.
+        </div>
+        <div class="card-sublabel">Cycle-level shadow comparison, not account performance.</div>
+        <div id="pf-v2-body"><div class="card-empty">Loading…</div></div>
+      </div>
+    </details>
+
     <div class="perf-context">
-      <strong>Note:</strong> P&amp;L values are bot-recorded and may differ from the broker on live trades due to fees and slippage. Live mode reconciliation lives on <a href="/live" style="color:var(--accent)">/live</a>. This tab will gain a Strategy V2 shadow comparison in a follow-up phase.
+      <strong>Note:</strong> P&amp;L values are bot-recorded and may differ from the broker on live trades due to fees and slippage. Live mode reconciliation lives on <a href="/live" style="color:var(--accent)">/live</a>.
     </div>
   </section>
 
@@ -8029,6 +8122,9 @@ const _perfCache = { paper: null, live: null };
 // Phase D-1-e-3 — recent cycle decisionLogs for the cycle-level Condition
 // Pass Rates card. Mode-blind on purpose. Same TDZ reasoning as above.
 let _recentDecisionLogs = window.__INIT__?.recentDecisionLogs ?? null;
+// Phase D-1-e-4 — recent cycle V1/V2 outcomes for the Strategy V2 Shadow
+// Analysis card. Mode-blind, read-only. Same TDZ reasoning as above.
+let _recentStrategyV2 = window.__INIT__?.recentStrategyV2 ?? null;
 
 // Phase D-1-a — tab routing via URL hash. Hashes: #overview, #bot-thinking,
 // #controls, #performance, #advanced. Default = overview. Invalid hash falls
@@ -8561,6 +8657,9 @@ function renderPerformanceLoading() {
   // switch shouldn't flicker it back to a loading state.
   const cbody = document.getElementById("pf-conditions-body");
   if (cbody && !_recentDecisionLogs) cbody.innerHTML = '<div class="card-empty">Loading…</div>';
+  // Phase D-1-e-4 — same anti-flicker rule for the V2 Shadow card.
+  const v2body = document.getElementById("pf-v2-body");
+  if (v2body && !_recentStrategyV2) v2body.innerHTML = '<div class="card-empty">Loading…</div>';
 }
 
 // Phase D-1-e-3 — Condition Pass Rates + 10-cycle heatmap. Cycle-level,
@@ -8699,6 +8798,78 @@ function renderPerfTrades() {
   body.innerHTML = html;
 }
 
+// Phase D-1-e-4 — Strategy V2 Shadow Analysis. Cycle-level (mode-blind),
+// read-only. Three sub-sections inside the collapsed card body: V2 verdict
+// frequency, latest V2 verdict + skip reason, and a V1-vs-V2 outcome
+// breakdown (entry-decision cycles only). Wording is intentionally neutral
+// — never frames disagreements as "missed trades" and never claims V2 is
+// better/worse than V1.
+function renderPerfV2Shadow() {
+  const body = document.getElementById("pf-v2-body");
+  if (!body) return;
+  const arr = Array.isArray(_recentStrategyV2) ? _recentStrategyV2 : [];
+  const withV2 = arr.filter(x => x && x.strategyV2 && typeof x.strategyV2 === "object");
+  if (withV2.length < 5) {
+    body.innerHTML = '<div class="card-empty">Need at least 5 V2 shadow cycles.</div>';
+    return;
+  }
+  const counts = { TRADE: 0, NO_TRADE: 0, NO_TRADE_SHORT_DEFERRED: 0, OTHER: 0 };
+  for (const x of withV2) {
+    const d = x.strategyV2.decision;
+    if (d === "TRADE" || d === "NO_TRADE" || d === "NO_TRADE_SHORT_DEFERRED") counts[d]++;
+    else counts.OTHER++;
+  }
+  const total = withV2.length;
+  const latest = withV2[0];
+  const latestDecision = String(latest.strategyV2.decision || "—");
+  const latestReason = latest.strategyV2.skipReason || "—";
+  const latestTime = timeAgo(latest.timestamp);
+  // V1 vs V2 outcome — only over entry-decision cycles (skip EXIT rows so
+  // a manual close doesn't get counted as a "V1 skipped" decision).
+  const entryCycles = withV2.filter(x => x.type !== "EXIT");
+  let bothTrade = 0, bothSkip = 0, different = 0;
+  for (const x of entryCycles) {
+    const v1Trade = x.allPass === true;
+    const v2Trade = x.strategyV2.decision === "TRADE";
+    if (v1Trade && v2Trade) bothTrade++;
+    else if (!v1Trade && !v2Trade) bothSkip++;
+    else different++;
+  }
+  const totalEntry = entryCycles.length;
+  const fmt  = (n) => total > 0      ? n + ' (' + Math.round(n / total * 100) + '%)'      : '0';
+  const fmtE = (n) => totalEntry > 0 ? n + ' (' + Math.round(n / totalEntry * 100) + '%)' : '0';
+  let html = '';
+  html += '<div class="perf-v2-section">' +
+            '<div class="perf-v2-section-title">V2 verdict frequency — last ' + total + ' shadow cycles</div>' +
+            '<div class="perf-v2-grid">' +
+              '<div class="perf-v2-stat"><div class="perf-v2-stat-label">TRADE</div><div class="perf-v2-stat-val">' + fmt(counts.TRADE) + '</div></div>' +
+              '<div class="perf-v2-stat"><div class="perf-v2-stat-label">NO_TRADE</div><div class="perf-v2-stat-val">' + fmt(counts.NO_TRADE) + '</div></div>' +
+              '<div class="perf-v2-stat"><div class="perf-v2-stat-label">NO_TRADE_SHORT_DEFERRED</div><div class="perf-v2-stat-val">' + fmt(counts.NO_TRADE_SHORT_DEFERRED) + '</div></div>' +
+              '<div class="perf-v2-stat"><div class="perf-v2-stat-label">Other</div><div class="perf-v2-stat-val">' + fmt(counts.OTHER) + '</div></div>' +
+            '</div>' +
+          '</div>';
+  html += '<div class="perf-v2-section">' +
+            '<div class="perf-v2-section-title">Latest V2 verdict</div>' +
+            '<div class="card-row"><span class="card-row-label">When</span><span class="card-row-val">' + btEsc(latestTime) + '</span></div>' +
+            '<div class="card-row"><span class="card-row-label">Verdict</span><span class="card-row-val">' + btEsc(latestDecision) + ' (shadow)</span></div>' +
+            '<div class="card-row"><span class="card-row-label">Reason</span><span class="card-row-val" style="font-size:11px;text-align:right;max-width:60%">' + btEsc(latestReason) + '</span></div>' +
+          '</div>';
+  html += '<div class="perf-v2-section">';
+  if (totalEntry === 0) {
+    html += '<div class="perf-v2-section-title">V1 vs V2 outcome</div>' +
+            '<div class="card-empty">No V1 entry-decision cycles in the last window.</div>';
+  } else {
+    html += '<div class="perf-v2-section-title">V1 vs V2 outcome — last ' + totalEntry + ' entry-decision cycles</div>' +
+            '<div class="perf-v2-grid">' +
+              '<div class="perf-v2-stat"><div class="perf-v2-stat-label">Both would trade</div><div class="perf-v2-stat-val">' + fmtE(bothTrade) + '</div></div>' +
+              '<div class="perf-v2-stat"><div class="perf-v2-stat-label">Both would skip</div><div class="perf-v2-stat-val">' + fmtE(bothSkip) + '</div></div>' +
+              '<div class="perf-v2-stat"><div class="perf-v2-stat-label">Different outcome</div><div class="perf-v2-stat-val">' + fmtE(different) + '</div></div>' +
+            '</div>';
+  }
+  html += '</div>';
+  body.innerHTML = html;
+}
+
 function renderPerformance() {
   const data = _perfCache[_perfMode];
   if (!data) return renderPerformanceLoading();
@@ -8762,6 +8933,11 @@ function renderPerformance() {
   // Phase D-1-e-3 — Condition Pass Rates card. Mode-blind (cycle-level), so
   // the segment switch redraws the same data — no flicker, no mode mixing.
   renderPerfConditions();
+
+  // Phase D-1-e-4 — Strategy V2 Shadow Analysis card. Mode-blind, collapsed
+  // by default. Re-render is harmless (the <details> open state is preserved
+  // by the browser; we only swap the inner body).
+  renderPerfV2Shadow();
 }
 
 function setPerfMode(mode) {
@@ -8805,7 +8981,7 @@ function renderBotThinking(d) {
   renderBtSafe(ctrl, health, sb);
 }
 
-function applyData({ control, health, summary, latest, position, safetyBuffer, recentDecisionLogs }) {
+function applyData({ control, health, summary, latest, position, safetyBuffer, recentDecisionLogs, recentStrategyV2 }) {
   if (control) _lastCtrl = control;
   if (control)  renderStrip(control, health, latest);
   if (control || health || latest)  renderKpis(control || {}, health, position, latest, summary, safetyBuffer);
@@ -8821,6 +8997,11 @@ function applyData({ control, health, summary, latest, position, safetyBuffer, r
   // tab is active so it's already up-to-date when the operator switches in.
   if (Array.isArray(recentDecisionLogs)) _recentDecisionLogs = recentDecisionLogs;
   renderPerfConditions();
+
+  // Phase D-1-e-4 — same lifecycle for the V2 Shadow card. Cache update
+  // and render every tick; visible only when the operator expands it.
+  if (Array.isArray(recentStrategyV2)) _recentStrategyV2 = recentStrategyV2;
+  renderPerfV2Shadow();
 
   // Stale banner — turn on if last cycle > 60s
   const banner = document.getElementById("stale-banner");
@@ -8844,6 +9025,7 @@ if (init && !init.error) {
     position:     init.position,
     safetyBuffer: init.safetyBuffer,
     recentDecisionLogs: init.recentDecisionLogs,
+    recentStrategyV2:   init.recentStrategyV2,
   });
 }
 
@@ -9026,6 +9208,7 @@ async function refresh() {
       position:     d.position,
       safetyBuffer: d.safetyBuffer,
       recentDecisionLogs: d.recentDecisionLogs,
+      recentStrategyV2:   d.recentStrategyV2,
     });
   } catch (e) { /* keep prior values; next tick may succeed */ }
   // Phase D-1-e-1 — Performance tab refresh, only when active (avoids
