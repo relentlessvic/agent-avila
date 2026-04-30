@@ -2351,7 +2351,7 @@ const HTML = `<!DOCTYPE html>
     <div class="nav-section-label">Performance</div>
     <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-strategies')"><span class="nav-item-icon">🎯</span>Active Strategies</a>
     <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-performance')"><span class="nav-item-icon">📉</span>Performance State</a>
-    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-paper')"><span class="nav-item-icon">🏦</span>Paper Portfolio</a>
+    <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-paper')"><span class="nav-item-icon">🏦</span>Paper Wallet Snapshot</a>
     <div class="nav-section-label">History & Controls</div>
     <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-history')"><span class="nav-item-icon">📜</span>Trade History</a>
     <a class="nav-item" tabindex="0" role="button" onclick="navTo('section-controls')"><span class="nav-item-icon">🎛</span>Lifecycle Controls</a>
@@ -2794,13 +2794,15 @@ const HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Paper Portfolio Wallet — moved to top of operator view -->
-  <div class="section-title" id="section-paper">Paper Portfolio</div>
+  <!-- Paper Wallet Snapshot — quick on-dashboard view; canonical view is /paper -->
+  <div class="section-title" id="section-paper">Paper Wallet Snapshot</div>
   <div class="paper-wallet">
     <div class="paper-wallet-header">
       <span class="paper-wallet-title">Virtual Wallet</span>
       <span class="paper-wallet-badge">📋 Paper Money</span>
+      <a href="/paper" class="paper-wallet-link" style="margin-left:auto;font-size:12px;color:var(--accent,#00D4FF);text-decoration:none;border:1px solid rgba(0,212,255,0.3);padding:4px 10px;border-radius:6px">View Full Paper Dashboard →</a>
     </div>
+    <div class="paper-wallet-note" style="font-size:11px;color:var(--muted);padding:6px 0 4px;letter-spacing:0.2px">Snapshot only — official paper account view lives on <a href="/paper" style="color:var(--accent,#00D4FF);text-decoration:none">/paper</a>.</div>
     <div class="paper-wallet-row">
       <div class="paper-wallet-item">
         <div class="paper-wallet-label">Starting Balance</div>
@@ -3098,8 +3100,8 @@ const HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Performance Panel (3.0) -->
-  <div class="section-title" id="section-performance">Performance State — Agent 3.0</div>
+  <!-- Strategy Performance (combined paper + live W/L; see Paper Wallet Snapshot above for paper-only ledger) -->
+  <div class="section-title" id="section-performance">Strategy Performance</div>
   <div class="perf-panel">
     <div class="perf-grid">
       <div>
@@ -3913,7 +3915,11 @@ const HTML = `<!DOCTYPE html>
 
     tradeLog("⏳ " + command + "...", "ok");
     try {
-      const res  = await fetch("/api/trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command, params }) });
+      // Phase 3 — live trades require server-side confirm. The modal above
+      // already gated the action with typed CONFIRM; forward it in the body.
+      const tradeBody = { command, params };
+      if (!isPaper && liveActions.includes(command)) tradeBody.confirm = "CONFIRM";
+      const res  = await fetch("/api/trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(tradeBody) });
       const data = await res.json();
       if (data.ok || data.message) {
         tradeLog("✅ " + (data.message || command + " OK"), "ok");
@@ -4086,7 +4092,7 @@ const HTML = `<!DOCTYPE html>
       confirmText: "Reset Kill Switch",
       requireText: isPaper ? null : "CONFIRM",
     });
-    if (ok) sendCmd("RESET_KILL_SWITCH");
+    if (ok) sendCmd("RESET_KILL_SWITCH", undefined, undefined, isPaper ? undefined : "CONFIRM");
   }
 
   // Phase 5e — client-side validation for SET_* numeric inputs. Mirrors the
@@ -4106,11 +4112,13 @@ const HTML = `<!DOCTYPE html>
     sendCmd(command, String(n));
   }
 
-  async function sendCmd(command, value, _btn) {
+  async function sendCmd(command, value, _btn, _confirm) {
     // Phase 5b — button lock. Capture btn synchronously before any await.
     const release = lockBtn(_btn !== undefined ? _btn : _activeBtn());
     try {
       const body = value !== undefined ? { command, value } : { command };
+      // Phase 3 — forward typed-confirm token for live-trigger commands.
+      if (_confirm) body.confirm = _confirm;
       const res  = await fetch("/api/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.ok) {
@@ -4130,7 +4138,7 @@ const HTML = `<!DOCTYPE html>
       msg: "<strong style='color:var(--red)'>Real money will be used.</strong> Your next trade signal will place a real order on Kraken. The bot still uses your kill switch and stop loss protections.",
       confirmText: "Go LIVE", requireText: "CONFIRM"
     });
-    if (ok) { sendCmd("SET_MODE_LIVE"); showToast("Switched to LIVE mode — real money active", "warn"); }
+    if (ok) { sendCmd("SET_MODE_LIVE", undefined, undefined, "CONFIRM"); showToast("Switched to LIVE mode — real money active", "warn"); }
     else showToast("Cancelled — still in Paper mode", "info");
   }
 
@@ -4348,7 +4356,7 @@ const HTML = `<!DOCTYPE html>
           msg: "<strong style='color:var(--red)'>Real money will be used.</strong> Your next trade signal will place a real order on Kraken with leverage.",
           confirmText: "Go LIVE", requireText: "CONFIRM"
         });
-        if (ok) { sendCmd("SET_MODE_LIVE"); showToast("Switched to LIVE mode — real money active", "warn"); }
+        if (ok) { sendCmd("SET_MODE_LIVE", undefined, undefined, "CONFIRM"); showToast("Switched to LIVE mode — real money active", "warn"); }
       }
     }
   });
@@ -6541,10 +6549,34 @@ function modePage(mode, initial) {
   .skel-row { width:100%; height:18px; margin:6px 0; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .btn-spinner { display:inline-block; width:12px; height:12px; border:2px solid rgba(255,255,255,0.25); border-top-color:currentColor; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
+  /* Phase 3 — typed-confirm modal (replaces window.prompt for live mode switch). */
+  .mp-modal-overlay { position:fixed; inset:0; background:rgba(4,7,17,0.78); display:none; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
+  .mp-modal-overlay.open { display:flex; }
+  .mp-modal { background:linear-gradient(180deg,#101725 0%,#0A0F1A 100%); border:1px solid rgba(255,77,106,0.4); border-radius:14px; padding:22px 24px; width:min(440px,92vw); box-shadow:0 12px 40px rgba(0,0,0,0.6); }
+  .mp-modal-title { font-size:16px; font-weight:700; margin:0 0 8px; color:var(--text); }
+  .mp-modal-msg { font-size:13px; color:var(--muted); line-height:1.5; margin-bottom:14px; }
+  .mp-modal-input { width:100%; box-sizing:border-box; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); color:var(--text); padding:10px 12px; border-radius:8px; font-family:inherit; font-size:14px; margin-bottom:14px; }
+  .mp-modal-input:focus { outline:none; border-color:var(--red); }
+  .mp-modal-row { display:flex; gap:10px; justify-content:flex-end; }
+  .mp-modal-btn { padding:9px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.06); color:var(--text); font-size:13px; font-weight:600; cursor:pointer; }
+  .mp-modal-btn-confirm { background:linear-gradient(180deg,#FF4D6A 0%,#D8334E 100%); border-color:rgba(255,77,106,0.6); }
+  .mp-modal-btn-confirm:disabled { opacity:0.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
 <div id="stale-banner" class="stale-banner" style="display:none"></div>
+<!-- Phase 3 — typed-confirm modal for live-mode switch. -->
+<div id="mp-modal-overlay" class="mp-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="mp-modal-title">
+  <div class="mp-modal">
+    <h3 id="mp-modal-title" class="mp-modal-title">Confirm action</h3>
+    <div id="mp-modal-msg" class="mp-modal-msg"></div>
+    <input id="mp-modal-input" class="mp-modal-input" type="text" autocomplete="off" />
+    <div class="mp-modal-row">
+      <button id="mp-modal-cancel" class="mp-modal-btn" type="button">Cancel</button>
+      <button id="mp-modal-confirm" class="mp-modal-btn mp-modal-btn-confirm" type="button" disabled>Confirm</button>
+    </div>
+  </div>
+</div>
 
 <div class="topbar">
   <div>
@@ -7013,21 +7045,50 @@ connectTickerWS();
   });
 })();
 
-// Phase 7a — mode switch button. Paper direction uses simple confirm.
-// Live direction requires user to type CONFIRM (matches /dashboard pattern).
+// Phase 3 — typed-confirm modal for /paper /live live-mode switch. Replaces
+// the old window.prompt with a Promise-based showModal that mirrors the
+// /dashboard pattern (visible overlay, disabled button until exact match).
+function mpShowConfirm(opts) {
+  return new Promise(resolve => {
+    const o   = document.getElementById("mp-modal-overlay");
+    const ttl = document.getElementById("mp-modal-title");
+    const msg = document.getElementById("mp-modal-msg");
+    const inp = document.getElementById("mp-modal-input");
+    const cnf = document.getElementById("mp-modal-confirm");
+    const cnl = document.getElementById("mp-modal-cancel");
+    ttl.textContent = opts.title || "Confirm action";
+    msg.innerHTML   = opts.msg   || "";
+    inp.value = "";
+    inp.placeholder = 'Type "' + (opts.requireText || "CONFIRM") + '"';
+    cnf.textContent = opts.confirmText || "Confirm";
+    cnf.disabled = true;
+    const onInput = () => { cnf.disabled = inp.value.trim() !== (opts.requireText || "CONFIRM"); };
+    const close = (val) => {
+      o.classList.remove("open");
+      inp.removeEventListener("input", onInput);
+      cnf.onclick = null; cnl.onclick = null;
+      resolve(val);
+    };
+    inp.addEventListener("input", onInput);
+    cnf.onclick = () => close(true);
+    cnl.onclick = () => close(false);
+    o.classList.add("open");
+    setTimeout(() => inp.focus(), 80);
+  });
+}
+
+// Phase 7a — mode switch button. Paper direction uses a light confirm.
+// Phase 3 — Live direction now uses mpShowConfirm (typed CONFIRM) and the
+// server-side gate on /api/control rejects requests without it.
 async function switchMode(toLive) {
   if (toLive) {
-    // NOTE: this lives inside a backtick template literal in modePage(). \n
-    // would decode to a real newline on the wire and break the JS string
-    // literal at parse time. \\n stays escaped so the browser sees a normal
-    // string-newline.
-    const typed = window.prompt(
-      "Switch to LIVE mode?\\n\\nReal money will be used. Bot's next trade will place a real order on Kraken. Type CONFIRM to proceed:"
-    );
-    if (typed !== "CONFIRM") {
-      setCtrlMsg("Mode switch cancelled.");
-      return;
-    }
+    const ok = await mpShowConfirm({
+      title: "Switch to LIVE mode?",
+      msg: "<strong style='color:#FF4D6A'>Real money will be used.</strong> Your next trade signal will place a real order on Kraken. Type <strong>CONFIRM</strong> to proceed.",
+      confirmText: "Go LIVE",
+      requireText: "CONFIRM",
+    });
+    if (!ok) { setCtrlMsg("Mode switch cancelled."); return; }
   } else {
     if (!window.confirm("Switch to PAPER mode? Bot will use simulated funds only.")) {
       setCtrlMsg("Mode switch cancelled.");
@@ -7038,11 +7099,13 @@ async function switchMode(toLive) {
   const release = lockBtn(btn);
   setCtrlMsg("Switching to " + (toLive ? "LIVE" : "PAPER") + "…");
   try {
+    const body = { command: toLive ? "SET_MODE_LIVE" : "SET_MODE_PAPER" };
+    if (toLive) body.confirm = "CONFIRM";
     const r = await fetch("/api/control", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ command: toLive ? "SET_MODE_LIVE" : "SET_MODE_PAPER" }),
+      body: JSON.stringify(body),
     });
     const j = await r.json();
     if (j.ok) {
@@ -7311,6 +7374,19 @@ const server = createServer(async (req, res) => {
   // ── Bot run trigger (auth-required; dashboard self-heal calls this) ─────
   if (req.url === "/api/run-bot" && req.method === "POST") {
     try {
+      // Phase 3 — server-side confirmation gate. Spawning the bot in LIVE
+      // mode requires explicit { confirm: "CONFIRM" } in the body. Paper-mode
+      // self-heal keeps its no-confirm path so the dashboard stays self-healing.
+      const ctrlNow = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
+      if (ctrlNow.paperTrading === false) {
+        let body = {};
+        try { body = JSON.parse(await readBody(req)); } catch {}
+        if (body.confirm !== "CONFIRM") {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Confirmation required for live bot run" }));
+          return;
+        }
+      }
       let lastRunAge = null;
       if (existsSync("safety-check-log.json")) {
         const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
@@ -7431,6 +7507,17 @@ const server = createServer(async (req, res) => {
       const body  = JSON.parse(await readBody(req));
       const ctrl  = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json", "utf8")) : {};
       const { command, value } = body;
+      // Phase 3 — server-side confirmation gate for live-trading triggers.
+      // Client modals can be bypassed by an authenticated POST; this rejects
+      // any such POST that doesn't carry { confirm: "CONFIRM" }.
+      const requiresConfirm =
+        command === "SET_MODE_LIVE" ||
+        (command === "RESET_KILL_SWITCH" && ctrl.paperTrading === false);
+      if (requiresConfirm && body.confirm !== "CONFIRM") {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Confirmation required for " + command }));
+        return;
+      }
       switch (command) {
         case "START_BOT":       ctrl.stopped = false; break;
         case "STOP_BOT":        ctrl.stopped = true;  break;
@@ -7490,6 +7577,15 @@ const server = createServer(async (req, res) => {
   } else if (req.url === "/api/trade" && req.method === "POST") {
     try {
       const body = JSON.parse(await readBody(req));
+      // Phase 3 — server-side confirmation gate. Live trades require
+      // { confirm: "CONFIRM" } so a stray authenticated POST can't place an
+      // order. Paper trades stay unguarded to match existing UX.
+      const ctrlNow = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
+      if (ctrlNow.paperTrading === false && body.confirm !== "CONFIRM") {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Confirmation required for live trade" }));
+        return;
+      }
       const result = await handleTradeCommand(body.command, body.params || {});
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(result));
@@ -7608,7 +7704,12 @@ RULES:
             const parts = cmd.split(" ");
             const command = parts[0]; const value = parts.slice(1).join(" ") || undefined;
             const ctrl = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
-            const SAFE = ["PAUSE_TRADING","RESUME_TRADING","START_BOT","STOP_BOT","SET_RISK","SET_LEVERAGE","SET_MAX_DAILY_LOSS","RESET_KILL_SWITCH","RESET_COOLDOWN","RESET_LOSSES","SET_COOLDOWN","SET_PAUSE_LOSSES"];
+            // Phase 3 — RESET_KILL_SWITCH is auto-exec only in PAPER mode.
+            // In LIVE mode it requires the typed-confirm modal (server-side
+            // gate on /api/control rejects un-confirmed POSTs anyway, but we
+            // also remove it here so chat never even attempts the write).
+            const SAFE = ["PAUSE_TRADING","RESUME_TRADING","START_BOT","STOP_BOT","SET_RISK","SET_LEVERAGE","SET_MAX_DAILY_LOSS","RESET_COOLDOWN","RESET_LOSSES","SET_COOLDOWN","SET_PAUSE_LOSSES"];
+            if (ctrl.paperTrading !== false) SAFE.push("RESET_KILL_SWITCH");
             if (!SAFE.includes(command)) continue;
             switch (command) {
               case "PAUSE_TRADING":   ctrl.paused = true; break;
