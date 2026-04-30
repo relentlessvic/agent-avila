@@ -7385,6 +7385,20 @@ function dashboardV2HTML(initial) {
   .strip-kill:hover:not(:disabled)  { background:var(--red); color:#fff; box-shadow:0 0 14px rgba(255,77,106,0.35); }
   .strip-kill:active:not(:disabled) { transform:translateY(1px); }
   .strip-kill:disabled { opacity:0.55; cursor:not-allowed; }
+  /* Phase D-1-c — Pause/Resume promoted to the Quick Status Strip so
+     reactive safety actions are zero-click. Neutral pill style; no modal. */
+  .strip-action {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 12px; border-radius:999px;
+    background:rgba(255,255,255,0.05); color:var(--text);
+    border:1px solid rgba(255,255,255,0.14);
+    font-family:inherit; font-size:12px; font-weight:600; letter-spacing:0.3px;
+    cursor:pointer;
+    transition:background 0.15s, border-color 0.15s, transform 0.05s;
+  }
+  .strip-action:hover:not(:disabled)  { background:rgba(255,255,255,0.12); border-color:rgba(255,255,255,0.24); }
+  .strip-action:active:not(:disabled) { transform:translateY(1px); }
+  .strip-action:disabled { opacity:0.5; cursor:not-allowed; }
 
   /* Hero KPI Strip (Section 2) */
   .kpis { display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; margin-bottom:14px; }
@@ -7609,6 +7623,11 @@ function dashboardV2HTML(initial) {
     <span class="pill" id="strip-buffer"><span id="strip-buffer-text">Daily-loss buffer: —</span></span>
     <span class="pill pill-muted" id="strip-cooldown"><span id="strip-cooldown-text">Cooldown: —</span></span>
     <span class="pill pill-muted" id="strip-data"><span id="strip-data-text">Data: —</span></span>
+    <!-- Phase D-1-c: Pause/Resume promoted from Advanced Details. Reactive
+         safety actions stay zero-click and never leave the operator's view.
+         No confirmation modal — instant action + toast (matches C-1 spec). -->
+    <button id="strip-pause"  class="strip-action" type="button" title="Pause trading: no new entries; existing exits still run" onclick="pauseBot(event)">⏸ Pause</button>
+    <button id="strip-resume" class="strip-action" type="button" title="Resume trading: re-arm entry signals" onclick="resumeBot(event)">▶ Resume</button>
     <!-- Phase C-2: emergency override, always visible. Typed "KILL" required. -->
     <button id="strip-kill" class="strip-kill" type="button" aria-label="Activate kill switch — halts the bot immediately" title="Activate kill switch — halts the bot immediately (typed KILL required)" onclick="confirmKillNow(event)">⚠ KILL NOW</button>
   </div>
@@ -7699,47 +7718,23 @@ function dashboardV2HTML(initial) {
 
   <!-- Section 8 — Advanced Details placeholder (closed by default) -->
   <details class="adv">
-    <summary>+ Advanced Details <span style="font-size:10px; color:var(--muted)">(controls preview only — wired in Phase B)</span></summary>
+    <summary>+ Advanced Details <span style="font-size:10px; color:var(--muted)">(heavy panels migration pointer)</span></summary>
     <div class="adv-body">
-
-      <div class="adv-section">
-        <div class="adv-section-title">Lifecycle Controls</div>
-        <div class="ctrl-row">
-          <!-- Phase C-1: lifecycle controls active. Pause/Resume run instantly;
-               Start/Stop go through a simple confirm modal. -->
-          <button class="ctrl-btn" id="v2-btn-start"  type="button" onclick="confirmStartBot(event)">Start Bot</button>
-          <button class="ctrl-btn ctrl-btn-danger" id="v2-btn-stop" type="button" onclick="confirmStopBot(event)">Stop Bot</button>
-          <button class="ctrl-btn" id="v2-btn-pause"  type="button" onclick="pauseBot(event)">Pause</button>
-          <button class="ctrl-btn" id="v2-btn-resume" type="button" onclick="resumeBot(event)">Resume</button>
-          <!-- Dangerous controls remain preview-only until C-2/C-3 wires them
-               through the Phase 3 typed-confirm gates + the C-0 KILL gate. -->
-          <!-- Phase C-4-b — Switch to Live is intentionally NOT wired on
-               /dashboard-v2. The official mode-switch flow lives on /paper
-               (and /live), where the operator can audit current positions and
-               balance before flipping. The C-4-a server-side preflight blocks
-               unsafe flips with 409 regardless of which client triggers them. -->
-          <a class="ctrl-btn ctrl-btn-link" href="/paper" title="Mode switching lives on the canonical /paper view, where you can audit positions and balance before flipping. Server-side preflight blocks unsafe flips with 409 regardless of source.">Manage Account Mode →</a>
-          <!-- Phase C-3: Reset Kill Switch active. Paper mode → simple
-               confirm. Live mode → typed CONFIRM (Phase 3 server gate
-               independently enforces { confirm: "CONFIRM" } in live). -->
-          <button class="ctrl-btn ctrl-btn-danger" id="v2-btn-reset-kill" type="button" onclick="confirmResetKill(event)">Reset Kill Switch</button>
-          <!-- Phase C-2: active KILL is now at the top of the page in the
-               Quick Status Strip. This entry stays disabled to avoid
-               duplicate code paths but points operators to the active one. -->
-          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Active KILL is in the Quick Status Strip at the top of the page">KILL NOW (also at top ↑)</button>
-        </div>
-      </div>
-
+      <!-- Phase D-1-c — Lifecycle controls moved out of Overview. Pause and
+           Resume live in the Quick Status Strip (zero-click); Start, Stop,
+           Reset Kill Switch, and Manage Account Mode live in the Controls
+           tab (one-click, behind the existing confirmation modals). KILL NOW
+           remains in the Quick Status Strip. -->
       <div class="adv-section">
         <div class="adv-section-title">Heavy panels (will move here in Phase D)</div>
         <ul style="font-size:12px; color:var(--muted); padding-left:18px; margin:6px 0;">
-          <li>Trade History &amp; Recent Runs (currently on /dashboard)</li>
-          <li>Capital Router &amp; Active Strategies (currently on /dashboard)</li>
-          <li>Trading Terminal &amp; Live Chart (currently on /dashboard)</li>
-          <li>RSI History, Stats Overview (currently on /dashboard)</li>
-          <li>How Agent 3.0 Works docs (currently on /dashboard)</li>
+          <li>Trade History &amp; Recent Runs (currently on /dashboard-legacy)</li>
+          <li>Capital Router &amp; Active Strategies (currently on /dashboard-legacy)</li>
+          <li>Trading Terminal &amp; Live Chart (currently on /dashboard-legacy)</li>
+          <li>RSI History, Stats Overview (currently on /dashboard-legacy)</li>
+          <li>How Agent 3.0 Works docs (currently on /dashboard-legacy)</li>
         </ul>
-        <div style="font-size:11px;color:var(--muted)">Until Phase D ships, use <a href="/dashboard" style="color:var(--accent)">legacy /dashboard</a> for these views.</div>
+        <div style="font-size:11px;color:var(--muted)">Until Phase D ships, use <a href="/dashboard-legacy" style="color:var(--accent)">legacy /dashboard</a> for these views.</div>
       </div>
 
     </div>
@@ -7784,10 +7779,29 @@ function dashboardV2HTML(initial) {
   </section>
 
   <section class="tab-pane" id="tab-controls" role="tabpanel" aria-labelledby="tab-controls">
-    <div class="card placeholder-card">
-      <div class="placeholder-icon">🎛</div>
-      <div class="placeholder-title">Controls</div>
-      <div class="placeholder-body">Coming next — organized controls. The Overview tab still has the active Pause / Resume / Start / Stop / Reset Kill Switch buttons inside Advanced Details, and KILL NOW remains in the top strip at all times.</div>
+    <!-- Phase D-1-c — control reorganization. Pause/Resume + KILL NOW live in
+         the always-visible Quick Status Strip (zero-click). Start/Stop and
+         Reset Kill Switch live here behind their existing confirmations.
+         Mode flip routes through /paper. No new POST surface; no new gate. -->
+    <div class="card">
+      <div class="card-title">🎛 Lifecycle</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Pause and Resume are in the top status strip for instant safety-up actions. Start and Stop are intentional structural changes — they ask for a single confirmation.</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn"            id="v2-btn-start" type="button" onclick="confirmStartBot(event)">Start Bot</button>
+        <button class="ctrl-btn ctrl-btn-danger" id="v2-btn-stop" type="button" onclick="confirmStopBot(event)">Stop Bot</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔓 Recovery</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn ctrl-btn-danger" id="v2-btn-reset-kill" type="button" onclick="confirmResetKill(event)">Reset Kill Switch</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:10px">Paper mode: simple confirm. Live mode: typed CONFIRM (the Phase 3 server gate at /api/control independently rejects unconfirmed live POSTs). Activate KILL NOW from the top status strip; reset it here once the situation is handled.</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔁 Account Mode</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Mode switching lives on the canonical /paper view, where you can audit positions and balance before flipping. Server-side preflight blocks unsafe flips with 409 regardless of source.</div>
+      <a class="ctrl-btn ctrl-btn-link" href="/paper" title="Mode switching lives on the canonical /paper view, where you can audit positions and balance before flipping. Server-side preflight blocks unsafe flips with 409 regardless of source.">Manage Account Mode →</a>
     </div>
   </section>
 
