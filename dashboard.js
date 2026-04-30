@@ -7124,6 +7124,541 @@ async function switchMode(toLive) {
 </html>`;
 }
 
+// ─── Phase A — /dashboard-v2 read-only command-center preview ────────────────
+// Lives alongside /dashboard. No new POST endpoints, no SSE writes; client
+// refreshes by polling existing read-only GETs (/api/health, /api/paper-summary,
+// /api/live-summary, /api/control). Every control button renders disabled with
+// a "Preview only" badge — Phase B will wire actions through the Phase 3
+// typed-confirm gate. Strategy V2 stays shadow-only end to end.
+function dashboardV2HTML(initial) {
+  const ctrl    = initial?.control || {};
+  const isPaper = ctrl.paperTrading !== false;
+  const accent  = isPaper ? "#00D4FF" : "#FF00C8";
+  const accentSoft = isPaper ? "rgba(0,212,255,0.12)" : "rgba(255,0,200,0.12)";
+  const modeLabel = isPaper ? "PAPER" : "LIVE";
+  const modeIcon  = isPaper ? "◆" : "⬢";
+  // Phase 8b — escape </ inside JSON to keep </script> unambiguous.
+  const initialJson = JSON.stringify(initial || null).replace(/</g, "\\u003c");
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Command Center (Preview) — Agent Avila</title>
+<link rel="preconnect" href="https://ws.kraken.com" crossorigin>
+<style>
+  :root {
+    --bg-deep:#040711; --bg-base:#0A0F1A;
+    --card:rgba(20,28,45,0.55); --line:rgba(255,255,255,0.08);
+    --muted:#7A8499; --text:#E6EAF1;
+    --accent:${accent}; --accent-soft:${accentSoft};
+    --green:#00FF9A; --red:#FF4D6A; --yellow:#FFC107;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; color:var(--text); padding:24px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 0%,    var(--accent-soft)    0%, transparent 60%),
+      radial-gradient(ellipse 80% 50% at 50% 100%,  rgba(255,0,200,0.03)  0%, transparent 60%),
+      linear-gradient(180deg, var(--bg-base) 0%, var(--bg-deep) 100%);
+    background-attachment:fixed;
+  }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.020) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.020) 1px, transparent 1px);
+    background-size:50px 50px;
+    mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+    -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 50%, black 30%, transparent 90%);
+  }
+  .wrap { position:relative; z-index:1; max-width:1100px; margin:0 auto; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .topbar h1 {
+    margin:0; font-size:22px; font-weight:700; letter-spacing:0.5px;
+    background:linear-gradient(90deg, var(--text) 0%, var(--accent) 100%);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+  }
+  .preview-tag {
+    display:inline-block; padding:3px 10px; border-radius:999px;
+    background:rgba(255,193,7,0.12); color:var(--yellow);
+    border:1px solid rgba(255,193,7,0.3); font-size:11px; font-weight:700; letter-spacing:0.6px;
+    margin-left:8px;
+  }
+  .nav-links a { color:var(--muted); text-decoration:none; margin-left:14px; font-size:13px; }
+  .nav-links a:hover { color:var(--text); }
+
+  /* Quick Status Strip (Section 1) */
+  .strip {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:10px 14px; margin-bottom:14px;
+    -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%);
+  }
+  .pill {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:5px 11px; border-radius:999px;
+    background:var(--accent-soft); color:var(--accent);
+    border:1px solid var(--line); font-size:12px; font-weight:600; letter-spacing:0.5px;
+  }
+  .pill-muted   { background:rgba(255,255,255,0.04); color:var(--muted); }
+  .pill-green   { background:rgba(0,255,154,0.10);  color:var(--green);  border-color:rgba(0,255,154,0.25); }
+  .pill-red     { background:rgba(255,77,106,0.10); color:var(--red);    border-color:rgba(255,77,106,0.25); }
+  .pill-yellow  { background:rgba(255,193,7,0.10);  color:var(--yellow); border-color:rgba(255,193,7,0.25); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--green); display:inline-block; }
+  .dot.warn { background:var(--yellow); }
+  .dot.err  { background:var(--red); }
+
+  /* Hero KPI Strip (Section 2) */
+  .kpis { display:grid; grid-template-columns:repeat(5, 1fr); gap:12px; margin-bottom:14px; }
+  .kpi {
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px;
+    -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%);
+  }
+  .kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); }
+  .kpi-val   { font-size:22px; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .kpi-sub   { font-size:11px; color:var(--muted); margin-top:2px; }
+  .kpi-good { color:var(--green); }
+  .kpi-bad  { color:var(--red); }
+  .kpi-warn { color:var(--yellow); }
+  @media (max-width: 800px) { .kpis { grid-template-columns:repeat(2,1fr); } }
+
+  /* Account Quick Links (Section 3) */
+  .links { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px; }
+  .link-card {
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; text-decoration:none; color:var(--text);
+    transition:border-color 0.15s, transform 0.15s;
+  }
+  .link-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+  .link-card-paper { border-color:rgba(0,212,255,0.3); }
+  .link-card-live  { border-color:rgba(255,0,200,0.3); }
+  .link-card-title { font-size:14px; font-weight:700; }
+  .link-card-sub   { font-size:11px; color:var(--muted); margin-top:2px; }
+  .link-card-arrow { font-size:18px; opacity:0.7; }
+  @media (max-width: 700px) { .links { grid-template-columns:1fr; } }
+
+  /* Cards (Sections 4–7) */
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:16px 18px; margin-bottom:14px;
+    -webkit-backdrop-filter:blur(20px) saturate(160%); backdrop-filter:blur(20px) saturate(160%);
+  }
+  .card-title {
+    font-size:11px; text-transform:uppercase; letter-spacing:0.1em;
+    color:var(--muted); margin-bottom:8px; display:flex; align-items:center; gap:8px;
+  }
+  .card-row { display:flex; justify-content:space-between; padding:6px 0; font-size:13px; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .card-row:last-child { border-bottom:0; }
+  .card-row-label { color:var(--muted); }
+  .card-row-val   { color:var(--text); font-variant-numeric:tabular-nums; font-weight:600; }
+  .card-empty { color:var(--muted); font-size:13px; padding:6px 0; }
+
+  /* V2 Shadow disclaimer */
+  .v2-disclaimer {
+    background:rgba(255,193,7,0.08); border:1px solid rgba(255,193,7,0.25);
+    color:var(--yellow); padding:8px 12px; border-radius:8px;
+    font-size:12px; font-weight:600; letter-spacing:0.3px; margin-bottom:10px;
+  }
+
+  /* Advanced Details placeholder */
+  details.adv {
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:0; margin-bottom:14px;
+  }
+  details.adv > summary {
+    cursor:pointer; padding:14px 18px; list-style:none;
+    font-size:13px; color:var(--muted); font-weight:600;
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  details.adv > summary::-webkit-details-marker { display:none; }
+  details.adv[open] > summary { border-bottom:1px solid var(--line); }
+  .adv-body { padding:14px 18px; }
+  .adv-section { margin-bottom:14px; }
+  .adv-section-title {
+    font-size:10px; text-transform:uppercase; letter-spacing:0.08em;
+    color:var(--muted); margin-bottom:6px;
+  }
+  .ctrl-row { display:flex; flex-wrap:wrap; gap:8px; }
+  /* Phase A — every control button is disabled with Preview-only badge.
+     Phase B will wire these through the Phase 3 typed-confirm gate. */
+  .ctrl-btn {
+    background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.10);
+    color:var(--muted); padding:8px 14px; border-radius:8px;
+    font-size:12px; font-weight:600; cursor:not-allowed; opacity:0.65;
+    position:relative;
+  }
+  .ctrl-btn-danger { border-color:rgba(255,77,106,0.18); color:rgba(255,77,106,0.65); }
+  .preview-only-badge {
+    display:inline-block; margin-left:6px; padding:1px 6px; border-radius:4px;
+    background:rgba(255,193,7,0.18); color:var(--yellow);
+    font-size:9px; letter-spacing:0.4px; vertical-align:middle;
+  }
+
+  /* Stale-data banner (full-width, animated when stale > 60s) */
+  .stale-banner {
+    background:rgba(255,193,7,0.10); color:var(--yellow);
+    border:1px solid rgba(255,193,7,0.3); border-radius:8px;
+    padding:8px 12px; margin-bottom:12px; font-size:12px; font-weight:600;
+    display:none;
+  }
+  .stale-banner.on { display:block; }
+  .stale-banner.critical { background:rgba(255,77,106,0.12); color:var(--red); border-color:rgba(255,77,106,0.4); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>Agent Avila — Command Center</h1>
+      <span class="preview-tag">PREVIEW · /dashboard-v2</span>
+    </div>
+    <div class="nav-links">
+      <a href="/dashboard">Legacy /dashboard</a>
+      <a href="/paper">/paper</a>
+      <a href="/live">/live</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </div>
+
+  <div id="stale-banner" class="stale-banner"></div>
+
+  <!-- Section 1 — Quick Status Strip -->
+  <div class="strip">
+    <span class="pill">${modeIcon} ${modeLabel} MODE</span>
+    <span class="pill" id="strip-bot"><span class="dot" id="strip-bot-dot"></span><span id="strip-bot-text">Loading…</span></span>
+    <span class="pill" id="strip-buffer"><span id="strip-buffer-text">Daily-loss buffer: —</span></span>
+    <span class="pill pill-muted" id="strip-cooldown"><span id="strip-cooldown-text">Cooldown: —</span></span>
+    <span class="pill pill-muted" id="strip-data"><span id="strip-data-text">Data: —</span></span>
+  </div>
+
+  <!-- Section 2 — Hero KPI Strip -->
+  <div class="kpis">
+    <div class="kpi">
+      <div class="kpi-label">Bot Mode</div>
+      <div class="kpi-val" id="kpi-mode">${modeIcon} ${modeLabel}</div>
+      <div class="kpi-sub" id="kpi-mode-sub">${isPaper ? "Simulated funds only" : "Real money active"}</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">System Health</div>
+      <div class="kpi-val" id="kpi-health">—</div>
+      <div class="kpi-sub" id="kpi-health-sub">Loading…</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Position P&amp;L</div>
+      <div class="kpi-val" id="kpi-pos">—</div>
+      <div class="kpi-sub" id="kpi-pos-sub">No open trade</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Safety Buffer</div>
+      <div class="kpi-val" id="kpi-buffer">—</div>
+      <div class="kpi-sub" id="kpi-buffer-sub">Daily loss remaining</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">Signal Score</div>
+      <div class="kpi-val" id="kpi-signal">—</div>
+      <div class="kpi-sub" id="kpi-signal-sub">vs threshold</div>
+    </div>
+  </div>
+
+  <!-- Section 3 — Account Quick Links -->
+  <div class="links">
+    <a href="/paper" class="link-card link-card-paper">
+      <div>
+        <div class="link-card-title">View Full Paper Dashboard</div>
+        <div class="link-card-sub">Canonical paper account view, history, W/L</div>
+      </div>
+      <span class="link-card-arrow">→</span>
+    </a>
+    <a href="/live" class="link-card link-card-live">
+      <div>
+        <div class="link-card-title">View Full Live Dashboard</div>
+        <div class="link-card-sub">Canonical live account view, Kraken balance</div>
+      </div>
+      <span class="link-card-arrow">→</span>
+    </a>
+  </div>
+
+  <!-- Section 4 — Open Position -->
+  <div class="card">
+    <div class="card-title">Open Position <span id="pos-mode-tag" class="pill pill-muted">${modeLabel}</span></div>
+    <div id="pos-body"><div class="card-empty">Loading…</div></div>
+  </div>
+
+  <!-- Section 5 — Last Decision -->
+  <div class="card">
+    <div class="card-title">Last Decision <span id="dec-mode-tag" class="pill pill-muted">${modeLabel}</span></div>
+    <div id="dec-body"><div class="card-empty">Loading…</div></div>
+  </div>
+
+  <!-- Section 6 — Bot Health Summary (renamed from Portfolio Intelligence) -->
+  <div class="card">
+    <div class="card-title">Bot Health Summary</div>
+    <div id="health-body"><div class="card-empty">Loading…</div></div>
+  </div>
+
+  <!-- Section 7 — Strategy V2 Shadow -->
+  <div class="card">
+    <div class="card-title">🛰 Strategy V2 Shadow</div>
+    <div class="v2-disclaimer">Shadow only — does not trade. V2 verdicts are read-only and do NOT place orders.</div>
+    <div id="v2-body"><div class="card-empty">No V2 shadow data yet.</div></div>
+  </div>
+
+  <!-- Section 8 — Advanced Details placeholder (closed by default) -->
+  <details class="adv">
+    <summary>+ Advanced Details <span style="font-size:10px; color:var(--muted)">(controls preview only — wired in Phase B)</span></summary>
+    <div class="adv-body">
+
+      <div class="adv-section">
+        <div class="adv-section-title">Lifecycle Controls</div>
+        <div class="ctrl-row">
+          <button class="ctrl-btn" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Start Bot<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Stop Bot<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Pause<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Resume<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Switch to Live<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">Reset Kill Switch<span class="preview-only-badge">PREVIEW</span></button>
+          <button class="ctrl-btn ctrl-btn-danger" disabled aria-disabled="true" title="Preview only — controls live on /dashboard">KILL NOW<span class="preview-only-badge">PREVIEW</span></button>
+        </div>
+      </div>
+
+      <div class="adv-section">
+        <div class="adv-section-title">Heavy panels (will move here in Phase D)</div>
+        <ul style="font-size:12px; color:var(--muted); padding-left:18px; margin:6px 0;">
+          <li>Trade History &amp; Recent Runs (currently on /dashboard)</li>
+          <li>Capital Router &amp; Active Strategies (currently on /dashboard)</li>
+          <li>Trading Terminal &amp; Live Chart (currently on /dashboard)</li>
+          <li>RSI History, Stats Overview (currently on /dashboard)</li>
+          <li>How Agent 3.0 Works docs (currently on /dashboard)</li>
+        </ul>
+        <div style="font-size:11px;color:var(--muted)">Until Phase D ships, use <a href="/dashboard" style="color:var(--accent)">legacy /dashboard</a> for these views.</div>
+      </div>
+
+    </div>
+  </details>
+
+</div>
+
+<script>
+// Phase A — read-only client. ONLY GET requests, ONLY existing endpoints.
+// No POST. No SSE writes. No /api/control, /api/trade, /api/run-bot.
+window.__INIT__ = ${initialJson};
+const IS_PAPER = ${isPaper ? "true" : "false"};
+const SUMMARY_URL = IS_PAPER ? "/api/paper-summary" : "/api/live-summary";
+let _lastTickAt = Date.now();
+
+function fmtMoney(n) { if (n == null || isNaN(n)) return "—"; const sign = n >= 0 ? "+" : "−"; return sign + "$" + Math.abs(n).toFixed(2); }
+function fmtPct(n)   { if (n == null || isNaN(n)) return "—"; return (n >= 0 ? "+" : "") + n.toFixed(2) + "%"; }
+function timeAgo(ts) {
+  if (!ts) return "—";
+  const sec = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 1000));
+  if (sec < 60)  return sec + "s ago";
+  if (sec < 3600) return Math.round(sec/60) + "m ago";
+  return Math.round(sec/3600) + "h ago";
+}
+function setText(id, t) { const el = document.getElementById(id); if (el) el.textContent = t; }
+function setHTML(id, h) { const el = document.getElementById(id); if (el) el.innerHTML = h; }
+
+function renderStrip(ctrl, health, latest) {
+  // Bot status pill
+  const botDot   = document.getElementById("strip-bot-dot");
+  const botTxt   = document.getElementById("strip-bot-text");
+  if (ctrl?.killed)        { botDot.className = "dot err";  botTxt.textContent = "KILLED"; }
+  else if (ctrl?.stopped)  { botDot.className = "dot err";  botTxt.textContent = "STOPPED"; }
+  else if (ctrl?.paused)   { botDot.className = "dot warn"; botTxt.textContent = "PAUSED"; }
+  else if (health?.bot === "running") { botDot.className = "dot"; botTxt.textContent = "RUNNING"; }
+  else                     { botDot.className = "dot warn"; botTxt.textContent = (health?.bot || "unknown"); }
+  // Daily-loss buffer
+  const cap = ctrl?.maxDailyLossPct ?? 3;
+  setText("strip-buffer-text", "Daily-loss cap: " + cap + "%");
+  // Cooldown
+  setText("strip-cooldown-text", ctrl?.lastTradeTime ? "Cooldown ⏳ active" : "Cooldown ✓ clear");
+  // Data freshness
+  if (latest?.timestamp) {
+    const age = Math.round((Date.now() - new Date(latest.timestamp).getTime()) / 1000);
+    setText("strip-data-text", "Last cycle " + (age < 60 ? age + "s" : Math.round(age/60) + "m") + " ago");
+  } else {
+    setText("strip-data-text", "Last cycle: n/a");
+  }
+}
+
+function renderKpis(ctrl, health, position, latest, summary) {
+  // System health
+  const allOk = health?.krakenOk && health?.bot === "running" && (health?.lastRunAge ?? 99) < 10;
+  const el = document.getElementById("kpi-health");
+  el.textContent = allOk ? "✓ Healthy" : "⚠ Degraded";
+  el.className = "kpi-val " + (allOk ? "kpi-good" : "kpi-warn");
+  setText("kpi-health-sub",
+    "Kraken " + (health?.krakenLatency ?? "—") + "ms · " +
+    "data " + (health?.lastRunAge != null ? Math.round(health.lastRunAge) + "m" : "—"));
+
+  // Position P&L
+  if (position?.open && latest?.price && position.entryPrice) {
+    const pnlPct = ((latest.price - position.entryPrice) / position.entryPrice) * 100;
+    const posEl = document.getElementById("kpi-pos");
+    posEl.textContent = fmtPct(pnlPct);
+    posEl.className = "kpi-val " + (pnlPct >= 0 ? "kpi-good" : "kpi-bad");
+    setText("kpi-pos-sub", "Entry $" + Number(position.entryPrice).toFixed(4));
+  } else {
+    setText("kpi-pos", "—");
+    document.getElementById("kpi-pos").className = "kpi-val";
+    setText("kpi-pos-sub", "No open trade");
+  }
+
+  // Safety buffer (daily-loss remaining): use today's realized P&L vs cap.
+  const cap = Number(ctrl?.maxDailyLossPct ?? 3);
+  const todayPnL = summary?.pnl?.totalUSD ?? 0;
+  const startBal = ${isPaper ? "(parseFloat(window.__INIT__?.paperStartingBalance ?? 500) || 500)" : "1"};
+  const dailyDrawdownPct = todayPnL < 0 ? Math.abs(todayPnL) / startBal * 100 : 0;
+  const remaining = Math.max(0, cap - dailyDrawdownPct);
+  const bufEl = document.getElementById("kpi-buffer");
+  bufEl.textContent = remaining.toFixed(2) + "%";
+  bufEl.className = "kpi-val " + (remaining > cap * 0.5 ? "kpi-good" : remaining > 0 ? "kpi-warn" : "kpi-bad");
+  setText("kpi-buffer-sub", "of " + cap + "% daily cap");
+
+  // Signal score
+  if (latest?.signalScore != null) {
+    const score = Number(latest.signalScore);
+    const thr   = Number(latest?.perfState?.adaptedThreshold ?? 75);
+    const sigEl = document.getElementById("kpi-signal");
+    sigEl.textContent = Math.round(score) + "/100";
+    sigEl.className = "kpi-val " + (score >= thr ? "kpi-good" : "kpi-warn");
+    setText("kpi-signal-sub", "threshold " + thr);
+  } else {
+    setText("kpi-signal", "—");
+    setText("kpi-signal-sub", "no recent decision");
+  }
+}
+
+function renderPosition(position, latest) {
+  const el = document.getElementById("pos-body");
+  if (!position?.open) {
+    el.innerHTML = '<div class="card-empty">No open trade — bot is watching for the next entry signal.</div>';
+    return;
+  }
+  const pnl = (latest?.price && position.entryPrice)
+    ? ((latest.price - position.entryPrice) / position.entryPrice) * 100
+    : null;
+  el.innerHTML =
+    '<div class="card-row"><span class="card-row-label">Side</span><span class="card-row-val">' + (position.side || "long").toUpperCase() + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Entry</span><span class="card-row-val">$' + Number(position.entryPrice).toFixed(4) + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Stop loss</span><span class="card-row-val">$' + Number(position.stopLoss || 0).toFixed(4) + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Take profit</span><span class="card-row-val">$' + Number(position.takeProfit || 0).toFixed(4) + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Leverage</span><span class="card-row-val">' + (position.leverage || 1) + '×</span></div>' +
+    '<div class="card-row"><span class="card-row-label">P&amp;L</span><span class="card-row-val" style="color:' + (pnl == null ? 'var(--muted)' : pnl >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (pnl == null ? "—" : fmtPct(pnl)) + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Opened</span><span class="card-row-val">' + timeAgo(position.entryTime) + '</span></div>';
+}
+
+function renderDecision(latest) {
+  const el = document.getElementById("dec-body");
+  if (!latest) { el.innerHTML = '<div class="card-empty">No decision logged yet.</div>'; return; }
+  const verdict = latest.type === "EXIT"
+    ? "EXIT · " + (latest.exitReason || "—")
+    : (latest.allPass ? "TRADE FIRED" : "SKIP");
+  const score = latest.signalScore != null ? Math.round(latest.signalScore) + "/100" : "—";
+  el.innerHTML =
+    '<div class="card-row"><span class="card-row-label">Verdict</span><span class="card-row-val">' + verdict + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">When</span><span class="card-row-val">' + timeAgo(latest.timestamp) + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Price</span><span class="card-row-val">$' + (latest.price != null ? Number(latest.price).toFixed(4) : "—") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Signal score</span><span class="card-row-val">' + score + '</span></div>' +
+    (latest.decisionLog ? '<div class="card-row"><span class="card-row-label">Detail</span><span class="card-row-val" style="font-size:11px;text-align:right;max-width:60%">' +
+      String(latest.decisionLog).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;") + '</span></div>' : "");
+}
+
+function renderHealth(health) {
+  const el = document.getElementById("health-body");
+  if (!health) { el.innerHTML = '<div class="card-empty">Health data unavailable.</div>'; return; }
+  el.innerHTML =
+    '<div class="card-row"><span class="card-row-label">Kraken API</span><span class="card-row-val" style="color:' + (health.krakenOk ? 'var(--green)' : 'var(--red)') + '">' + (health.kraken || "?") + ' · ' + (health.krakenLatency || "—") + 'ms</span></div>' +
+    '<div class="card-row"><span class="card-row-label">WebSocket</span><span class="card-row-val">' + (health.websocket || "—") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Bot engine</span><span class="card-row-val" style="color:' + (health.bot === "running" ? 'var(--green)' : 'var(--yellow)') + '">' + (health.bot || "?") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Last run age</span><span class="card-row-val">' + (health.lastRunAge != null ? Math.round(health.lastRunAge) + " min" : "—") + '</span></div>';
+}
+
+function renderV2(latest) {
+  const v2 = latest?.strategyV2;
+  const el = document.getElementById("v2-body");
+  if (!v2 || typeof v2 !== "object") {
+    el.innerHTML = '<div class="card-empty">No V2 shadow data yet.</div>';
+    return;
+  }
+  const tIcon = (t) => t === "bullish" ? "📈" : t === "bearish" ? "📉" : "—";
+  const cIcon = (b) => b ? "✓" : "✗";
+  const cCol  = (b) => b ? "var(--green)" : "var(--muted)";
+  const decision = String(v2.decision || "NO_TRADE");
+  const skip  = v2.skipReason ? '<div class="card-row"><span class="card-row-label">Skip reason</span><span class="card-row-val">' + String(v2.skipReason) + '</span></div>' : "";
+  el.innerHTML =
+    '<div class="card-row"><span class="card-row-label">4H trend</span><span class="card-row-val">' + tIcon(v2.trend4h) + ' ' + (v2.trend4h || "—") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">15M trend</span><span class="card-row-val">' + tIcon(v2.trend15m) + ' ' + (v2.trend15m || "—") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Liq sweep</span><span class="card-row-val" style="color:' + cCol(v2.sweep?.detected) + '">' + cIcon(v2.sweep?.detected) + (v2.sweep?.detected ? " detected" : " not detected") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">5M BOS</span><span class="card-row-val" style="color:' + cCol(v2.bos?.detected) + '">' + cIcon(v2.bos?.detected) + (v2.bos?.detected ? " confirmed" : " not confirmed") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Pullback</span><span class="card-row-val" style="color:' + cCol(v2.pullback?.ok) + '">' + cIcon(v2.pullback?.ok) + (v2.pullback?.ok ? " valid" : " not valid") + '</span></div>' +
+    '<div class="card-row"><span class="card-row-label">Decision</span><span class="card-row-val" style="font-weight:700;color:' + (decision === "TRADE" ? 'var(--green)' : decision.includes("DEFERRED") ? 'var(--yellow)' : 'var(--muted)') + '">' + decision + ' (shadow)</span></div>' +
+    skip;
+}
+
+function applyData({ control, health, summary, latest, position }) {
+  if (control)  renderStrip(control, health, latest);
+  if (control || health || latest)  renderKpis(control || {}, health, position, latest, summary);
+  renderPosition(position, latest);
+  renderDecision(latest);
+  if (health)   renderHealth(health);
+  renderV2(latest);
+
+  // Stale banner — turn on if last cycle > 60s
+  const banner = document.getElementById("stale-banner");
+  if (latest?.timestamp) {
+    const ageSec = (Date.now() - new Date(latest.timestamp).getTime()) / 1000;
+    if (ageSec > 600) { banner.className = "stale-banner critical on"; banner.textContent = "⚠ No bot cycle in over " + Math.round(ageSec/60) + " minutes — check Bot Health Summary."; }
+    else if (ageSec > 60) { banner.className = "stale-banner on"; banner.textContent = "Last bot cycle " + Math.round(ageSec/60) + " min ago — fresher data should arrive within 5 min."; }
+    else { banner.className = "stale-banner"; }
+  }
+  _lastTickAt = Date.now();
+}
+
+// Initial render from inline data.
+const init = window.__INIT__;
+if (init) {
+  applyData({
+    control: init.control,
+    health:  init.health,
+    summary: IS_PAPER ? init.paper : init.live,
+    latest:  init.latest,
+    position: init.position,
+  });
+}
+
+// Refresh loop — read-only GETs. NO POSTS. Polls every 5s.
+async function refresh() {
+  try {
+    const [healthR, summaryR, controlR] = await Promise.all([
+      fetch("/api/health",     { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(SUMMARY_URL,       { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch("/api/control",    { credentials: "same-origin" }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]);
+    const summary  = summaryR?.data ?? summaryR;
+    applyData({
+      control:  controlR ?? null,
+      health:   healthR ?? null,
+      summary:  summary,
+      latest:   summary?.latestDecision ?? null,
+      position: summary?.position ?? null,
+    });
+  } catch (e) { /* keep prior values; next tick may succeed */ }
+}
+refresh();
+setInterval(refresh, 5000);
+</script>
+
+</body>
+</html>`;
+}
+
 // ─── SSE Push ─────────────────────────────────────────────────────────────────
 
 const sseClients = new Set();
@@ -7453,6 +7988,53 @@ const server = createServer(async (req, res) => {
   if (req.url === "/dashboard") {
     res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
     res.end(HTML);
+    return;
+  }
+
+  // ── /dashboard-v2 — Phase A read-only command-center preview ────────────
+  // Server-renders with inline data from existing safe helpers. Client side
+  // only polls existing read-only GETs. No POSTs. Every control button is
+  // rendered disabled with a "PREVIEW" badge.
+  if (req.url === "/dashboard-v2") {
+    res.writeHead(200, { "Content-Type": "text/html", "Cache-Control": "no-store, must-revalidate" });
+    let initial = null;
+    try {
+      const ctrl = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
+      const isPaper = ctrl.paperTrading !== false;
+      const paper = (() => { try { return getPaperSummary(); } catch { return null; } })();
+      const live  = isPaper ? null : await getLiveSummary().catch(() => null);
+      let latest = null, position = { open: false };
+      try {
+        if (existsSync("safety-check-log.json")) {
+          const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+          latest = log.trades.length ? log.trades[log.trades.length - 1] : null;
+        }
+      } catch {}
+      try {
+        if (existsSync("position.json")) position = JSON.parse(readFileSync("position.json","utf8"));
+      } catch {}
+      // Inline a snapshot of /api/health so first paint already shows status.
+      let health = null;
+      try {
+        let lastRunAge = null;
+        if (existsSync("safety-check-log.json")) {
+          const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+          const last = log.trades[log.trades.length - 1];
+          if (last) lastRunAge = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
+        }
+        health = {
+          kraken: "online", krakenOk: true, krakenLatency: null,
+          websocket: "client-managed",
+          bot: ctrl.stopped ? "stopped" : ctrl.paused ? "paused" : "running",
+          lastRunAge,
+        };
+      } catch {}
+      const paperStartingBalance = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
+      initial = { control: ctrl, paper, live, latest, position, health, paperStartingBalance };
+    } catch (e) {
+      initial = { error: e.message };
+    }
+    res.end(dashboardV2HTML(initial));
     return;
   }
 
