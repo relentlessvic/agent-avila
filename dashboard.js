@@ -8,8 +8,8 @@ import { buildSystemStatus, runSystemCheck } from "./system-guardian.js";
 // Phase D-5.4 — Postgres connection module. /api/health and the boot
 // banner read DB liveness. Phase D-5.5 adds a fire-and-forget dual-write
 // of bot_control after every successful writeFileSync(CONTROL_FILE,...).
-// Reads still come from bot-control.json — Postgres is shadow-only this
-// phase, so a DB outage cannot break paper control responses.
+// Phase D-5.7.1 adds inTransaction + trade_events/positions helpers for
+// the manual PAPER_BUY / PAPER_CLOSE shadow writes inside handleTradeCommand.
 import {
   query as dbQuery,
   ping as dbPing,
@@ -17,6 +17,11 @@ import {
   dbAvailable,
   databaseUrlPresent,
   maskedDatabaseUrl,
+  inTransaction,
+  buildEventId,
+  insertTradeEvent,
+  upsertPositionOpen,
+  closePosition,
 } from "./db.js";
 
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
@@ -311,6 +316,93 @@ function syncBotControlToDb(ctrl) {
       log.warn("d-5.5 dual-write", `bot_control DB sync failed: ${e.message}`);
     }
   })();
+}
+
+// ─── Phase D-5.7.1 — manual paper trade dual-write ──────────────────────────
+// Two fire-and-forget shadow writers wired into handleTradeCommand's
+// PAPER_BUY (BUY_MARKET / OPEN_LONG) and PAPER_CLOSE (CLOSE_POSITION)
+// branches AFTER the existing JSON writes. Reuses D-5.7's transactional
+// db.js helpers (upsertPositionOpen / closePosition / insertTradeEvent)
+// so positions and trade_events stay in lockstep with a single BEGIN/COMMIT.
+//
+// Paper-only: the call sites guard with `if (isPaper)` so live manual
+// commands continue writing JSON only — that path waits for D-5.12.
+//
+// Failure mode: caught .catch() emits a [d-5.7.1 dual-write] warn line;
+// JSON has already succeeded, so the manual trade response is unaffected.
+
+function shadowRecordManualPaperBuy(entry, newPos) {
+  if (!dbAvailable()) return;
+  if (!entry || !newPos || !newPos.orderId) return;
+  inTransaction(async (client) => {
+    const positionId = await upsertPositionOpen(client, {
+      mode: "paper",
+      symbol: newPos.symbol,
+      side: newPos.side ?? "long",
+      entry_price: newPos.entryPrice,
+      entry_time: newPos.entryTime,
+      entry_signal_score: null,                  // manual; no strategy score
+      quantity: newPos.quantity,
+      trade_size_usd: newPos.tradeSize,
+      leverage: newPos.leverage ?? 1,
+      effective_size_usd: newPos.effectiveSize ?? null,
+      stop_loss: newPos.stopLoss,
+      take_profit: newPos.takeProfit,
+      volatility_level: null,
+      kraken_order_id: newPos.orderId,
+      metadata: { from: "dashboard", source: "manual_buy" },
+    });
+    await insertTradeEvent(client, {
+      event_id: buildEventId(newPos.orderId, "manual_buy"),
+      timestamp: entry.timestamp,
+      mode: "paper",
+      event_type: "manual_buy",
+      symbol: entry.symbol,
+      position_id: positionId,
+      price: entry.price,
+      quantity: newPos.quantity,
+      usd_amount: entry.tradeSize,
+      leverage: entry.leverage,
+      kraken_order_id: newPos.orderId,
+      decision_log: null,
+      metadata: { source: "manual_buy" },
+    });
+  }).catch((e) => {
+    log.warn("d-5.7.1 dual-write", `manual BUY DB write failed: ${e.message}`);
+  });
+}
+
+function shadowRecordManualPaperClose(exitEntry) {
+  if (!dbAvailable()) return;
+  if (!exitEntry || !exitEntry.orderId) return;
+  inTransaction(async (client) => {
+    const positionId = await closePosition(client, "paper", {
+      exit_price: exitEntry.price,
+      exit_time: exitEntry.timestamp,
+      exit_reason: "MANUAL_CLOSE",
+      realized_pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+      realized_pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+      kraken_exit_order_id: exitEntry.orderId,
+    });
+    await insertTradeEvent(client, {
+      event_id: buildEventId(exitEntry.orderId, "manual_close"),
+      timestamp: exitEntry.timestamp,
+      mode: "paper",
+      event_type: "manual_close",
+      symbol: exitEntry.symbol,
+      position_id: positionId,
+      price: exitEntry.price,
+      quantity: exitEntry.quantity,
+      usd_amount: exitEntry.tradeSize,
+      pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+      pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+      kraken_order_id: exitEntry.orderId,
+      decision_log: null,
+      metadata: { source: "manual_close" },
+    });
+  }).catch((e) => {
+    log.warn("d-5.7.1 dual-write", `manual CLOSE DB write failed: ${e.message}`);
+  });
 }
 
 // ─── Bot Log / CSV ────────────────────────────────────────────────────────────
@@ -980,6 +1072,10 @@ async function handleTradeCommand(command, params = {}) {
     const entry = { type: "MANUAL_BUY", timestamp: new Date().toISOString(), symbol, price, tradeSize, leverage: useLev, orderId, paperTrading: isPaper, conditions: [], allPass: true, orderPlaced: true };
     log.trades.push(entry);
     writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
+    // Phase D-5.7.1 — shadow-write manual paper BUY to Postgres after
+    // JSON writes have settled. Paper-only; live manual commands continue
+    // writing JSON only until D-5.12 lifts the live persistence gate.
+    if (isPaper) shadowRecordManualPaperBuy(entry, newPos);
     return { ok: true, message: `${isPaper ? "Paper" : "Live"} BUY — ${volume} XRP at $${price.toFixed(4)} | SL $${newPos.stopLoss.toFixed(4)} | TP $${newPos.takeProfit.toFixed(4)}`, price, orderId };
   }
 
@@ -997,6 +1093,9 @@ async function handleTradeCommand(command, params = {}) {
     log.trades.push(exitEntry);
     writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
     writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
+    // Phase D-5.7.1 — shadow-write manual paper CLOSE to Postgres after
+    // JSON writes have settled. Paper-only gate matches the BUY branch.
+    if (isPaper) shadowRecordManualPaperClose(exitEntry);
     balanceCache = null;
     return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | ${isPaper ? "Paper" : "Live"} SELL at $${price.toFixed(4)}`, price, orderId, pnlPct, pnlUSD };
   }
