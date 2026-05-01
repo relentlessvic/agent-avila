@@ -5,14 +5,16 @@ import { createServer } from "http";
 import { spawn } from "child_process";
 import crypto from "crypto";
 import { buildSystemStatus, runSystemCheck } from "./system-guardian.js";
-// Phase D-5.4 — Postgres connection module. Read-only consumption this
-// phase: only /api/health and the boot banner read DB state. No writes,
-// no schema dependency for the rest of dashboard.js (the bot_control
-// table is created by migrations but not yet read or written by any
-// runtime path — that lands in D-5.5+).
+// Phase D-5.4 — Postgres connection module. /api/health and the boot
+// banner read DB liveness. Phase D-5.5 adds a fire-and-forget dual-write
+// of bot_control after every successful writeFileSync(CONTROL_FILE,...).
+// Reads still come from bot-control.json — Postgres is shadow-only this
+// phase, so a DB outage cannot break paper control responses.
 import {
+  query as dbQuery,
   ping as dbPing,
   schemaVersion as dbSchemaVersion,
+  dbAvailable,
   databaseUrlPresent,
   maskedDatabaseUrl,
 } from "./db.js";
@@ -98,6 +100,90 @@ async function withRetry(fn, retries = 2, delay = 500) {
     await new Promise(res => setTimeout(res, delay));
     return withRetry(fn, retries - 1, delay * 2);
   }
+}
+
+// ─── Phase D-5.5 — bot_control dual-write to Postgres ──────────────────────
+// Shadow write: every successful writeFileSync(CONTROL_FILE, ...) is followed
+// by an UPSERT into the Postgres bot_control row (id=1). JSON file remains
+// the source of truth for reads in this phase — Postgres is observed-only
+// until D-5.6 flips reads. Fire-and-forget: failure logs a warn line and is
+// invisible to the /api/control caller, so paper controls are never blocked
+// by DB latency or outages. The DB write semantics are idempotent (UPSERT)
+// so duplicate calls cannot corrupt state.
+//
+// Mapping JSON-camelCase → SQL-snake_case is done explicitly here; the
+// SQL column list mirrors migrations/001_init.sql. Defaults match
+// bot.js DEFAULT_CONTROL so an undefined JSON key never writes a NULL
+// where a NOT NULL DEFAULT is expected.
+function syncBotControlToDb(ctrl) {
+  if (!dbAvailable()) return;          // local dev / DATABASE_URL not set
+  if (!ctrl || typeof ctrl !== "object") return;
+  // Fire-and-forget. Any error inside the helper is caught and logged;
+  // the caller never awaits.
+  (async () => {
+    try {
+      await dbQuery(
+        `INSERT INTO bot_control (
+           id, paper_trading, stopped, paused, paused_until, killed,
+           leverage, risk_pct, dynamic_sizing, max_daily_loss_pct,
+           cooldown_minutes, kill_switch_enabled, kill_switch_drawdown_pct,
+           pause_after_losses, consecutive_losses,
+           last_trade_time, leverage_disabled_until, last_summary_date,
+           updated_by, updated_at
+         ) VALUES (
+           1, $1, $2, $3, $4, $5,
+           $6, $7, $8, $9,
+           $10, $11, $12,
+           $13, $14,
+           $15, $16, $17,
+           $18, COALESCE($19::timestamptz, NOW())
+         )
+         ON CONFLICT (id) DO UPDATE SET
+           paper_trading            = EXCLUDED.paper_trading,
+           stopped                  = EXCLUDED.stopped,
+           paused                   = EXCLUDED.paused,
+           paused_until             = EXCLUDED.paused_until,
+           killed                   = EXCLUDED.killed,
+           leverage                 = EXCLUDED.leverage,
+           risk_pct                 = EXCLUDED.risk_pct,
+           dynamic_sizing           = EXCLUDED.dynamic_sizing,
+           max_daily_loss_pct       = EXCLUDED.max_daily_loss_pct,
+           cooldown_minutes         = EXCLUDED.cooldown_minutes,
+           kill_switch_enabled      = EXCLUDED.kill_switch_enabled,
+           kill_switch_drawdown_pct = EXCLUDED.kill_switch_drawdown_pct,
+           pause_after_losses       = EXCLUDED.pause_after_losses,
+           consecutive_losses       = EXCLUDED.consecutive_losses,
+           last_trade_time          = EXCLUDED.last_trade_time,
+           leverage_disabled_until  = EXCLUDED.leverage_disabled_until,
+           last_summary_date        = EXCLUDED.last_summary_date,
+           updated_by               = EXCLUDED.updated_by,
+           updated_at               = EXCLUDED.updated_at`,
+        [
+          ctrl.paperTrading !== false,                 // $1  (default true)
+          !!ctrl.stopped,                              // $2
+          !!ctrl.paused,                               // $3
+          ctrl.pausedUntil ?? null,                    // $4
+          !!ctrl.killed,                               // $5
+          ctrl.leverage ?? 2,                          // $6
+          ctrl.riskPct ?? 1.0,                         // $7
+          ctrl.dynamicSizing !== false,                // $8  (default true)
+          ctrl.maxDailyLossPct ?? 3.0,                 // $9
+          ctrl.cooldownMinutes ?? 15,                  // $10
+          ctrl.killSwitchEnabled !== false,            // $11 (default true)
+          ctrl.killSwitchDrawdownPct ?? 5.0,           // $12
+          ctrl.pauseAfterLosses ?? 3,                  // $13
+          ctrl.consecutiveLosses ?? 0,                 // $14
+          ctrl.lastTradeTime ?? null,                  // $15 (ISO string ok)
+          ctrl.leverageDisabledUntil ?? null,          // $16
+          ctrl.lastSummaryDate ?? null,                // $17 (YYYY-MM-DD)
+          ctrl.updatedBy ?? null,                      // $18
+          ctrl.updatedAt ?? null,                      // $19 (COALESCE → NOW())
+        ]
+      );
+    } catch (e) {
+      log.warn("d-5.5 dual-write", `bot_control DB sync failed: ${e.message}`);
+    }
+  })();
 }
 
 // ─── Bot Log / CSV ────────────────────────────────────────────────────────────
@@ -10802,6 +10888,9 @@ const server = createServer(async (req, res) => {
       ctrl.updatedAt = new Date().toISOString();
       ctrl.updatedBy = command;
       writeFileSync(CONTROL_FILE, JSON.stringify(ctrl, null, 2));
+      // Phase D-5.5 — shadow-write to Postgres bot_control. Fire-and-forget;
+      // failure logs only and never blocks the /api/control response.
+      syncBotControlToDb(ctrl);
       let capState = {};
       try { if (existsSync(CAPITAL_FILE)) capState = JSON.parse(readFileSync(CAPITAL_FILE,"utf8")); } catch {}
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -10983,6 +11072,11 @@ RULES:
             }
             ctrl.updatedAt = new Date().toISOString(); ctrl.updatedBy = "CHAT_" + command;
             writeFileSync(CONTROL_FILE, JSON.stringify(ctrl, null, 2));
+            // Phase D-5.5 — shadow-write to Postgres bot_control. Same
+            // fire-and-forget pattern as /api/control; chat handler's
+            // outer try/catch already swallows errors here, so the
+            // helper's internal error log is the only failure surface.
+            syncBotControlToDb(ctrl);
             executed.push(command);
           } catch {}
         }
