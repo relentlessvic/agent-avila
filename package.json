@@ -9,6 +9,7 @@
     "dev": "node bot.js",
     "dashboard": "node dashboard.js",
     "migrate": "node scripts/run-migrations.js",
+    "import-history": "node scripts/import-trade-history.js",
     "test": "playwright test",
     "deploy": "railway up --detach --service agent-avila-dashboard"
   },
