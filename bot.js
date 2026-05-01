@@ -1882,6 +1882,14 @@ async function run() {
     }
 
     if (logEntry.orderPlaced) {
+      // Phase D-4-P-b — explicit type label for successful signal-driven
+      // BUY entries. Display-only: dashboards (modePage label resolver,
+      // /paper history table, Performance Recent Trades filter) already
+      // recognize type === "BUY"; previously this field was unset, which
+      // caused successful auto-BUYs to render as "PASS" on the Last Bot
+      // Decision card and leave the Type column blank in trade history.
+      // No effect on strategy, sizing, SL/TP, gating, or order placement.
+      logEntry.type = "BUY";
       const stopLoss   = price * (1 - vol.slPct   / 100);
       const takeProfit = price * (1 + vol.tpPct   / 100);
       savePosition({
