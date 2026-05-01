@@ -442,6 +442,120 @@ export async function loadWinLossAggregates(mode) {
   };
 }
 
+// ─── Phase D-5.9.1 — strategy_signals helpers ──────────────────────────────
+// One row per bot cycle that evaluates a signal. Shadow-write only in this
+// phase: bot.js calls insertStrategySignal after evalSignal() / before the
+// decision branch. ON CONFLICT (mode, cycle_id) DO NOTHING makes retries a
+// no-op (the partial unique index `strategy_signals_mode_cycle_unique`
+// supplies the conflict target).
+//
+// Dashboard reads stay on safety-check-log.json until D-5.9.6. The
+// loadRecentStrategySignals helper is defined here so the read flip is a
+// pure dashboard.js change with no further db.js work.
+
+// Build a deterministic cycle id from a stable seed. Used by callers that
+// don't already have one. Default seed is a fresh timestamp+symbol pair.
+export function buildCycleId(seed) {
+  if (!seed) throw new Error("buildCycleId: seed required");
+  return String(seed);
+}
+
+// INSERT ... ON CONFLICT (mode, cycle_id) DO NOTHING. Pool-level call (no
+// surrounding transaction needed — single statement, no FK dependencies).
+// Returns { id } of the inserted row, or undefined when a conflict skipped
+// the insert. Throws on schema/connection failure; the bot.js caller
+// catches and emits a [d-5.9.1 dual-write] warn line.
+export async function insertStrategySignal(signal) {
+  if (!signal || typeof signal !== "object") {
+    throw new Error("insertStrategySignal: signal must be an object");
+  }
+  if (!signal.mode || (signal.mode !== "paper" && signal.mode !== "live")) {
+    throw new Error(`insertStrategySignal: mode must be 'paper' or 'live' (got ${JSON.stringify(signal.mode)})`);
+  }
+  if (!signal.cycle_id) throw new Error("insertStrategySignal: cycle_id required");
+  if (!signal.symbol)   throw new Error("insertStrategySignal: symbol required");
+  if (signal.cycle_ts == null) throw new Error("insertStrategySignal: cycle_ts required");
+  if (signal.price == null)    throw new Error("insertStrategySignal: price required");
+
+  return query(
+    `INSERT INTO strategy_signals (
+       mode, cycle_id, symbol, timeframe, cycle_ts,
+       signal_score, signal_threshold, signal_decision, decision_reason,
+       all_pass, bullish_bias,
+       price, rsi_3, rsi_14, ema_fast, vwap, atr_14,
+       regime, volatility_level, spike_ratio, effective_lev,
+       paper_trading,
+       subscores, conditions, gates, v2_shadow,
+       decision_log, metadata
+     ) VALUES (
+       $1, $2, $3, $4, $5,
+       $6, $7, $8, $9,
+       $10, $11,
+       $12, $13, $14, $15, $16, $17,
+       $18, $19, $20, $21,
+       $22,
+       $23, $24, $25, $26,
+       $27, $28
+     )
+     ON CONFLICT (mode, cycle_id) DO NOTHING
+     RETURNING id`,
+    [
+      signal.mode,
+      String(signal.cycle_id),
+      signal.symbol,
+      signal.timeframe ?? null,
+      signal.cycle_ts,
+      signal.signal_score ?? null,
+      signal.signal_threshold ?? null,
+      signal.signal_decision ?? null,
+      signal.decision_reason ?? null,
+      signal.all_pass ?? null,
+      signal.bullish_bias ?? null,
+      signal.price,
+      signal.rsi_3 ?? null,
+      signal.rsi_14 ?? null,
+      signal.ema_fast ?? null,
+      signal.vwap ?? null,
+      signal.atr_14 ?? null,
+      signal.regime ?? null,
+      signal.volatility_level ?? null,
+      signal.spike_ratio ?? null,
+      _coerceInt(signal.effective_lev),
+      !!signal.paper_trading,
+      signal.subscores  ?? {},
+      signal.conditions ?? [],
+      signal.gates      ?? {},
+      signal.v2_shadow  ?? {},
+      signal.decision_log ?? null,
+      signal.metadata ?? {},
+    ]
+  );
+}
+
+// Returns up to `limit` most recent strategy_signals for a mode, newest first.
+// Defined here for the D-5.9.6 cycle-stream read flip; not yet wired in
+// D-5.9.1. JSON safety-check-log.json remains the dashboard source until
+// the flip lands.
+export async function loadRecentStrategySignals(mode, limit = 50) {
+  _requireMode("loadRecentStrategySignals", mode);
+  const r = await query(
+    `SELECT id, mode, cycle_id, symbol, timeframe, cycle_ts,
+            signal_score, signal_threshold, signal_decision, decision_reason,
+            all_pass, bullish_bias,
+            price, rsi_3, rsi_14, ema_fast, vwap, atr_14,
+            regime, volatility_level, spike_ratio, effective_lev,
+            paper_trading,
+            subscores, conditions, gates, v2_shadow,
+            decision_log, metadata, inserted_at
+     FROM strategy_signals
+     WHERE mode = $1
+     ORDER BY cycle_ts DESC
+     LIMIT $2`,
+    [mode, limit]
+  );
+  return r.rows;
+}
+
 export async function upsertBotControl(ctrl) {
   if (!ctrl || typeof ctrl !== "object") throw new Error("upsertBotControl: ctrl must be an object");
   return query(

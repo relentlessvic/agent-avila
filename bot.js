@@ -23,6 +23,7 @@ import {
   upsertBotControl, dbAvailable, close as dbClose,
   inTransaction, buildEventId, insertTradeEvent,
   upsertPositionOpen, closePosition,
+  insertStrategySignal,
 } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -690,6 +691,70 @@ function shadowRecordFailedAttempt(failedEntry, attemptType) {
     });
   }).catch((e) => {
     console.warn(`[d-5.7 dual-write] failed-attempt DB write failed: ${e.message}`);
+  });
+  _pendingDbWrites.push(p);
+}
+
+// ─── Phase D-5.9.1 — strategy_signals shadow-write ──────────────────────────
+// Per-cycle signal evaluation snapshot. Called from run() after evalSignal()
+// and after the cycle's logEntry is built, BEFORE the signal.allPass
+// decision branch. Captures the EVALUATION (score, threshold, indicators,
+// regime) independent of trade outcome — D-5.7's trade_events still cover
+// the OUTCOME (filled/failed) when a trade is actually attempted.
+//
+// Idempotent on retry: ON CONFLICT (mode, cycle_id) DO NOTHING in the
+// db.js helper. cycle_id = entry.timestamp (ISO string) is unique per
+// run() invocation. Reuses _pendingDbWrites so the D-5.6.1 drain catches
+// it on cron exit. JSON safety-check-log.json remains authoritative;
+// dashboard reads stay on JSON until D-5.9.6.
+function shadowRecordStrategySignal(entry, vol, signal) {
+  if (!dbAvailable()) return;
+  if (!entry || !entry.timestamp) return;
+  const mode = _modeFromConfig();
+  const decision        = signal?.allPass ? "BUY" : "SKIP";
+  const decisionReason  = signal?.allPass ? null : "score-below-threshold";
+
+  // Per-condition subscore map keyed by condition label, e.g.:
+  //   { "EMA(8) Uptrend": 30, "RSI(3) Dip (< 35)": 0, "VWAP …": 20, "Not Overextended": 20 }
+  // Resilient to evalSignal returning fewer/renamed conditions.
+  const subscores = {};
+  if (Array.isArray(signal?.conditions)) {
+    for (const c of signal.conditions) {
+      if (c && c.label) subscores[c.label] = c.score ?? null;
+    }
+  }
+
+  const p = insertStrategySignal({
+    mode,
+    cycle_id: entry.timestamp,
+    symbol: entry.symbol || CONFIG.symbol,
+    timeframe: entry.timeframe ?? CONFIG.timeframe ?? null,
+    cycle_ts: entry.timestamp,
+    signal_score: signal?.score ?? entry.signalScore ?? null,
+    signal_threshold: signal?.threshold ?? null,
+    signal_decision: decision,
+    decision_reason: decisionReason,
+    all_pass: !!signal?.allPass,
+    bullish_bias: signal?.bullishBias ?? null,
+    price: entry.price,
+    rsi_3: entry.indicators?.rsi3 ?? null,
+    rsi_14: null,
+    ema_fast: entry.indicators?.ema8 ?? null,
+    vwap: entry.indicators?.vwap ?? null,
+    atr_14: null,
+    regime: vol?.regime ?? null,
+    volatility_level: vol?.level ?? null,
+    spike_ratio: vol?.spikeRatio != null ? parseFloat(vol.spikeRatio) : null,
+    effective_lev: entry.effectiveLeverage ?? vol?.leverage ?? null,
+    paper_trading: !!entry.paperTrading,
+    subscores,
+    conditions: signal?.conditions ?? [],
+    gates: {},
+    v2_shadow: {},
+    decision_log: entry.decisionLog ?? null,
+    metadata: {},
+  }).catch((e) => {
+    console.warn(`[d-5.9.1 dual-write] strategy_signal DB write failed: ${e.message}`);
   });
   _pendingDbWrites.push(p);
 }
@@ -2108,6 +2173,12 @@ async function run() {
     perfState: { winRate: perf.winRate, drawdown: perf.drawdown, adaptedThreshold: adaptations.entryThreshold, riskMultiplier: adaptations.riskMultiplier },
     capitalState: { xrpRole: capitalCheck.cap.xrpRole, activeCapital: capitalCheck.activeCapital, paperBalance: capitalCheck.paperBalance },
   };
+
+  // Phase D-5.9.1 — shadow-write the cycle's signal evaluation to Postgres.
+  // Records the score+threshold+indicators+regime independent of trade
+  // outcome. Fire-and-forget; failure logs [d-5.9.1 dual-write] and the
+  // JSON write below stays authoritative.
+  shadowRecordStrategySignal(logEntry, vol, signal);
 
   if (!signal.allPass) {
     console.log(`🚫 SCORE ${signal.score.toFixed(0)}/100 — below 75 threshold, skipping.`);
