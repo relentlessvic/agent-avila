@@ -29,6 +29,7 @@ import {
   countOrphanedPositions as dbCountOrphanedPositions,
   ping as dbPing,
   schemaVersion as dbSchemaVersion,
+  updatePositionRiskLevels as dbUpdatePositionRiskLevels,
 } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -1234,7 +1235,22 @@ function manageActiveTrade(position, price) {
     }
   }
 
-  if (updated) savePosition(position);
+  if (updated) {
+    savePosition(position);
+    // Phase D-5.10.5.3 — dual-write SL/TP changes to Postgres so the DB
+    // stays in lock-step with JSON across container restarts. Fire-and-
+    // forget; failure logs and JSON remains authoritative.
+    if (dbAvailable() && position.orderId) {
+      const mode = _modeFromConfig();
+      const p = dbUpdatePositionRiskLevels(mode, position.orderId, {
+        stop_loss:   position.stopLoss,
+        take_profit: position.takeProfit,
+      }).catch((e) => {
+        console.warn(`[d-5.10.5.3 dual-write] manage-update DB write failed: ${e.message}`);
+      });
+      _pendingDbWrites.push(p);
+    }
+  }
   return { updated, action, pnlPct };
 }
 

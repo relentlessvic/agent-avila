@@ -309,6 +309,48 @@ export async function closePosition(client, mode, exit) {
   return r.rows[0]?.id ?? null;
 }
 
+// ─── Phase D-5.10.5.3 — active-management dual-write helper ────────────────
+// Update SL/TP on the currently-open position matching (mode, kraken_order_id).
+// Used by bot.js's manageActiveTrade() to dual-write breakeven and trailing-
+// stop adjustments alongside the existing JSON write. Pool-level call (single
+// statement, no FK ripple) — no inTransaction needed.
+//
+// Strict scoping: WHERE clause includes mode, kraken_order_id, AND status='open'
+// so a closed position can never be silently updated via this helper. Returns
+// the updated row id, or null if no row matched (caller logs and skips —
+// JSON remains authoritative).
+//
+// Dynamic SET clause: only the fields actually present in the input object
+// participate in the UPDATE. updated_at = NOW() always advances on any change.
+// If no fields are provided, returns null without issuing a query.
+export async function updatePositionRiskLevels(mode, orderId, fields) {
+  _requireMode("updatePositionRiskLevels", mode);
+  if (!orderId) throw new Error("updatePositionRiskLevels: orderId required");
+  if (!fields || typeof fields !== "object") {
+    throw new Error("updatePositionRiskLevels: fields object required");
+  }
+  const sets = [];
+  const params = [mode, orderId];
+  let i = 3;
+  if (fields.stop_loss != null) {
+    sets.push(`stop_loss = $${i++}`);
+    params.push(fields.stop_loss);
+  }
+  if (fields.take_profit != null) {
+    sets.push(`take_profit = $${i++}`);
+    params.push(fields.take_profit);
+  }
+  if (sets.length === 0) return null;
+  sets.push(`updated_at = NOW()`);
+  const r = await query(
+    `UPDATE positions SET ${sets.join(", ")}
+     WHERE mode = $1 AND kraken_order_id = $2 AND status = 'open'
+     RETURNING id`,
+    params
+  );
+  return r.rows[0]?.id ?? null;
+}
+
 // ─── Phase D-5.8 — read-side helpers for dashboard flip ────────────────────
 // Read-only domain queries used by dashboard.js's modeScopedSummary,
 // getApiData, getHomeSummary, and buildV2DashboardPayload to surface
