@@ -133,3 +133,79 @@ export async function close() {
     await p.end();
   }
 }
+
+// ─── Phase D-5.6.1 — bot_control upsert ─────────────────────────────────────
+// Domain helper called by both processes that mutate bot_control:
+//   - dashboard.js syncBotControlToDb() (kept inline in dashboard.js for now;
+//     a future cleanup phase can route it through here)
+//   - bot.js saveControl() (D-5.6.1 — uses this directly)
+//
+// Idempotent UPSERT: row exists (seeded by migration 001) → UPDATE; missing
+// → INSERT. Throws on connection or schema failure; callers wrap in their
+// own try/catch and log so dual-write failure never breaks the JSON write
+// path or the bot cycle.
+//
+// Field mapping (camelCase → snake_case) and defaults match bot.js
+// DEFAULT_CONTROL so a partial ctrl object never writes a NULL where a
+// NOT NULL DEFAULT is expected.
+export async function upsertBotControl(ctrl) {
+  if (!ctrl || typeof ctrl !== "object") throw new Error("upsertBotControl: ctrl must be an object");
+  return query(
+    `INSERT INTO bot_control (
+       id, paper_trading, stopped, paused, paused_until, killed,
+       leverage, risk_pct, dynamic_sizing, max_daily_loss_pct,
+       cooldown_minutes, kill_switch_enabled, kill_switch_drawdown_pct,
+       pause_after_losses, consecutive_losses,
+       last_trade_time, leverage_disabled_until, last_summary_date,
+       updated_by, updated_at
+     ) VALUES (
+       1, $1, $2, $3, $4, $5,
+       $6, $7, $8, $9,
+       $10, $11, $12,
+       $13, $14,
+       $15, $16, $17,
+       $18, COALESCE($19::timestamptz, NOW())
+     )
+     ON CONFLICT (id) DO UPDATE SET
+       paper_trading            = EXCLUDED.paper_trading,
+       stopped                  = EXCLUDED.stopped,
+       paused                   = EXCLUDED.paused,
+       paused_until             = EXCLUDED.paused_until,
+       killed                   = EXCLUDED.killed,
+       leverage                 = EXCLUDED.leverage,
+       risk_pct                 = EXCLUDED.risk_pct,
+       dynamic_sizing           = EXCLUDED.dynamic_sizing,
+       max_daily_loss_pct       = EXCLUDED.max_daily_loss_pct,
+       cooldown_minutes         = EXCLUDED.cooldown_minutes,
+       kill_switch_enabled      = EXCLUDED.kill_switch_enabled,
+       kill_switch_drawdown_pct = EXCLUDED.kill_switch_drawdown_pct,
+       pause_after_losses       = EXCLUDED.pause_after_losses,
+       consecutive_losses       = EXCLUDED.consecutive_losses,
+       last_trade_time          = EXCLUDED.last_trade_time,
+       leverage_disabled_until  = EXCLUDED.leverage_disabled_until,
+       last_summary_date        = EXCLUDED.last_summary_date,
+       updated_by               = EXCLUDED.updated_by,
+       updated_at               = EXCLUDED.updated_at`,
+    [
+      ctrl.paperTrading !== false,                 // $1  (default true)
+      !!ctrl.stopped,                              // $2
+      !!ctrl.paused,                               // $3
+      ctrl.pausedUntil ?? null,                    // $4
+      !!ctrl.killed,                               // $5
+      ctrl.leverage ?? 2,                          // $6
+      ctrl.riskPct ?? 1.0,                         // $7
+      ctrl.dynamicSizing !== false,                // $8  (default true)
+      ctrl.maxDailyLossPct ?? 3.0,                 // $9
+      ctrl.cooldownMinutes ?? 15,                  // $10
+      ctrl.killSwitchEnabled !== false,            // $11 (default true)
+      ctrl.killSwitchDrawdownPct ?? 5.0,           // $12
+      ctrl.pauseAfterLosses ?? 3,                  // $13
+      ctrl.consecutiveLosses ?? 0,                 // $14
+      ctrl.lastTradeTime ?? null,                  // $15
+      ctrl.leverageDisabledUntil ?? null,          // $16
+      ctrl.lastSummaryDate ?? null,                // $17
+      ctrl.updatedBy ?? null,                      // $18
+      ctrl.updatedAt ?? null,                      // $19 (COALESCE → NOW())
+    ]
+  );
+}

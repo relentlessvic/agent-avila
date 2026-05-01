@@ -14,6 +14,10 @@ import { readFileSync, writeFileSync, existsSync, appendFileSync, unlinkSync, re
 import path from "path";
 import crypto from "crypto";
 import { execSync } from "child_process";
+// Phase D-5.6.1 — Postgres dual-write of bot_control auto-updates.
+// Imported lazily-friendly (pool init deferred until first query); local
+// dev without DATABASE_URL silently no-ops via dbAvailable().
+import { upsertBotControl, dbAvailable, close as dbClose } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
 // Routes every runtime state file through dataPath(...). When DATA_DIR is set
@@ -499,9 +503,45 @@ function loadControl() {
   catch { return { ...DEFAULT_CONTROL }; }
 }
 
+// Phase D-5.6.1 — track in-flight Postgres dual-writes from saveControl()
+// so the process-exit handler can drain them before closing the pg pool.
+// bot.js is a 5-min cron one-shot; without an explicit drain a fire-and-
+// forget DB call could be cut mid-flight when the process exits naturally.
+const _pendingDbWrites = [];
+
 // Override CONFIG with any values set via control file
 function saveControl(ctrl) {
   atomicWrite(CONTROL_FILE, JSON.stringify(ctrl, null, 2));
+  // Phase D-5.6.1 — shadow-write to Postgres bot_control. Fire-and-forget
+  // with internal try/catch (via .catch) so a DB outage cannot break paper
+  // mode — the JSON write above is the source of truth in this phase. On
+  // success the dashboard's loadControl() (D-5.6) sees the fresh DB row on
+  // its next 30s refresh cycle, which closes the JSON-newer-than-DB
+  // reconciliation window for bot-driven auto-updates (consecutiveLosses,
+  // lastTradeTime, paused, killed, etc.).
+  if (dbAvailable()) {
+    const p = upsertBotControl(ctrl).catch((e) => {
+      console.warn(`[d-5.6.1 dual-write] bot_control DB sync failed: ${e.message}`);
+    });
+    _pendingDbWrites.push(p);
+  }
+}
+
+// Phase D-5.6.1 — drain in-flight dual-writes at process exit so the bot
+// cycle finishes cleanly without leaving open Postgres connections or
+// abandoning a write mid-flight. Hard 5-second budget so a stuck DB
+// cannot wedge the cron-driven exit.
+async function drainDbWritesAndClose() {
+  if (_pendingDbWrites.length > 0) {
+    const all = Promise.allSettled(_pendingDbWrites);
+    const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 5000));
+    const result = await Promise.race([all, timeout]);
+    if (result === "timeout") {
+      console.warn(`[d-5.6.1 drain] ${_pendingDbWrites.length} pending DB writes timed out — abandoning`);
+    }
+    _pendingDbWrites.length = 0;
+  }
+  try { await dbClose(); } catch {}
 }
 
 function applyControl() {
@@ -1969,8 +2009,18 @@ async function run() {
 if (process.argv.includes("--tax-summary")) {
   generateTaxSummary();
 } else {
-  run().catch((err) => {
-    console.error("Bot error:", err);
-    process.exit(1);
-  });
+  // Phase D-5.6.1 — wrap run() in a finally that drains pending DB writes
+  // and closes the pool. Without this, a fire-and-forget upsertBotControl()
+  // could be cut mid-flight when Node exits the event loop, AND the open
+  // pg pool would otherwise hold the loop open and block the cron exit.
+  // process.exitCode (instead of process.exit) lets the finally block
+  // complete before the actual exit.
+  run()
+    .catch((err) => {
+      console.error("Bot error:", err);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      try { await drainDbWritesAndClose(); } catch {}
+    });
 }
