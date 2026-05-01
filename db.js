@@ -230,7 +230,7 @@ export async function upsertPositionOpen(client, pos) {
      ) VALUES (
        $1, $2, $3, 'open', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
      )
-     ON CONFLICT (kraken_order_id) DO NOTHING
+     ON CONFLICT (kraken_order_id) WHERE kraken_order_id IS NOT NULL DO NOTHING
      RETURNING id`,
     [
       pos.mode,
