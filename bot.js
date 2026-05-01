@@ -32,6 +32,8 @@ import {
   updatePositionRiskLevels as dbUpdatePositionRiskLevels,
   recordLiveHaltState as dbRecordLiveHaltState,
   clearLiveHaltState as dbClearLiveHaltState,
+  getKrakenPermCheckState as dbGetKrakenPermCheckState,
+  recordKrakenPermCheck as dbRecordKrakenPermCheck,
 } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -1002,9 +1004,12 @@ async function _liveDbPreflight() {
   // Phase D-5.10.5.2 — bumped from >=3 to >=4 (migration 004 adds the
   // bot_control halt-tracking columns used by recordLiveHaltState/
   // clearLiveHaltState in the dedup wrappers).
+  // Phase D-5.10.5.4 — bumped from >=4 to >=5 (migration 005 adds the
+  // bot_control kraken_perm_check_* columns used by the cached Kraken
+  // permission probe).
   const sv = await dbSchemaVersion();
-  if (!sv || (sv.version ?? 0) < 4) {
-    return { ok: false, reason: "schema-too-old", detail: `version=${sv?.version ?? "null"} required>=4` };
+  if (!sv || (sv.version ?? 0) < 5) {
+    return { ok: false, reason: "schema-too-old", detail: `version=${sv?.version ?? "null"} required>=5` };
   }
   // Gate 5 — positions table healthy. The query exercises the table, the
   // partial unique index, and the mode='live' filter in one round-trip.
@@ -1135,6 +1140,13 @@ const HALT_TEMPLATES = {
     "Please verify the API key and secret are valid, unexpired, and have " +
     "the right permissions.",
 
+  "kraken-perms-missing": (_d) =>
+    "The bot's Kraken API key is missing one or more permissions required " +
+    "for live trading. The bot did not place any live trades. " +
+    "Please update the key on Kraken to include: Query Funds, Query Open & " +
+    "Closed Orders, Modify Orders, and Cancel/Close Orders. " +
+    "Withdraw Funds must remain disabled.",
+
   "venue-rate-limit": (_d) =>
     "Kraken rate-limited the bot's API calls. " +
     "The bot did not place any live trades. " +
@@ -1213,6 +1225,7 @@ function _formatDiscordCleared(previousReason) {
 // gates in _liveDbPreflight() and reasons in reconcileLivePosition().
 function _phaseFromHaltReason(reason) {
   if (!reason) return null;
+  if (reason === "kraken-perms-missing") return "d-5.10.5.4";
   if (reason.startsWith("paper-")) return "d-5.10.5.5";
   if (
     reason === "phantom-in-db" ||
@@ -2176,6 +2189,109 @@ function _logVenueObservation(venue) {
   console.warn(`[d-5.10.4 venue-error] kind=${venue.error?.kind} message=${venue.error?.message}`);
 }
 
+// ─── Phase D-5.10.5.4 — Kraken API key permission probe ────────────────────
+// Signed POST to /0/private/AddOrder with validate=true. Confirms the live
+// API key has Modify Orders permission BEFORE the trade-decision branch can
+// reach a real placeKrakenOrder call. Without this probe, a read-only key
+// would pass D-5.10.3-5 entirely and fail mid-cycle on the first AddOrder.
+//
+// SAFETY GUARANTEES (audited at every commit via grep):
+//   - validate is HARD-CODED to "true" — the order is server-validated only,
+//     NEVER placed. Cannot be derived from variables, configurable, or
+//     conditional.
+//   - volume is HARD-CODED to "0.00000001" (1e-8). Even if validate=true
+//     somehow leaked server-side, this size is below Kraken's minimum order
+//     size (XRPUSD min ~0.5 XRP) and would be rejected before matching.
+//     Two-layer defense.
+//   - This function is dedicated and isolated. It does NOT share its request
+//     body builder with placeKrakenOrder; cannot be confused or accidentally
+//     reused in the order-placement code path.
+//
+// Returns one of:
+//   - { ok: true,  reason: null,                   detail: null }
+//   - { ok: false, reason: "venue-auth",           detail: "<msg>" }
+//   - { ok: false, reason: "kraken-perms-missing", detail: "<msg>" }
+//   - { ok: false, reason: "venue-rate-limit",     detail: "<msg>" }
+//   - { ok: false, reason: "venue-unreachable",    detail: "<msg>" }
+//   - { ok: false, reason: "venue-unexpected",     detail: "<msg>" }
+//
+// Whitelisted as PASS: any EOrder:* error response (insufficient funds,
+// order minimum not met, trading agreement required, etc.). These confirm
+// the auth path worked; downstream order issues are not the probe's concern.
+async function probeKrakenPermissions() {
+  let res, data;
+  try {
+    const nonce = Date.now().toString();
+    const path = "/0/private/AddOrder";
+    // SAFETY: hard-coded validate="true" + volume="0.00000001". Never derived.
+    const probeBody = {
+      nonce,
+      pair:      mapToKrakenPair(CONFIG.symbol),
+      type:      "buy",
+      ordertype: "market",
+      volume:    "0.00000001",
+      validate:  "true",
+    };
+    const postData = new URLSearchParams(probeBody).toString();
+    const signature = signKraken(path, nonce, postData);
+    res = await fetch(`${CONFIG.kraken.baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "API-Key": CONFIG.kraken.apiKey,
+        "API-Sign": signature,
+      },
+      body: postData,
+    });
+  } catch (e) {
+    return { ok: false, reason: "venue-unreachable", detail: e.message };
+  }
+
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, reason: "venue-auth", detail: `HTTP ${res.status}` };
+    }
+    if (res.status >= 500) {
+      return { ok: false, reason: "venue-unreachable", detail: `HTTP ${res.status}` };
+    }
+    return { ok: false, reason: "venue-unexpected", detail: `HTTP ${res.status}` };
+  }
+
+  try {
+    data = await res.json();
+  } catch (_) {
+    return { ok: false, reason: "venue-unexpected", detail: "non-JSON response" };
+  }
+
+  // Kraken puts errors in data.error array. Empty array = success.
+  if (Array.isArray(data?.error) && data.error.length > 0) {
+    const errStr = data.error.join(", ");
+    // Whitelist: EOrder:* errors confirm the auth path worked. The order
+    // itself wouldn't have placed for downstream reasons (size, funds,
+    // trading-agreement) — but those are not the probe's concern.
+    if (/^EOrder:/.test(errStr) || data.error.every((e) => /^EOrder:/.test(e))) {
+      return { ok: true, reason: null, detail: null };
+    }
+    if (/Permission denied/i.test(errStr)) {
+      return { ok: false, reason: "kraken-perms-missing", detail: errStr };
+    }
+    if (/Invalid (key|signature|nonce|permissions)/i.test(errStr)) {
+      return { ok: false, reason: "venue-auth", detail: errStr };
+    }
+    if (/Rate limit/i.test(errStr)) {
+      return { ok: false, reason: "venue-rate-limit", detail: errStr };
+    }
+    return { ok: false, reason: "venue-unexpected", detail: errStr };
+  }
+
+  if (!data || typeof data.result !== "object" || data.result === null) {
+    return { ok: false, reason: "venue-unexpected", detail: "missing result field" };
+  }
+
+  // result.descr or result.txid present → server validated successfully.
+  return { ok: true, reason: null, detail: null };
+}
+
 // ─── Phase D-5.10.5 — live reconciliation logic ─────────────────────────────
 // Pure function: diffs the Postgres "live open position" row (from D-5.8
 // loadOpenPosition('live')) against the Kraken venue read (from D-5.10.4
@@ -2481,6 +2597,38 @@ async function run() {
       await _emitLiveHaltAlert(phase, pre.reason, detailStr);
       console.log("═══════════════════════════════════════════════════════════\n");
       return;
+    }
+
+    // Phase D-5.10.5.4 — Kraken API key permission probe (cached).
+    // Confirms the live key has Modify Orders permission BEFORE the trade-
+    // decision branch can reach a real placeKrakenOrder call. Cache lives
+    // on bot_control row #1 so the probe runs once per failure-resolution
+    // cycle, not on every 5-min tick.
+    {
+      const cache = await dbGetKrakenPermCheckState();
+      let probe;
+      if (cache?.ok === true) {
+        // Cache hit — trust it; no Kraken call this cycle.
+        console.log(`[d-5.10.5.4 probe] cached ok (since ${cache.at instanceof Date ? cache.at.toISOString() : cache.at})`);
+        probe = { ok: true };
+      } else {
+        const why = cache == null ? "empty" : `prior=${cache.ok}`;
+        console.log(`[d-5.10.5.4 probe] running (cache=${why})`);
+        probe = await probeKrakenPermissions();
+        try {
+          await dbRecordKrakenPermCheck(probe.ok, probe.reason ?? null, probe.detail ?? null);
+        } catch (e) {
+          console.warn(`[d-5.10.5.4 cache-write-error] ${e.message}`);
+          // Don't block the cycle on a cache write failure — use the in-memory
+          // probe result for this cycle. Next cycle will probe again (cache
+          // remains empty/stale until DB recovers).
+        }
+      }
+      if (!probe.ok) {
+        await _emitLiveHaltAlert("d-5.10.5.4", probe.reason, probe.detail);
+        console.log("═══════════════════════════════════════════════════════════\n");
+        return;
+      }
     }
 
     // Phase D-5.10.5 — Postgres-vs-Kraken reconciliation. Halts the cycle

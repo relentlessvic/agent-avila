@@ -722,6 +722,56 @@ export async function clearLiveHaltState() {
   return { shouldAlert: true, previousReason };
 }
 
+// ─── Phase D-5.10.5.4 — Kraken API key permission probe cache ──────────────
+// Two helpers: getKrakenPermCheckState() reads the cache; recordKrakenPermCheck()
+// writes the result after each probe. The cache lives on bot_control row #1
+// so it survives container restarts, deploys, and bot.js process churn (every
+// cycle is a fresh process; in-memory state can't persist).
+//
+// Cache semantics:
+//   - kraken_perm_check_at IS NULL                → never probed (cold cache)
+//   - kraken_perm_check_at IS NOT NULL, ok = TRUE  → cached pass; bot.js skips probe
+//   - kraken_perm_check_at IS NOT NULL, ok = FALSE → cached fail; bot.js re-probes
+//                                                    every cycle until pass
+//
+// Operator manual flush: UPDATE bot_control SET
+//   kraken_perm_check_at = NULL,
+//   kraken_perm_check_ok = NULL,
+//   kraken_perm_check_reason = NULL,
+//   kraken_perm_check_detail = NULL
+// WHERE id = 1;
+
+export async function getKrakenPermCheckState() {
+  const r = await query(
+    `SELECT kraken_perm_check_at, kraken_perm_check_ok,
+            kraken_perm_check_reason, kraken_perm_check_detail
+     FROM bot_control WHERE id = 1`
+  );
+  const row = r.rows[0];
+  if (!row || row.kraken_perm_check_at == null) return null;
+  return {
+    at:     row.kraken_perm_check_at,
+    ok:     row.kraken_perm_check_ok,
+    reason: row.kraken_perm_check_reason,
+    detail: row.kraken_perm_check_detail,
+  };
+}
+
+export async function recordKrakenPermCheck(ok, reason, detail) {
+  const reasonStr = reason == null ? null : String(reason);
+  const detailStr = detail == null ? null : String(detail);
+  await query(
+    `UPDATE bot_control SET
+       kraken_perm_check_at      = NOW(),
+       kraken_perm_check_ok      = $1,
+       kraken_perm_check_reason  = $2,
+       kraken_perm_check_detail  = $3,
+       updated_at                = NOW()
+     WHERE id = 1`,
+    [!!ok, reasonStr, detailStr]
+  );
+}
+
 export async function upsertBotControl(ctrl) {
   if (!ctrl || typeof ctrl !== "object") throw new Error("upsertBotControl: ctrl must be an object");
   return query(
