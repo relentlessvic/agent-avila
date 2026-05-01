@@ -280,7 +280,20 @@ function modeScopedSummary(wantPaper) {
       ? `Bot currently in ${botInPaperMode ? "PAPER" : "LIVE"} mode — ${wantPaper ? "paper" : "live"} position not active`
       : (position.open ? null : "No open position"),
     latestDecision,
-    recentTrades: trades.slice(-30).reverse(),
+    // Phase D-4-P-a — recentTrades is the last 30 actual trade events
+    // (BUY/MANUAL_BUY/EXIT/MANUAL_CLOSE), not the last 30 bot cycles.
+    // Cycles are dominated by BLOCKED/skip rows; surfaces that consumed
+    // the old shape (Performance Recent Trades, Profit Factor, Drawdown,
+    // /paper Advanced trade history) showed "no trades" any time the
+    // last 30 cycles happened to contain zero exits, even though the
+    // full history is preserved on disk in safety-check-log.json.
+    // recentSignalCycles preserves the old "last 30 cycles" stream for
+    // any consumer that genuinely wants the full decision feed.
+    recentTrades: trades
+      .filter(t => t && (t.type === "EXIT" || (t.orderPlaced === true && t.type !== "EXIT")))
+      .slice(-30)
+      .reverse(),
+    recentSignalCycles: trades.slice(-30).reverse(),
     control: {
       stopped: !!control.stopped,
       paused:  !!control.paused,
@@ -3589,7 +3602,7 @@ const HTML = `<!DOCTYPE html>
     <div class="stat-card">
       <div class="stat-label">Today's Trades</div>
       <div class="stat-value yellow" id="stat-today">—</div>
-      <div class="stat-sub" id="stat-today-sub">of 3 max</div>
+      <div class="stat-sub" id="stat-today-sub">of 3 max · UTC day</div>
     </div>
   </div>
 
@@ -5759,8 +5772,12 @@ const HTML = `<!DOCTYPE html>
     document.getElementById("stat-fired").textContent   = stats.fired;
     document.getElementById("stat-blocked").textContent = stats.blocked;
     document.getElementById("stat-today").textContent   = stats.todayCount;
+    // Phase D-4-P-c — make the UTC-day scope explicit. Bot.js's
+    // countTodaysTrades / checkTradeLimits both bucket by UTC day for
+    // safety; surfacing that here prevents the post-UTC-midnight "0 today"
+    // surprise that hides trades made earlier in the user's local day.
     document.getElementById("stat-today-sub").textContent =
-      \`of \${latest?.limits?.maxTradesPerDay ?? 3} max today\`;
+      \`of \${latest?.limits?.maxTradesPerDay ?? 3} max · UTC day (resets 00:00 UTC)\`;
 
     if (latest) {
       const { price, indicators, timestamp } = latest;
@@ -6909,7 +6926,9 @@ function buildTradesTable() {
   const body = document.getElementById("trades-body");
   if (!body) return;
   if (!_lastRecentTrades.length) {
-    body.innerHTML = '<div class="empty">No ' + MODE + ' trades recorded yet.</div>';
+    // Phase D-4-P-e — empty here means no trade events in the windowed range
+    // (D-4-P-a). Full history is preserved on disk in safety-check-log.json.
+    body.innerHTML = '<div class="empty">No ' + MODE + ' trades in this displayed window. Full ' + MODE + ' history is still stored in the bot log.</div>';
     return;
   }
   const rows = _lastRecentTrades.map(t => {
@@ -8645,9 +8664,9 @@ function dashboardV2HTML(initial) {
 
     <div class="kpis perf-kpis">
       <div class="kpi">
-        <div class="kpi-label">Today's P&amp;L</div>
+        <div class="kpi-label">Today's P&amp;L<span class="help-icon" tabindex="0" role="button" aria-label="Today's P&L scope explained" data-help="Today is the current UTC calendar day. Daily limits use UTC day for bot safety, so this resets at 00:00 UTC regardless of your local time." title="Today is the current UTC calendar day. Daily limits use UTC day for bot safety, so this resets at 00:00 UTC regardless of your local time.">?</span></div>
         <div class="kpi-val" id="pf-today">—</div>
-        <div class="kpi-sub">today's results · bot-recorded</div>
+        <div class="kpi-sub">today UTC · bot-recorded · resets 00:00 UTC</div>
       </div>
       <div class="kpi">
         <div class="kpi-label">Win Rate</div>
@@ -9261,7 +9280,7 @@ function pfClassFor(n) {
 
 function pfComputeProfitFactor(exits) {
   if (!Array.isArray(exits) || exits.length === 0) {
-    return { label: "—", subLabel: "no recent EXITs in last 30 cycles" };
+    return { label: "—", subLabel: "no recent EXITs in displayed window" };
   }
   let gp = 0, gl = 0, count = 0;
   for (const e of exits) {
@@ -9272,7 +9291,7 @@ function pfComputeProfitFactor(exits) {
     if (pnl > 0) gp += pnl;
     else if (pnl < 0) gl += -pnl;
   }
-  if (count === 0) return { label: "—", subLabel: "no recent EXITs in last 30 cycles" };
+  if (count === 0) return { label: "—", subLabel: "no recent EXITs in displayed window" };
   if (gl === 0) {
     if (gp === 0) return { label: "—", subLabel: "no realized P&L yet" };
     return { label: "∞", subLabel: "no losing exits" };
@@ -9437,7 +9456,11 @@ function renderPerfTrades() {
     t && t.type === "EXIT" && t.orderPlaced === true);
   if (exits.length === 0) {
     const modeLabel = _perfMode === "live" ? "Live" : "Paper";
-    body.innerHTML = '<div class="card-empty">No closed trades in the last 30 cycles for ' + modeLabel + ' mode.</div>';
+    // Phase D-4-P-e — the previous "No closed trades in the last 30 cycles"
+    // wording read as "trades disappeared." With D-4-P-a's trade-event
+    // window, an empty list here means no closed trade events have been
+    // recorded yet in the windowed range (full history is still on disk).
+    body.innerHTML = '<div class="card-empty">No ' + modeLabel.toLowerCase() + ' trades in this displayed window. Full ' + modeLabel.toLowerCase() + ' history is still stored in the bot log.</div>';
     return;
   }
   const top = exits.slice(0, 20);  // recentTrades is already newest-first
