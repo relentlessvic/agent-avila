@@ -24,6 +24,7 @@ import {
   inTransaction, buildEventId, insertTradeEvent,
   upsertPositionOpen, closePosition,
   insertStrategySignal,
+  loadOpenPosition as dbLoadOpenPosition,
 } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -788,23 +789,99 @@ function saveLog(log) {
 
 const POSITION_FILE = dataPath("position.json");
 
-function loadPosition() {
-  if (!existsSync(POSITION_FILE)) return { open: false };
-  try { return JSON.parse(readFileSync(POSITION_FILE, "utf8")); }
-  catch { return { open: false }; }
+// ─── Phase D-5.10.1 — paper position read flip ──────────────────────────────
+// loadPosition() is now async + mode-aware.
+//
+// Paper mode:
+//   - DB available → query positions WHERE mode='paper' AND status='open'.
+//     If a row is returned → map it to the legacy position.json shape.
+//     If no row → return { open: false } authoritatively (no log-scan rebuild).
+//   - DB query throws → log a [d-5.10 paper-read] warn line and fall back to
+//     the existing JSON read.
+//   - DB unavailable (DATABASE_URL unset) → existing JSON read; log-scan
+//     rebuild path in initPosition() preserved for that legacy environment.
+//
+// Live mode:
+//   - Unchanged in this phase. Reads JSON (and the existing log-scan rebuild
+//     fallback) exactly as before. Kraken reconciliation lands in D-5.10.3+.
+//
+// _source is a private discriminator only used by initPosition() to decide
+// whether to skip the legacy log-scan rebuild (DB-authoritative empty) or
+// preserve it (JSON-fallback path with a missing file). It is stripped
+// before the position object propagates to run() so downstream callers
+// (and savePosition writes) never see it.
+function _dbPosToLegacy(p) {
+  if (!p) return null;
+  const num = (v) => (v == null ? null : parseFloat(v));
+  return {
+    open: true,
+    side: p.side ?? "long",
+    symbol: p.symbol,
+    entryPrice: num(p.entry_price),
+    entryTime: p.entry_time instanceof Date ? p.entry_time.toISOString() : p.entry_time,
+    quantity: num(p.quantity),
+    tradeSize: num(p.trade_size_usd),
+    leverage: p.leverage,
+    effectiveSize: num(p.effective_size_usd),
+    orderId: p.kraken_order_id,
+    stopLoss: num(p.stop_loss),
+    takeProfit: num(p.take_profit),
+    entrySignalScore: p.entry_signal_score,
+    volatilityLevel: p.volatility_level,
+  };
+}
+
+function _loadPositionFromJson() {
+  if (!existsSync(POSITION_FILE)) return { open: false, _source: "json-missing" };
+  try {
+    const parsed = JSON.parse(readFileSync(POSITION_FILE, "utf8"));
+    return { ...parsed, _source: "json" };
+  } catch {
+    return { open: false, _source: "json" };
+  }
+}
+
+async function loadPosition() {
+  const mode = CONFIG.paperTrading ? "paper" : "live";
+  if (mode === "paper" && dbAvailable()) {
+    try {
+      const dbPos = await dbLoadOpenPosition("paper");
+      if (dbPos) return { ..._dbPosToLegacy(dbPos), _source: "db" };
+      return { open: false, _source: "db-empty" };
+    } catch (e) {
+      console.warn(`[d-5.10 paper-read] DB read failed: ${e.message} — falling back to JSON`);
+      return _loadPositionFromJson();
+    }
+  }
+  return _loadPositionFromJson();
 }
 
 function savePosition(pos) {
   atomicWrite(POSITION_FILE, JSON.stringify(pos, null, 2));
 }
 
-// On first run, auto-restore any existing open paper trade from the log
-function initPosition(log) {
-  if (existsSync(POSITION_FILE)) return loadPosition();
+// On first run, auto-restore any existing open paper trade from the log.
+// Phase D-5.10.1 — async because loadPosition() is now async; preserves the
+// legacy log-scan rebuild fallback only when the read came from JSON and
+// the JSON file was missing (paper-DB-down or live-no-JSON path). When the
+// answer came from Postgres (DB-authoritative empty), no rebuild occurs.
+async function initPosition(log) {
+  const pos = await loadPosition();
+  if (pos.open) {
+    delete pos._source;
+    return pos;
+  }
+  // No open position. Decide whether to run the legacy log-scan rebuild.
+  const src = pos._source;
+  if (src === "db" || src === "db-empty" || src === "json") {
+    // DB-authoritative empty, or JSON-exists-but-empty (open=false). No rebuild.
+    return { open: false };
+  }
+  // src === "json-missing" → preserve original log-scan rebuild path.
   const buys = log.trades.filter(t => t.orderPlaced && t.price);
   if (!buys.length) return { open: false };
   const last = buys[buys.length - 1];
-  const pos = {
+  const rebuilt = {
     open: true,
     side: "long",
     symbol: last.symbol,
@@ -816,9 +893,9 @@ function initPosition(log) {
     stopLoss: last.price * (1 - CONFIG.stopLossPct / 100),
     takeProfit: last.price * (1 + CONFIG.takeProfitPct / 100),
   };
-  savePosition(pos);
-  console.log(`  ↩️  Restored open position from log — entry $${pos.entryPrice.toFixed(4)}`);
-  return pos;
+  savePosition(rebuilt);
+  console.log(`  ↩️  Restored open position from log — entry $${rebuilt.entryPrice.toFixed(4)}`);
+  return rebuilt;
 }
 
 // ─── Volatility Check (ATR-based) ────────────────────────────────────────────
@@ -1649,7 +1726,7 @@ async function run() {
   console.log(`Symbol: ${CONFIG.symbol} | Timeframe: ${CONFIG.timeframe}`);
 
   const log = loadLog();
-  const position = initPosition(log);
+  const position = await initPosition(log);
 
   // Fetch market data
   console.log("\n── Fetching market data from Kraken ────────────────────\n");
