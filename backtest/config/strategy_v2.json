@@ -1,0 +1,50 @@
+{
+  "_phase": "SV2-1",
+  "_status": "design-locked; not yet consumed by simulator (SV2-5+) or signal logic (SV2-2+)",
+  "version": "v2.0",
+  "asset": "XRPUSD",
+  "side": "long-only",
+  "timeframes": {
+    "trend": "4h",
+    "sweep": "15m",
+    "entry": "5m"
+  },
+  "risk": {
+    "standardPct": 0.01,
+    "perfectPct": 0.015,
+    "maxDailyTrades": 3,
+    "maxDailyLosses": 2,
+    "maxDailyDrawdownPct": 0.03,
+    "equityFloorPct": 0.5
+  },
+  "tps": {
+    "tp1": { "rr": 1.0, "closePct": 0.7 },
+    "tp2": { "rr": 2.0, "closePct": 0.3 },
+    "moveSlToBreakevenAfterTp1": true
+  },
+  "sl": {
+    "bufferAtrMultiple": 0.1,
+    "atrPeriod": 14,
+    "atrTimeframe": "5m"
+  },
+  "fees": {
+    "makerPct": 0.0016,
+    "takerPct": 0.0026,
+    "slippageTicks": 1,
+    "tickSize": 0.00001
+  },
+  "indicators": {
+    "trend4hSmaShort": 20,
+    "trend4hSmaLong": 50,
+    "swing15mLookback": 20,
+    "bos5mWindow": 12,
+    "pullbackZoneMin": 0.5,
+    "pullbackZoneMax": 0.79
+  },
+  "soakLadder": [
+    { "tier": 1, "days": 30 },
+    { "tier": 2, "days": 90 },
+    { "tier": 3, "days": 365 },
+    { "tier": 4, "days": 1095 }
+  ]
+}
