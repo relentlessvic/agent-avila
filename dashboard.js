@@ -33,6 +33,12 @@ import {
   loadWinLossAggregates,
 } from "./db.js";
 
+// Phase LC-3.1 — read-only live-readiness object generator.
+// Imported here ONLY to serve GET /api/live-readiness and the /live-readiness
+// HTML page. The bot.js source code does NOT import this module. The endpoint
+// and page are display-only — no buttons, no mutations, no live activation.
+import { buildLiveReadiness } from "./lib/live-readiness.js";
+
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -7002,7 +7008,9 @@ function homepagePage(initial) {
   </div>
 
   <div class="footer">
-    <a href="/dashboard">Detailed view</a> &middot; <a href="/logout">Logout</a>
+    <a href="/dashboard">Detailed view</a> &middot;
+    <a href="/live-readiness">Live readiness</a> &middot;
+    <a href="/logout">Logout</a>
   </div>
 </div>
 <script>
@@ -7207,6 +7215,306 @@ document.addEventListener("visibilitychange", () => {
 safePoll();
 setInterval(safePoll, 10000);
 setInterval(showStale, 1000);
+</script>
+</body>
+</html>`;
+}
+
+// ─── Phase LC-3.1 — /live-readiness display-only HTML page ──────────────────
+// Renders the LC-2.1 live-readiness object as an operator-facing dashboard.
+// READ-ONLY by construction:
+//   - No buttons that mutate any state.
+//   - No "approve" / "sign off" / "activate" / "arm" / "go live" actions.
+//   - No POST/PUT/DELETE handlers in the served JS.
+//   - The "Refresh" button only re-fetches the read-only /api/live-readiness
+//     endpoint. Manual re-render only.
+//   - Disclaimer banner permanently visible reminding the operator that
+//     finalStatus=GO does NOT activate live trading.
+// Auto-refreshes every 30s by re-fetching /api/live-readiness.
+// On fetch error: keeps the last successful render visible AND shows an
+// inline "Unable to load" notice. Defaults to NO-GO display.
+function liveReadinessHTML() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Readiness — Agent Avila</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         background: #0b0e14; color: #cdd6e3; padding: 24px; line-height: 1.5; }
+  a { color: #00D4FF; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 15px; margin: 18px 0 8px; color: #e6edf3; font-weight: 600; }
+  h3 { font-size: 13px; margin: 10px 0 4px; color: #cdd6e3; font-weight: 600; }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 18px; }
+  .nav-links { font-size: 13px; }
+  .nav-links a { margin-left: 16px; }
+
+  .status-banner { padding: 22px 26px; border-radius: 10px; margin-bottom: 18px;
+                   border: 1px solid #2a3140; background: #11161f; }
+  .status-banner.go    { border-color: #2da849; background: #0f2114; }
+  .status-banner.no-go { border-color: #c8443f; background: #1d0f10; }
+  .status-label { font-size: 12px; color: #8a93a6; letter-spacing: 0.6px; text-transform: uppercase; }
+  .status-value { font-size: 32px; font-weight: 700; letter-spacing: 1px; margin: 4px 0 8px; }
+  .status-value.go    { color: #4ec76b; }
+  .status-value.no-go { color: #ff6b66; }
+  .status-meta { font-size: 13px; color: #8a93a6; }
+  .refresh-row { margin-top: 10px; font-size: 12px; color: #6c7689; }
+  .refresh-row button { background: transparent; color: #00D4FF; border: 1px solid #1d3b4a;
+                        padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+                        margin-right: 10px; font-family: inherit; }
+  .refresh-row button:hover { background: rgba(0,212,255,0.08); }
+
+  .disclaimer { padding: 14px 18px; border: 1px solid #c9a83f; background: #1d1808;
+                color: #f0d77b; border-radius: 8px; font-size: 12px;
+                margin: 14px 0 22px; line-height: 1.7; }
+  .disclaimer .label { font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+                       color: #f0d77b; display: block; margin-bottom: 6px; font-size: 11px; }
+  .disclaimer ol { margin: 4px 0 0 22px; }
+
+  .panel { background: #11161f; border: 1px solid #2a3140; border-radius: 8px;
+           padding: 16px 18px; margin-bottom: 14px; }
+  .panel-title { font-size: 13px; font-weight: 600; color: #cdd6e3; margin-bottom: 10px;
+                 letter-spacing: 0.4px; }
+  .blocker { padding: 10px 0; border-bottom: 1px solid #1d2230; font-size: 13px; }
+  .blocker:last-child { border-bottom: none; }
+  .blocker-summary { display: flex; gap: 10px; align-items: baseline; }
+  .blocker-summary .badge { flex-shrink: 0; }
+  .blocker-summary .title { font-weight: 600; color: #e6edf3; }
+  .blocker-summary .section { color: #6c7689; font-size: 11px; }
+  .blocker-detail { margin-top: 6px; padding-left: 88px; color: #8a93a6; font-size: 12px; }
+  .blocker-msg { margin-top: 4px; padding-left: 88px; color: #b39c5c; font-size: 12px;
+                 font-style: italic; }
+  .blocker-obs { margin-top: 4px; padding-left: 88px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+                 font-size: 11px; color: #6c7689; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px;
+           font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 10px;
+           font-weight: 700; letter-spacing: 0.6px; min-width: 64px; text-align: center; }
+  .badge.PASS    { background: #143a1c; color: #4ec76b; border: 1px solid #2da849; }
+  .badge.FAIL    { background: #2c1314; color: #ff6b66; border: 1px solid #c8443f; }
+  .badge.BLOCKED { background: #2c1314; color: #ff6b66; border: 1px solid #c8443f; }
+  .badge.WAITING { background: #2a2616; color: #f0d77b; border: 1px solid #c9a83f; }
+  .badge.MANUAL  { background: #1c2030; color: #cdd6e3; border: 1px solid #3a4053; }
+
+  details.section { background: #0e131c; border: 1px solid #2a3140; border-radius: 6px;
+                    margin: 8px 0; padding: 0; }
+  details.section > summary { padding: 10px 14px; cursor: pointer; font-size: 13px;
+                              font-weight: 600; color: #e6edf3; user-select: none; }
+  details.section > summary:hover { background: #11161f; }
+  details.section[open] > summary { border-bottom: 1px solid #1d2230; }
+  details.section .item { padding: 10px 14px; border-bottom: 1px solid #1d2230; font-size: 12px; }
+  details.section .item:last-child { border-bottom: none; }
+  details.section .item-head { display: flex; gap: 10px; align-items: baseline; }
+  details.section .item-meta { margin-top: 4px; padding-left: 88px; color: #8a93a6; font-size: 11px; }
+  details.section .item-meta .ml-label { color: #6c7689; font-weight: 600; margin-right: 4px; }
+
+  .empty { color: #6c7689; padding: 20px; text-align: center; font-style: italic; }
+  .error-toast { padding: 8px 12px; background: #2c1314; color: #ff6b66; border: 1px solid #c8443f;
+                 border-radius: 6px; font-size: 12px; margin-bottom: 14px; display: none; }
+  .footer { text-align: center; color: #6c7689; font-size: 11px; margin-top: 24px;
+            padding-top: 16px; border-top: 1px solid #1d2230; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Live Readiness — Agent Avila</h1>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/dashboard">Detailed</a>
+      <a href="/paper">Paper</a>
+      <a href="/logout">Logout</a>
+    </div>
+  </div>
+
+  <div id="error-toast" class="error-toast"></div>
+
+  <div id="status-banner" class="status-banner">
+    <div class="status-label">Live Readiness</div>
+    <div id="status-value" class="status-value">LOADING</div>
+    <div id="status-meta" class="status-meta">Fetching readiness state...</div>
+    <div class="refresh-row">
+      <button id="refresh-btn" type="button">Refresh now</button>
+      <span id="last-checked">Last checked: —</span>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    <span class="label">Display-only — does not activate live trading</span>
+    This panel reflects the state of the LC-1 operator readiness checklist. Status: GO
+    does NOT activate live trading. Operator must still verify all five layers
+    independently:
+    <ol>
+      <li>CONFIG.paperTrading=false</li>
+      <li>LIVE_TRADING_ARMED env var set</li>
+      <li>All D-5.10.x runtime gates passing</li>
+      <li>Manual operator approval (LC-1 §10.4 sign-off)</li>
+      <li>D-5.10.6 final activation gate (not yet implemented)</li>
+    </ol>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title" id="blockers-title">Top blockers</div>
+    <div id="blockers-list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Full checklist (10 sections, 43 items)</div>
+    <div id="sections-list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="footer">
+    Auto-refresh every 30s · The bot does not consume liveReadiness.finalStatus.
+  </div>
+</div>
+
+<script>
+// LC-3.1 — display-only client. No mutation actions; no state writes.
+// Fetches /api/live-readiness on load and every 30s. On error keeps last
+// successful render and shows a non-blocking inline notice.
+(function() {
+  const STATUS_BANNER = document.getElementById("status-banner");
+  const STATUS_VALUE  = document.getElementById("status-value");
+  const STATUS_META   = document.getElementById("status-meta");
+  const LAST_CHECKED  = document.getElementById("last-checked");
+  const REFRESH_BTN   = document.getElementById("refresh-btn");
+  const ERROR_TOAST   = document.getElementById("error-toast");
+  const BLOCKERS_LIST = document.getElementById("blockers-list");
+  const BLOCKERS_TITLE= document.getElementById("blockers-title");
+  const SECTIONS_LIST = document.getElementById("sections-list");
+
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+
+  function renderObj(obj) {
+    const fs = obj.finalStatus || "NO-GO";
+    STATUS_BANNER.classList.remove("go", "no-go");
+    STATUS_BANNER.classList.add(fs === "GO" ? "go" : "no-go");
+    STATUS_VALUE.classList.remove("go", "no-go");
+    STATUS_VALUE.classList.add(fs === "GO" ? "go" : "no-go");
+    STATUS_VALUE.textContent = fs;
+
+    const summary = obj.summary || {};
+    const c = summary.byStatus || {};
+    const blockerCount = (obj.blockers || []).length;
+    STATUS_META.textContent =
+      blockerCount + " blocker" + (blockerCount === 1 ? "" : "s") + " · " +
+      (summary.totalItems || 0) + " items · " +
+      "PASS " + (c.PASS || 0) + " · FAIL " + (c.FAIL || 0) + " · WAITING " + (c.WAITING || 0) +
+      " · BLOCKED " + (c.BLOCKED || 0) + " · MANUAL " + (c.MANUAL || 0);
+
+    LAST_CHECKED.textContent = "Last checked: " + (obj.generatedAt || "—");
+
+    // Blockers panel
+    const blockers = obj.blockers || [];
+    if (blockers.length === 0) {
+      BLOCKERS_TITLE.textContent = "Top blockers (none)";
+      BLOCKERS_LIST.innerHTML = '<div class="empty">No active blockers.</div>';
+    } else {
+      BLOCKERS_TITLE.textContent = "Top blockers (showing " + Math.min(10, blockers.length) +
+        " of " + blockers.length + ")";
+      const top = blockers.slice(0, 10);
+      BLOCKERS_LIST.innerHTML = top.map(function(b) {
+        const obs = b.observation
+          ? '<div class="blocker-obs">' + escapeHtml(b.observation) + '</div>' : "";
+        return '<div class="blocker">' +
+          '<div class="blocker-summary">' +
+            '<span class="badge ' + escapeHtml(b.status) + '">' + escapeHtml(b.status) + '</span>' +
+            '<span class="title">' + escapeHtml(b.summary) + '</span>' +
+            '<span class="section">[' + escapeHtml(b.sectionId) + '/' + escapeHtml(b.itemId) + ']</span>' +
+          '</div>' +
+          '<div class="blocker-msg">' + escapeHtml(b.blockerMessage) + '</div>' +
+          obs +
+        '</div>';
+      }).join("");
+    }
+
+    // Sections
+    const sections = obj.sections || [];
+    if (sections.length === 0) {
+      SECTIONS_LIST.innerHTML = '<div class="empty">No sections returned.</div>';
+    } else {
+      SECTIONS_LIST.innerHTML = sections.map(function(section) {
+        const items = section.items || [];
+        const counts = items.reduce(function(acc, it) {
+          acc[it.status] = (acc[it.status] || 0) + 1; return acc;
+        }, {});
+        const summaryCount = ["PASS","FAIL","WAITING","BLOCKED","MANUAL"]
+          .filter(function(s) { return counts[s]; })
+          .map(function(s) { return s + " " + counts[s]; }).join(" · ");
+        const itemsHtml = items.map(function(it) {
+          const obs = it.observation
+            ? '<div class="item-meta"><span class="ml-label">Observation:</span>' + escapeHtml(it.observation) + '</div>' : "";
+          const blockerLine = it.status !== "PASS" && it.blockerMessage
+            ? '<div class="item-meta"><span class="ml-label">Blocker:</span>' + escapeHtml(it.blockerMessage) + '</div>' : "";
+          return '<div class="item">' +
+            '<div class="item-head">' +
+              '<span class="badge ' + escapeHtml(it.status) + '">' + escapeHtml(it.status) + '</span>' +
+              '<span>' + escapeHtml(it.title) + '</span>' +
+            '</div>' +
+            '<div class="item-meta"><span class="ml-label">Why:</span>' + escapeHtml(it.whyItMatters) + '</div>' +
+            '<div class="item-meta"><span class="ml-label">Verify:</span>' + escapeHtml(it.howToVerify) + '</div>' +
+            '<div class="item-meta"><span class="ml-label">Pass:</span>' + escapeHtml(it.passCondition) + '</div>' +
+            obs + blockerLine +
+          '</div>';
+        }).join("");
+        const expand = section.ordinal <= 3 ? "open" : "";
+        return '<details class="section" ' + expand + '>' +
+          '<summary>§' + section.ordinal + '. ' + escapeHtml(section.title) +
+            ' &nbsp;(' + items.length + ' items: ' + summaryCount + ')</summary>' +
+          itemsHtml +
+        '</details>';
+      }).join("");
+    }
+  }
+
+  function showError(msg) {
+    ERROR_TOAST.textContent = "Unable to load readiness data: " + msg + " — retrying...";
+    ERROR_TOAST.style.display = "block";
+  }
+  function clearError() {
+    ERROR_TOAST.style.display = "none";
+  }
+
+  let inflight = false;
+  async function refresh() {
+    if (inflight) return;
+    inflight = true;
+    REFRESH_BTN.disabled = true;
+    try {
+      const r = await fetch("/api/live-readiness", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const obj = await r.json();
+      renderObj(obj);
+      clearError();
+    } catch (e) {
+      showError(e.message);
+      // Default to NO-GO display when no prior render exists.
+      if (STATUS_VALUE.textContent === "LOADING") {
+        STATUS_BANNER.classList.add("no-go");
+        STATUS_VALUE.classList.add("no-go");
+        STATUS_VALUE.textContent = "NO-GO";
+        STATUS_META.textContent = "Unable to load — defaulting to NO-GO";
+      }
+    } finally {
+      inflight = false;
+      REFRESH_BTN.disabled = false;
+    }
+  }
+
+  REFRESH_BTN.addEventListener("click", refresh);
+  refresh();
+  setInterval(refresh, 30000);
+})();
 </script>
 </body>
 </html>`;
@@ -11231,6 +11539,98 @@ const server = createServer(async (req, res) => {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ success: false, error: e.message }));
     }
+    return;
+  }
+
+  // ── Phase LC-3.1 — /api/live-readiness (read-only) ──────────────────────
+  // Returns the LC-2.1 live-readiness object as JSON. GET only; POST / PUT /
+  // PATCH / DELETE return 405. Calls buildLiveReadiness with a minimal
+  // healthSnapshot so the three HTTP-dependent items in lib/live-readiness.js
+  // (api-health-reachable / bot-running-and-cron-current /
+  // kraken-online-and-low-latency) auto-verify. On any error path the response
+  // still parses as a valid LiveReadinessObject with finalStatus=NO-GO.
+  if (req.url === "/api/live-readiness") {
+    if (req.method !== "GET") {
+      res.writeHead(405, { "Content-Type": "application/json", "Allow": "GET" });
+      res.end(JSON.stringify({ error: "Method Not Allowed" }));
+      return;
+    }
+    try {
+      // Minimal health snapshot: only the four fields the generator's
+      // HTTP-dependent items need. We do NOT refactor the existing /api/health
+      // logic — these are tiny per-request reads.
+      let healthSnapshot;
+      try {
+        const t0 = Date.now();
+        let krakenLatency = 0, krakenOnline = false;
+        try {
+          const r = await fetch("https://api.kraken.com/0/public/Time", { signal: AbortSignal.timeout(5000) });
+          krakenLatency = Date.now() - t0;
+          krakenOnline = r.ok;
+        } catch (_) {}
+        let lastRunAge = null, bot = "stopped";
+        try {
+          if (existsSync(LOG_FILE)) {
+            const log = JSON.parse(readFileSync(LOG_FILE, "utf8"));
+            const last = log.trades[log.trades.length - 1];
+            if (last) {
+              lastRunAge = Math.round((Date.now() - new Date(last.timestamp).getTime()) / 1000);
+              bot = lastRunAge <= 360 ? "running" : "stale";
+            }
+          }
+        } catch (_) {}
+        healthSnapshot = {
+          success: krakenOnline,
+          bot,
+          lastRunAge,
+          kraken: krakenOnline ? "online" : "offline",
+          krakenLatency,
+        };
+      } catch (_) {
+        healthSnapshot = null;
+      }
+
+      const obj = await buildLiveReadiness({ healthSnapshot });
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify(obj));
+    } catch (e) {
+      // Defensive — buildLiveReadiness has its own internal try/catch and
+      // synthesizeNoGo path, so this is unreachable under normal conditions.
+      // If we somehow get here, return a synthetic NO-GO object so monitors
+      // can still parse the response.
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({
+        schemaVersion: 1,
+        generatedAt: new Date().toISOString(),
+        finalStatus: "NO-GO",
+        summary: { totalItems: 0, byStatus: { PASS:0,FAIL:0,WAITING:0,BLOCKED:1,MANUAL:0 }, requiredForGo: 1, informationalOnly: 0 },
+        blockers: [{
+          sectionId: "endpoint", itemId: "handler-error",
+          status: "BLOCKED",
+          summary: "Live-readiness endpoint failed",
+          blockerMessage: "The /api/live-readiness handler threw. Live trading must remain blocked.",
+          observation: e.message,
+        }],
+        sections: [],
+      }));
+    }
+    return;
+  }
+
+  // ── Phase LC-3.1 — /live-readiness HTML page (read-only display) ────────
+  // Display-only operator surface for the LC-2.1 readiness object. No
+  // buttons that mutate state, no live-activation actions, no operator
+  // sign-off button (deferred to a future LC sub-phase with an audited
+  // attestation pipeline). Auto-refreshes every 30s by re-fetching the
+  // /api/live-readiness JSON endpoint.
+  if (req.url === "/live-readiness") {
+    if (req.method !== "GET") {
+      res.writeHead(405, { "Content-Type": "text/plain", "Allow": "GET" });
+      res.end("Method Not Allowed");
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store, must-revalidate" });
+    res.end(liveReadinessHTML());
     return;
   }
 
