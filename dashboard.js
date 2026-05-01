@@ -1,11 +1,51 @@
 import "dotenv/config";
-import { readFileSync, writeFileSync, existsSync, appendFileSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, appendFileSync, unlinkSync, statSync } from "fs";
+import path from "path";
 import { createServer } from "http";
 import { spawn } from "child_process";
 import crypto from "crypto";
 import { buildSystemStatus, runSystemCheck } from "./system-guardian.js";
 
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
+
+// ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
+// Mirror of the bot.js resolver. Both processes share the same Railway
+// container filesystem, so they MUST agree on where state files live. When
+// DATA_DIR is set (e.g. DATA_DIR=/data on a Railway service with a Volume
+// mounted at /data) every JSON/CSV state file lives on the persistent mount
+// and survives redeploys. When DATA_DIR is unset, paths resolve to the
+// current working directory — byte-identical to pre-D-5.2 behavior.
+//
+// PERSISTENCE.ok is exposed via /api/health (this phase) and consumed by
+// the live-mode safety gate in a later phase.
+const DATA_DIR = process.env.DATA_DIR || ".";
+const dataPath = (name) => path.join(DATA_DIR, name);
+const PERSISTENCE = (() => {
+  try {
+    if (!existsSync(DATA_DIR)) {
+      return { ok: false, dir: DATA_DIR, isVolume: false, reason: "DATA_DIR does not exist" };
+    }
+    const probe = path.join(DATA_DIR, ".write-probe");
+    writeFileSync(probe, String(Date.now()));
+    unlinkSync(probe);
+    const isVolume = /^\/(data|mnt|var\/data)/.test(DATA_DIR);
+    return { ok: true, dir: DATA_DIR, isVolume, reason: null };
+  } catch (e) {
+    return { ok: false, dir: DATA_DIR, isVolume: false, reason: e.message };
+  }
+})();
+
+// ─── Phase D-5.2 — runtime state-file path constants ────────────────────────
+// All file reads/writes below this block route through these constants so
+// the only place we declare a state-file path is here. Inline string
+// literals like readFileSync(LOG_FILE) have been replaced.
+const LOG_FILE          = dataPath("safety-check-log.json");
+const POSITION_FILE     = dataPath("position.json");
+const CSV_FILE          = dataPath("trades.csv");
+const CONTROL_FILE      = dataPath("bot-control.json");
+const PERF_STATE_FILE   = dataPath("performance-state.json");
+const CAPITAL_FILE      = dataPath("capital-state.json");
+const PORTFOLIO_FILE    = dataPath("portfolio-state.json");
 
 // Structured logger — appears in Railway console, browser fetch errors, and local stdout
 const log = {
@@ -52,8 +92,8 @@ async function withRetry(fn, retries = 2, delay = 500) {
 // ─── Bot Log / CSV ────────────────────────────────────────────────────────────
 
 function loadLog() {
-  if (!existsSync("safety-check-log.json")) return { trades: [] };
-  try { return JSON.parse(readFileSync("safety-check-log.json", "utf8")); }
+  if (!existsSync(LOG_FILE)) return { trades: [] };
+  try { return JSON.parse(readFileSync(LOG_FILE, "utf8")); }
   catch { return { trades: [] }; }
 }
 
@@ -70,8 +110,8 @@ function parseCsvLine(line) {
 }
 
 function loadCsv() {
-  if (!existsSync("trades.csv")) return [];
-  const lines = readFileSync("trades.csv", "utf8").trim().split("\n");
+  if (!existsSync(CSV_FILE)) return [];
+  const lines = readFileSync(CSV_FILE, "utf8").trim().split("\n");
   if (lines.length < 2) return [];
   const headers = parseCsvLine(lines[0]);
   return lines
@@ -120,15 +160,15 @@ function getApiData() {
   const paperPnL = calcPaperPnL(rows, currentPrice);
   const paperStartingBalance = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
   let position = { open: false };
-  try { if (existsSync("position.json")) position = JSON.parse(readFileSync("position.json", "utf8")); } catch {}
+  try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE, "utf8")); } catch {}
   let control = { stopped: false, paused: false, paperTrading: true, leverage: 2, riskPct: 1 };
-  try { if (existsSync("bot-control.json")) control = JSON.parse(readFileSync("bot-control.json", "utf8")); } catch {}
+  try { if (existsSync(CONTROL_FILE)) control = JSON.parse(readFileSync(CONTROL_FILE, "utf8")); } catch {}
   let perfState = {};
-  try { if (existsSync("performance-state.json")) perfState = JSON.parse(readFileSync("performance-state.json", "utf8")); } catch {}
+  try { if (existsSync(PERF_STATE_FILE)) perfState = JSON.parse(readFileSync(PERF_STATE_FILE, "utf8")); } catch {}
   let capitalState = { xrpRole: "HOLD_ASSET", autoConversion: false, activePct: 70, reservePct: 30 };
-  try { if (existsSync("capital-state.json")) capitalState = JSON.parse(readFileSync("capital-state.json", "utf8")); } catch {}
+  try { if (existsSync(CAPITAL_FILE)) capitalState = JSON.parse(readFileSync(CAPITAL_FILE, "utf8")); } catch {}
   let portfolioState = {};
-  try { if (existsSync("portfolio-state.json")) portfolioState = JSON.parse(readFileSync("portfolio-state.json", "utf8")); } catch {}
+  try { if (existsSync(PORTFOLIO_FILE)) portfolioState = JSON.parse(readFileSync(PORTFOLIO_FILE, "utf8")); } catch {}
 
   // Mode-segregated W/L (Phase 3). Each side counted from safety-check-log
   // EXIT entries filtered by .paperTrading. Returns null when no data, so
@@ -178,11 +218,11 @@ function getApiData() {
 // fetched here (slow); user sees real Kraken value on /live.
 function getHomeSummary() {
   let control = {};
-  try { if (existsSync("bot-control.json")) control = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
+  try { if (existsSync(CONTROL_FILE)) control = JSON.parse(readFileSync(CONTROL_FILE,"utf8")); } catch {}
   let latest = null;
   try {
-    if (existsSync("safety-check-log.json")) {
-      const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+    if (existsSync(LOG_FILE)) {
+      const log = JSON.parse(readFileSync(LOG_FILE,"utf8"));
       const t = log.trades.length ? log.trades[log.trades.length - 1] : null;
       if (t) latest = {
         timestamp:  t.timestamp,
@@ -255,9 +295,9 @@ function modeScopedSummary(wantPaper) {
   } : null;
 
   let control = {};
-  try { if (existsSync("bot-control.json")) control = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
+  try { if (existsSync(CONTROL_FILE)) control = JSON.parse(readFileSync(CONTROL_FILE,"utf8")); } catch {}
   let position = { open: false };
-  try { if (existsSync("position.json")) position = JSON.parse(readFileSync("position.json","utf8")); } catch {}
+  try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE,"utf8")); } catch {}
   const botInPaperMode = control.paperTrading !== false;
   const isActive = wantPaper ? botInPaperMode : !botInPaperMode;
 
@@ -366,7 +406,7 @@ async function getCachedKrakenHealth(maxAgeMs = 30_000) {
 // cannot be misled by a "healthy" buffer while a position is bleeding.
 async function buildV2DashboardPayload() {
   let ctrl = {};
-  try { if (existsSync("bot-control.json")) ctrl = JSON.parse(readFileSync("bot-control.json","utf8")); } catch {}
+  try { if (existsSync(CONTROL_FILE)) ctrl = JSON.parse(readFileSync(CONTROL_FILE,"utf8")); } catch {}
   const isPaper = ctrl.paperTrading !== false;
 
   // Mode-scoped summary (paper or live, never both).
@@ -378,13 +418,13 @@ async function buildV2DashboardPayload() {
   let latest = null, position = { open: false };
   let allTrades = [];
   try {
-    if (existsSync("safety-check-log.json")) {
-      const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+    if (existsSync(LOG_FILE)) {
+      const log = JSON.parse(readFileSync(LOG_FILE,"utf8"));
       allTrades = log.trades || [];
       latest = allTrades.length ? allTrades[allTrades.length - 1] : null;
     }
   } catch {}
-  try { if (existsSync("position.json")) position = JSON.parse(readFileSync("position.json","utf8")); } catch {}
+  try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE,"utf8")); } catch {}
 
   // Today-only realized P&L for the active mode.
   const todayDate = new Date().toISOString().slice(0, 10);
@@ -669,12 +709,12 @@ async function execKrakenOrder(side, pair, volume, leverage = 1) {
 }
 
 async function handleTradeCommand(command, params = {}) {
-  const ctrl = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json", "utf8")) : {};
+  const ctrl = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE, "utf8")) : {};
   const isPaper = ctrl.paperTrading !== false;
   const symbol  = "XRPUSDT";
   const krakenPair = PAIR_TO_KRAKEN[symbol];
   let   pos  = { open: false };
-  try { if (existsSync("position.json")) pos = JSON.parse(readFileSync("position.json", "utf8")); } catch {}
+  try { if (existsSync(POSITION_FILE)) pos = JSON.parse(readFileSync(POSITION_FILE, "utf8")); } catch {}
 
   const leverage = Math.min(Math.max(parseInt(ctrl.leverage || 2), 1), 3);
   const riskPct  = parseFloat(ctrl.riskPct || 1);
@@ -684,8 +724,8 @@ async function handleTradeCommand(command, params = {}) {
   const price = await fetchCurrentPrice(symbol);
   const volume = (tradeSize / price).toFixed(8);
 
-  const log = existsSync("safety-check-log.json")
-    ? JSON.parse(readFileSync("safety-check-log.json", "utf8"))
+  const log = existsSync(LOG_FILE)
+    ? JSON.parse(readFileSync(LOG_FILE, "utf8"))
     : { trades: [] };
 
   if (command === "BUY_MARKET" || command === "OPEN_LONG") {
@@ -707,10 +747,10 @@ async function handleTradeCommand(command, params = {}) {
       stopLoss:   price * (1 - slPct   / 100),
       takeProfit: price * (1 + tpPct   / 100),
     };
-    writeFileSync("position.json", JSON.stringify(newPos, null, 2));
+    writeFileSync(POSITION_FILE, JSON.stringify(newPos, null, 2));
     const entry = { type: "MANUAL_BUY", timestamp: new Date().toISOString(), symbol, price, tradeSize, leverage: useLev, orderId, paperTrading: isPaper, conditions: [], allPass: true, orderPlaced: true };
     log.trades.push(entry);
-    writeFileSync("safety-check-log.json", JSON.stringify(log, null, 2));
+    writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
     return { ok: true, message: `${isPaper ? "Paper" : "Live"} BUY — ${volume} XRP at $${price.toFixed(4)} | SL $${newPos.stopLoss.toFixed(4)} | TP $${newPos.takeProfit.toFixed(4)}`, price, orderId };
   }
 
@@ -726,8 +766,8 @@ async function handleTradeCommand(command, params = {}) {
     const pnlUSD = ((price - pos.entryPrice) / pos.entryPrice * pos.tradeSize).toFixed(2);
     const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity: pos.quantity, tradeSize: pos.tradeSize, entryPrice: pos.entryPrice, exitReason: "MANUAL_CLOSE", pct: pnlPct, pnlUSD, paperTrading: isPaper, orderId, conditions: [], allPass: false, orderPlaced: true };
     log.trades.push(exitEntry);
-    writeFileSync("safety-check-log.json", JSON.stringify(log, null, 2));
-    writeFileSync("position.json", JSON.stringify({ open: false }, null, 2));
+    writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
+    writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
     balanceCache = null;
     return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | ${isPaper ? "Paper" : "Live"} SELL at $${price.toFixed(4)}`, price, orderId, pnlPct, pnlUSD };
   }
@@ -741,7 +781,7 @@ async function handleTradeCommand(command, params = {}) {
       const order = await execKrakenOrder("sell", krakenPair, xrp.amount.toFixed(8), 1);
       orderId = order.orderId;
     }
-    writeFileSync("position.json", JSON.stringify({ open: false }, null, 2));
+    writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
     balanceCache = null;
     return { ok: true, message: `${isPaper ? "Paper" : "Live"} SELL ALL — ${xrp.amount.toFixed(4)} XRP at $${price.toFixed(4)}`, price, orderId, quantity: xrp.amount };
   }
@@ -750,7 +790,7 @@ async function handleTradeCommand(command, params = {}) {
     if (!pos.open) throw new Error("No open position — open a trade first");
     const pct    = parseFloat(params.pct || 1.25);
     pos.stopLoss = pos.entryPrice * (1 - pct / 100);
-    writeFileSync("position.json", JSON.stringify(pos, null, 2));
+    writeFileSync(POSITION_FILE, JSON.stringify(pos, null, 2));
     return { ok: true, message: `Stop loss updated to $${pos.stopLoss.toFixed(4)} (-${pct}% from entry $${pos.entryPrice.toFixed(4)})` };
   }
 
@@ -758,7 +798,7 @@ async function handleTradeCommand(command, params = {}) {
     if (!pos.open) throw new Error("No open position — open a trade first");
     const pct       = parseFloat(params.pct || 2.0);
     pos.takeProfit  = pos.entryPrice * (1 + pct / 100);
-    writeFileSync("position.json", JSON.stringify(pos, null, 2));
+    writeFileSync(POSITION_FILE, JSON.stringify(pos, null, 2));
     return { ok: true, message: `Take profit updated to $${pos.takeProfit.toFixed(4)} (+${pct}% from entry $${pos.entryPrice.toFixed(4)})` };
   }
 
@@ -833,7 +873,7 @@ async function fetchKrakenBalance() {
 // File-backed session store. Persists across Railway redeploys so users with
 // valid cookies stay logged in. Single-writer (only this process), atomic via
 // fs.writeFileSync. Two Sets serialized to one JSON file.
-const SESSIONS_FILE = "sessions-store.json";
+const SESSIONS_FILE = dataPath("sessions-store.json");
 function loadPersistedSessions() {
   if (!existsSync(SESSIONS_FILE)) return { sessions: [], pending: [] };
   try {
@@ -1254,7 +1294,7 @@ function loginPage(error = "") {
 const pendingSessions = new Set(_persisted.pending);
 // File-backed rate-limit state — survives Railway restarts so a redeploy or
 // container shuffle can't reset an attacker's counter. File is gitignored.
-const RATE_LIMIT_FILE = ".rate-limit-state.json";
+const RATE_LIMIT_FILE = dataPath(".rate-limit-state.json");
 function loadRateLimitState() {
   if (!existsSync(RATE_LIMIT_FILE)) return { login: [], twofa: [], forgot: [] };
   try {
@@ -10321,8 +10361,8 @@ const server = createServer(async (req, res) => {
     }
     let lastRun = null; let lastRunAge = null; let bot = "stopped";
     try {
-      if (existsSync("safety-check-log.json")) {
-        const log = JSON.parse(readFileSync("safety-check-log.json", "utf8"));
+      if (existsSync(LOG_FILE)) {
+        const log = JSON.parse(readFileSync(LOG_FILE, "utf8"));
         const last = log.trades[log.trades.length - 1];
         if (last) {
           lastRun    = last.timestamp;
@@ -10333,6 +10373,41 @@ const server = createServer(async (req, res) => {
     } catch (e) {
       errors.push({ source: "log-file", message: e.message });
     }
+    // Phase D-5.2 — persistence visibility on the public health endpoint.
+    // Lets an operator (or a future banner card) verify the volume status
+    // without authenticating. Read-only: reuses the boot-time PERSISTENCE
+    // probe plus a per-file existsSync/statSync sweep done now (cheap —
+    // microseconds — and reflects current state, not boot state).
+    const stateFiles = [
+      ["safety-check-log.json", LOG_FILE],
+      ["position.json",         POSITION_FILE],
+      ["trades.csv",            CSV_FILE],
+      ["bot-control.json",      CONTROL_FILE],
+      ["performance-state.json",PERF_STATE_FILE],
+      ["capital-state.json",    CAPITAL_FILE],
+      ["portfolio-state.json",  PORTFOLIO_FILE],
+      ["sessions-store.json",   SESSIONS_FILE],
+      [".rate-limit-state.json",RATE_LIMIT_FILE],
+    ];
+    const filesView = {};
+    for (const [name, full] of stateFiles) {
+      try {
+        const exists = existsSync(full);
+        filesView[name] = exists
+          ? { exists: true, bytes: statSync(full).size }
+          : { exists: false, bytes: 0 };
+      } catch (e) {
+        filesView[name] = { exists: false, bytes: 0, error: e.message };
+      }
+    }
+    const persistence = {
+      ok:       PERSISTENCE.ok,
+      dataDir:  PERSISTENCE.dir,
+      isVolume: PERSISTENCE.isVolume,
+      reason:   PERSISTENCE.reason,
+      files:    filesView,
+    };
+
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({
       success: errors.length === 0,
@@ -10344,6 +10419,7 @@ const server = createServer(async (req, res) => {
       krakenLatency,
       serverTime: Date.now(),
       errors,
+      persistence,
       // legacy fields kept for backwards compat with existing UI
       krakenOk,
     }));
@@ -10389,7 +10465,7 @@ const server = createServer(async (req, res) => {
       // Phase 3 — server-side confirmation gate. Spawning the bot in LIVE
       // mode requires explicit { confirm: "CONFIRM" } in the body. Paper-mode
       // self-heal keeps its no-confirm path so the dashboard stays self-healing.
-      const ctrlNow = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
+      const ctrlNow = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE,"utf8")) : {};
       if (ctrlNow.paperTrading === false) {
         let body = {};
         try { body = JSON.parse(await readBody(req)); } catch {}
@@ -10400,8 +10476,8 @@ const server = createServer(async (req, res) => {
         }
       }
       let lastRunAge = null;
-      if (existsSync("safety-check-log.json")) {
-        const log = JSON.parse(readFileSync("safety-check-log.json","utf8"));
+      if (existsSync(LOG_FILE)) {
+        const log = JSON.parse(readFileSync(LOG_FILE,"utf8"));
         const last = log.trades[log.trades.length - 1];
         if (last) lastRunAge = (Date.now() - new Date(last.timestamp).getTime()) / 60000;
       }
@@ -10579,7 +10655,7 @@ const server = createServer(async (req, res) => {
       let ctrl = {};
       let _ctrlReadable = true;
       try {
-        if (existsSync("bot-control.json")) ctrl = JSON.parse(readFileSync("bot-control.json", "utf8"));
+        if (existsSync(CONTROL_FILE)) ctrl = JSON.parse(readFileSync(CONTROL_FILE, "utf8"));
       } catch (e) {
         _ctrlReadable = false;
       }
@@ -10611,14 +10687,14 @@ const server = createServer(async (req, res) => {
       if (command === "SET_MODE_LIVE" || command === "SET_MODE_PAPER") {
         let pos = null;
         try {
-          if (!existsSync("position.json")) throw new Error("position.json missing");
-          pos = JSON.parse(readFileSync("position.json", "utf8"));
+          if (!existsSync(POSITION_FILE)) throw new Error("position.json missing");
+          pos = JSON.parse(readFileSync(POSITION_FILE, "utf8"));
         } catch (e) {
           res.writeHead(409, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: position state is unreadable. Aborting for safety." }));
           return;
         }
-        if (!_ctrlReadable || !existsSync("bot-control.json")) {
+        if (!_ctrlReadable || !existsSync(CONTROL_FILE)) {
           res.writeHead(409, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: control state is unreadable. Aborting for safety." }));
           return;
@@ -10655,25 +10731,25 @@ const server = createServer(async (req, res) => {
         case "SET_KILL_DRAWDOWN":    ctrl.killSwitchDrawdownPct = Math.min(Math.max(parseFloat(value) || 5, 1), 50); break;
         case "SET_PAUSE_LOSSES":     ctrl.pauseAfterLosses      = Math.min(Math.max(parseInt(value) || 3, 1), 10); break;
         case "SET_XRP_ROLE": {
-          const cap = existsSync("capital-state.json") ? JSON.parse(readFileSync("capital-state.json","utf8")) : {};
+          const cap = existsSync(CAPITAL_FILE) ? JSON.parse(readFileSync(CAPITAL_FILE,"utf8")) : {};
           cap.xrpRole = ["HOLD_ASSET","ACTIVE","AGGRESSIVE"].includes(value) ? value : "HOLD_ASSET";
           cap.updatedAt = new Date().toISOString();
-          writeFileSync("capital-state.json", JSON.stringify(cap, null, 2));
+          writeFileSync(CAPITAL_FILE, JSON.stringify(cap, null, 2));
           break;
         }
         case "SET_AUTO_CONVERT": {
-          const cap = existsSync("capital-state.json") ? JSON.parse(readFileSync("capital-state.json","utf8")) : {};
+          const cap = existsSync(CAPITAL_FILE) ? JSON.parse(readFileSync(CAPITAL_FILE,"utf8")) : {};
           cap.autoConversion = value === "true" || value === true;
           cap.updatedAt = new Date().toISOString();
-          writeFileSync("capital-state.json", JSON.stringify(cap, null, 2));
+          writeFileSync(CAPITAL_FILE, JSON.stringify(cap, null, 2));
           break;
         }
         case "SET_ACTIVE_PCT": {
-          const cap = existsSync("capital-state.json") ? JSON.parse(readFileSync("capital-state.json","utf8")) : {};
+          const cap = existsSync(CAPITAL_FILE) ? JSON.parse(readFileSync(CAPITAL_FILE,"utf8")) : {};
           const pct = Math.min(Math.max(parseInt(value) || 70, 10), 95);
           cap.activePct = pct; cap.reservePct = 100 - pct;
           cap.updatedAt = new Date().toISOString();
-          writeFileSync("capital-state.json", JSON.stringify(cap, null, 2));
+          writeFileSync(CAPITAL_FILE, JSON.stringify(cap, null, 2));
           break;
         }
         case "KILL_NOW":             ctrl.killed = true;  ctrl.paused = true; break;
@@ -10684,9 +10760,9 @@ const server = createServer(async (req, res) => {
       }
       ctrl.updatedAt = new Date().toISOString();
       ctrl.updatedBy = command;
-      writeFileSync("bot-control.json", JSON.stringify(ctrl, null, 2));
+      writeFileSync(CONTROL_FILE, JSON.stringify(ctrl, null, 2));
       let capState = {};
-      try { if (existsSync("capital-state.json")) capState = JSON.parse(readFileSync("capital-state.json","utf8")); } catch {}
+      try { if (existsSync(CAPITAL_FILE)) capState = JSON.parse(readFileSync(CAPITAL_FILE,"utf8")); } catch {}
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, control: ctrl, capitalState: capState }));
     } catch (e) {
@@ -10697,7 +10773,7 @@ const server = createServer(async (req, res) => {
       if (_release) _release();
     }
   } else if (req.url === "/api/control" && req.method === "GET") {
-    const ctrl = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json", "utf8")) : {};
+    const ctrl = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE, "utf8")) : {};
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(ctrl));
   } else if (req.url === "/api/trade" && req.method === "POST") {
@@ -10716,7 +10792,7 @@ const server = createServer(async (req, res) => {
       // Phase 3 — server-side confirmation gate. Live trades require
       // { confirm: "CONFIRM" } so a stray authenticated POST can't place an
       // order. Paper trades stay unguarded to match existing UX.
-      const ctrlNow = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
+      const ctrlNow = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE,"utf8")) : {};
       if (ctrlNow.paperTrading === false && body.confirm !== "CONFIRM") {
         res.writeHead(403, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: "Confirmation required for live trade" }));
@@ -10741,11 +10817,11 @@ const server = createServer(async (req, res) => {
       // Build live bot context for the system prompt
       let ctx = "";
       try {
-        const log  = existsSync("safety-check-log.json") ? JSON.parse(readFileSync("safety-check-log.json","utf8")) : { trades: [] };
-        const pos  = existsSync("position.json")         ? JSON.parse(readFileSync("position.json","utf8"))         : { open: false };
-        const ctrl = existsSync("bot-control.json")      ? JSON.parse(readFileSync("bot-control.json","utf8"))      : {};
-        const perf = existsSync("performance-state.json")? JSON.parse(readFileSync("performance-state.json","utf8")): {};
-        const cap  = existsSync("capital-state.json")    ? JSON.parse(readFileSync("capital-state.json","utf8"))    : {};
+        const log  = existsSync(LOG_FILE) ? JSON.parse(readFileSync(LOG_FILE,"utf8")) : { trades: [] };
+        const pos  = existsSync(POSITION_FILE)         ? JSON.parse(readFileSync(POSITION_FILE,"utf8"))         : { open: false };
+        const ctrl = existsSync(CONTROL_FILE)      ? JSON.parse(readFileSync(CONTROL_FILE,"utf8"))      : {};
+        const perf = existsSync(PERF_STATE_FILE)? JSON.parse(readFileSync(PERF_STATE_FILE,"utf8")): {};
+        const cap  = existsSync(CAPITAL_FILE)    ? JSON.parse(readFileSync(CAPITAL_FILE,"utf8"))    : {};
         const latest = log.trades.length ? log.trades[log.trades.length - 1] : null;
         const recentExits = log.trades.filter(t => t.type === "EXIT").slice(-5);
 
@@ -10842,7 +10918,7 @@ RULES:
           try {
             const parts = cmd.split(" ");
             const command = parts[0]; const value = parts.slice(1).join(" ") || undefined;
-            const ctrl = existsSync("bot-control.json") ? JSON.parse(readFileSync("bot-control.json","utf8")) : {};
+            const ctrl = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE,"utf8")) : {};
             // Phase 3 — RESET_KILL_SWITCH is auto-exec only in PAPER mode.
             // In LIVE mode it requires the typed-confirm modal (server-side
             // gate on /api/control rejects un-confirmed POSTs anyway, but we
@@ -10865,7 +10941,7 @@ RULES:
               case "SET_PAUSE_LOSSES": ctrl.pauseAfterLosses = Math.min(Math.max(parseInt(value)||3, 1), 10); break;
             }
             ctrl.updatedAt = new Date().toISOString(); ctrl.updatedBy = "CHAT_" + command;
-            writeFileSync("bot-control.json", JSON.stringify(ctrl, null, 2));
+            writeFileSync(CONTROL_FILE, JSON.stringify(ctrl, null, 2));
             executed.push(command);
           } catch {}
         }
@@ -10917,6 +10993,17 @@ if (!process.env.DASHBOARD_TOTP_SECRET) {
 
 server.listen(PORT, () => {
   console.log(`\n  Dashboard → http://localhost:${PORT}\n`);
+  // Phase D-5.2 — persistence boot banner. Single block on dashboard startup
+  // so Railway logs always show which DATA_DIR the process is reading/writing
+  // against, plus a per-file presence + size inventory so a wiped volume is
+  // obvious in 10 seconds. Mirrors bot.js's per-cycle banner. Read-only.
+  console.log(`[boot] DATA_DIR=${PERSISTENCE.dir}  persistence=${PERSISTENCE.ok ? "ok" : "FAIL"}  volume=${PERSISTENCE.isVolume ? "yes" : "no/local"}`);
+  if (!PERSISTENCE.ok) console.error(`[boot] persistence FAILED: ${PERSISTENCE.reason}`);
+  for (const f of [LOG_FILE, POSITION_FILE, CSV_FILE, CONTROL_FILE, PERF_STATE_FILE, PORTFOLIO_FILE, CAPITAL_FILE, SESSIONS_FILE, RATE_LIMIT_FILE]) {
+    let exists = false, size = 0;
+    try { exists = existsSync(f); if (exists) size = statSync(f).size; } catch {}
+    console.log(`[boot] ${exists ? "✓" : "·"}  ${path.relative(DATA_DIR, f) || path.basename(f)}  (${size} bytes)`);
+  }
 });
 
 // ─── Embedded bot runner — only on Railway, runs every 5 minutes ─────────────

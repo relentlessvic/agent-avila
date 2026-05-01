@@ -10,9 +10,36 @@
  */
 
 import "dotenv/config";
-import { readFileSync, writeFileSync, existsSync, appendFileSync, unlinkSync, renameSync } from "fs";
+import { readFileSync, writeFileSync, existsSync, appendFileSync, unlinkSync, renameSync, statSync } from "fs";
+import path from "path";
 import crypto from "crypto";
 import { execSync } from "child_process";
+
+// ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
+// Routes every runtime state file through dataPath(...). When DATA_DIR is set
+// (e.g. DATA_DIR=/data on a Railway service with a Volume mounted at /data)
+// every JSON/CSV state file lives on the persistent mount and survives
+// redeploys, restarts, and image rebuilds. When DATA_DIR is unset, paths
+// resolve to the current working directory — byte-identical to pre-D-5.2
+// behavior, so local dev and any container without a volume keep working
+// unchanged. Read-only probe: this phase ships the plumbing only; the
+// live-mode persistence gate lands in a later phase.
+const DATA_DIR = process.env.DATA_DIR || ".";
+const dataPath = (name) => path.join(DATA_DIR, name);
+const PERSISTENCE = (() => {
+  try {
+    if (!existsSync(DATA_DIR)) {
+      return { ok: false, dir: DATA_DIR, isVolume: false, reason: "DATA_DIR does not exist" };
+    }
+    const probe = path.join(DATA_DIR, ".write-probe");
+    writeFileSync(probe, String(Date.now()));
+    unlinkSync(probe);
+    const isVolume = /^\/(data|mnt|var\/data)/.test(DATA_DIR);
+    return { ok: true, dir: DATA_DIR, isVolume, reason: null };
+  } catch (e) {
+    return { ok: false, dir: DATA_DIR, isVolume: false, reason: e.message };
+  }
+})();
 
 // ─── Atomic state-file write ──────────────────────────────────────────────────
 // Write to a per-process tmp file then rename into place. POSIX rename is
@@ -29,7 +56,7 @@ function atomicWrite(file, content) {
 // Prevents duplicate bot.js processes from running concurrently. Three
 // triggers can spawn this script (Railway cron, dashboard embedded runner,
 // /api/run-bot endpoint); without a lock they could double-execute trades.
-const LOCK_FILE = ".bot.lock";
+const LOCK_FILE = dataPath(".bot.lock");
 
 function acquireBotLock() {
   if (existsSync(LOCK_FILE)) {
@@ -125,7 +152,7 @@ function checkOnboarding() {
 // Keyed on failing-condition signature; suppresses the verbose score block
 // when nothing has changed for cooldownMs. Trades and new skip reasons always
 // log in full. Strategy logic is untouched — this only affects what we print.
-const LOG_STATE_FILE = ".bot-log-state.json";
+const LOG_STATE_FILE = dataPath(".bot-log-state.json");
 function loadLogState() {
   if (!existsSync(LOG_STATE_FILE)) return {};
   try { return JSON.parse(readFileSync(LOG_STATE_FILE, "utf8")); } catch { return {}; }
@@ -244,11 +271,11 @@ const CONFIG = {
   },
 };
 
-const LOG_FILE          = "safety-check-log.json";
-const CONTROL_FILE      = "bot-control.json";
-const PERF_STATE_FILE   = "performance-state.json";
-const CAPITAL_FILE      = "capital-state.json";
-const PORTFOLIO_FILE    = "portfolio-state.json";
+const LOG_FILE          = dataPath("safety-check-log.json");
+const CONTROL_FILE      = dataPath("bot-control.json");
+const PERF_STATE_FILE   = dataPath("performance-state.json");
+const CAPITAL_FILE      = dataPath("capital-state.json");
+const PORTFOLIO_FILE    = dataPath("portfolio-state.json");
 
 // ─── Portfolio Intelligence ──────────────────────────────────────────────────
 
@@ -504,7 +531,7 @@ function saveLog(log) {
 
 // ─── Position Tracking ───────────────────────────────────────────────────────
 
-const POSITION_FILE = "position.json";
+const POSITION_FILE = dataPath("position.json");
 
 function loadPosition() {
   if (!existsSync(POSITION_FILE)) return { open: false };
@@ -1188,7 +1215,7 @@ async function placeKrakenOrder(symbol, side, sizeUSD, price, leverage = 1) {
 
 // ─── Tax CSV Logging ─────────────────────────────────────────────────────────
 
-const CSV_FILE = "trades.csv";
+const CSV_FILE = dataPath("trades.csv");
 
 // Always ensure trades.csv exists with headers — open it in Excel/Sheets any time
 function initCsv() {
@@ -1322,6 +1349,17 @@ function generateTaxSummary() {
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function run() {
+  // Phase D-5.2 — persistence boot banner. Emits one block at the start of
+  // each bot cycle so Railway logs always show which DATA_DIR the cycle is
+  // reading/writing against. Read-only diagnostic; no behavior change.
+  console.log(`[boot] DATA_DIR=${PERSISTENCE.dir}  persistence=${PERSISTENCE.ok ? "ok" : "FAIL"}  volume=${PERSISTENCE.isVolume ? "yes" : "no/local"}`);
+  if (!PERSISTENCE.ok) console.error(`[boot] persistence FAILED: ${PERSISTENCE.reason}`);
+  for (const f of [LOG_FILE, POSITION_FILE, CSV_FILE, CONTROL_FILE, PERF_STATE_FILE, PORTFOLIO_FILE, CAPITAL_FILE, LOG_STATE_FILE, LOCK_FILE]) {
+    let exists = false, size = 0;
+    try { exists = existsSync(f); if (exists) size = statSync(f).size; } catch {}
+    console.log(`[boot] ${exists ? "✓" : "·"}  ${path.relative(DATA_DIR, f) || path.basename(f)}  (${size} bytes)`);
+  }
+
   if (!acquireBotLock()) {
     console.log("[lock] another bot.js process is running — skipping this cycle");
     return;
