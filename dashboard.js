@@ -10740,6 +10740,12 @@ const server = createServer(async (req, res) => {
     // endpoint. Always probes fresh (no cache here — this is the canonical
     // liveness URL). Schema version comes from a separate quick query that
     // tolerates a missing schema_migrations table (returns null).
+    //
+    // Phase D-5.7.2 — adds database.tables row counts (bot_control,
+    // trade_events, positions). Each count query runs in its own try/catch
+    // so a single-table failure (schema drift, missing relation) degrades
+    // gracefully without taking down /api/health. Skipped entirely when
+    // the DB is unreachable (tables: null).
     let database;
     if (!databaseUrlPresent) {
       database = {
@@ -10750,10 +10756,67 @@ const server = createServer(async (req, res) => {
         schemaVersion: null,
         schemaName: null,
         reason: "DATABASE_URL not set",
+        tables: null,
       };
     } else {
       const h = await dbPing();
       const sv = h.ok ? await dbSchemaVersion() : null;
+      let tables = null;
+      if (h.ok) {
+        tables = {};
+        // bot_control — single-row table; trivial COUNT.
+        try {
+          const r = await dbQuery("SELECT count(*)::int AS rows FROM bot_control");
+          tables.bot_control = { rows: r.rows[0].rows };
+        } catch (e) {
+          log.warn("d-5.7.2 health", `bot_control count failed: ${e.message}`);
+          tables.bot_control = { error: e.message };
+        }
+        // trade_events — total + paper/live split + most recent timestamp.
+        // Single round-trip via FILTER aggregates; uses the (mode, ts) index.
+        try {
+          const r = await dbQuery(
+            `SELECT count(*)::int                                   AS total,
+                    count(*) FILTER (WHERE mode = 'paper')::int     AS paper,
+                    count(*) FILTER (WHERE mode = 'live')::int      AS live,
+                    MAX(timestamp)                                  AS last_inserted
+             FROM trade_events`
+          );
+          const row = r.rows[0];
+          tables.trade_events = {
+            rows:         row.total,
+            paper:        row.paper,
+            live:         row.live,
+            lastInsertAt: row.last_inserted ? row.last_inserted.toISOString() : null,
+          };
+        } catch (e) {
+          log.warn("d-5.7.2 health", `trade_events count failed: ${e.message}`);
+          tables.trade_events = { error: e.message };
+        }
+        // positions — total + 6-way (mode × status) breakdown in one round-trip.
+        try {
+          const r = await dbQuery(
+            `SELECT count(*)::int                                                      AS total,
+                    count(*) FILTER (WHERE mode='paper' AND status='open')::int       AS paper_open,
+                    count(*) FILTER (WHERE mode='live'  AND status='open')::int       AS live_open,
+                    count(*) FILTER (WHERE mode='paper' AND status='closed')::int     AS paper_closed,
+                    count(*) FILTER (WHERE mode='live'  AND status='closed')::int     AS live_closed,
+                    count(*) FILTER (WHERE mode='paper' AND status='orphaned')::int   AS paper_orphaned,
+                    count(*) FILTER (WHERE mode='live'  AND status='orphaned')::int   AS live_orphaned
+             FROM positions`
+          );
+          const row = r.rows[0];
+          tables.positions = {
+            rows:     row.total,
+            open:     { paper: row.paper_open,     live: row.live_open },
+            closed:   { paper: row.paper_closed,   live: row.live_closed },
+            orphaned: { paper: row.paper_orphaned, live: row.live_orphaned },
+          };
+        } catch (e) {
+          log.warn("d-5.7.2 health", `positions count failed: ${e.message}`);
+          tables.positions = { error: e.message };
+        }
+      }
       database = {
         ok: h.ok,
         engine: "postgres",
@@ -10762,6 +10825,7 @@ const server = createServer(async (req, res) => {
         schemaVersion: sv ? sv.version : null,
         schemaName:    sv ? sv.name : null,
         reason: h.reason,
+        tables,
       };
     }
 
