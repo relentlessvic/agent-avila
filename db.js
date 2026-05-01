@@ -309,6 +309,139 @@ export async function closePosition(client, mode, exit) {
   return r.rows[0]?.id ?? null;
 }
 
+// ─── Phase D-5.8 — read-side helpers for dashboard flip ────────────────────
+// Read-only domain queries used by dashboard.js's modeScopedSummary,
+// getApiData, getHomeSummary, and buildV2DashboardPayload to surface
+// trade history + positions + aggregates from Postgres instead of
+// JSON/CSV. Each helper validates `mode` strictly so callers cannot
+// silently mix paper/live data via a typo.
+
+function _requireMode(fn, mode) {
+  if (mode !== "paper" && mode !== "live") {
+    throw new Error(`${fn}: mode must be 'paper' or 'live' (got ${JSON.stringify(mode)})`);
+  }
+}
+
+// Returns the most recent trade lifecycle events for a mode, newest first.
+// Excludes failed *_attempt rows (those are operational audit, not trade
+// history). LEFT JOIN positions for entry-price context on EXIT rows.
+export async function loadRecentTradeEvents(mode, limit = 30) {
+  _requireMode("loadRecentTradeEvents", mode);
+  const r = await query(
+    `SELECT
+       te.id, te.event_id, te.timestamp, te.mode, te.event_type, te.symbol,
+       te.position_id, te.price, te.quantity, te.usd_amount,
+       te.pnl_usd, te.pnl_pct, te.signal_score, te.signal_threshold,
+       te.regime, te.leverage, te.kraken_order_id, te.decision_log,
+       te.error, te.metadata,
+       p.entry_price AS pos_entry_price, p.entry_time AS pos_entry_time
+     FROM trade_events te
+     LEFT JOIN positions p ON p.id = te.position_id
+     WHERE te.mode = $1
+       AND te.event_type IN ('buy_filled','exit_filled','manual_buy','manual_close','reentry_buy','reentry_close')
+     ORDER BY te.timestamp DESC
+     LIMIT $2`,
+    [mode, limit]
+  );
+  return r.rows;
+}
+
+// Returns the (at most one) currently-open position for a mode, or null.
+// Joined with the corresponding entry trade_event so callers have the
+// open-event timestamp for UI context.
+export async function loadOpenPosition(mode) {
+  _requireMode("loadOpenPosition", mode);
+  const r = await query(
+    `SELECT p.id, p.mode, p.symbol, p.side, p.status,
+            p.entry_price, p.entry_time, p.entry_signal_score,
+            p.quantity, p.trade_size_usd, p.leverage, p.effective_size_usd,
+            p.stop_loss, p.take_profit, p.volatility_level,
+            p.kraken_order_id, p.metadata,
+            te.event_id  AS open_event_id,
+            te.timestamp AS open_event_ts
+     FROM positions p
+     LEFT JOIN trade_events te
+            ON te.position_id = p.id
+           AND te.event_type IN ('buy_filled','manual_buy','reentry_buy')
+     WHERE p.mode = $1 AND p.status = 'open'
+     ORDER BY p.entry_time DESC
+     LIMIT 1`,
+    [mode]
+  );
+  return r.rows[0] ?? null;
+}
+
+// Returns up to `limit` most-recently-closed positions for a mode,
+// newest exit first. Used by Performance tab Recent Trades.
+export async function loadClosedPositions(mode, limit = 30) {
+  _requireMode("loadClosedPositions", mode);
+  const r = await query(
+    `SELECT id, mode, symbol, side, entry_price, entry_time, exit_price,
+            exit_time, exit_reason, realized_pnl_usd, realized_pnl_pct,
+            kraken_order_id, kraken_exit_order_id, leverage, trade_size_usd,
+            metadata
+     FROM positions
+     WHERE mode = $1 AND status = 'closed'
+     ORDER BY exit_time DESC
+     LIMIT $2`,
+    [mode, limit]
+  );
+  return r.rows;
+}
+
+// Aggregate realized P&L across all paper-or-live exit events.
+// INCLUDES orphan exits (position_id IS NULL) — orphans are real
+// closes whose source-data BUY chain wasn't fully recoverable, but the
+// pnl_usd is real money. Operator can see orphan_exit_count separately.
+// Returns numeric totalUSD (parsed from NUMERIC string by pg).
+export async function loadPnLAggregates(mode) {
+  _requireMode("loadPnLAggregates", mode);
+  const r = await query(
+    `SELECT
+       count(*)::int                                                       AS exit_count,
+       sum(pnl_usd)                                                        AS total_pnl_usd,
+       count(*) FILTER (WHERE position_id IS NULL)::int                    AS orphan_exit_count
+     FROM trade_events
+     WHERE mode = $1
+       AND event_type IN ('exit_filled','manual_close','reentry_close')`,
+    [mode]
+  );
+  const row = r.rows[0];
+  return {
+    exitCount: row.exit_count,
+    totalUSD: row.total_pnl_usd != null ? parseFloat(row.total_pnl_usd) : 0,
+    orphanExitCount: row.orphan_exit_count,
+  };
+}
+
+// W/L counts for a mode. Same orphan-inclusive rule as loadPnLAggregates.
+// Returns wins, losses, breakeven, total, and computed winRate (0–100
+// percent or null when total=0).
+export async function loadWinLossAggregates(mode) {
+  _requireMode("loadWinLossAggregates", mode);
+  const r = await query(
+    `SELECT
+       count(*) FILTER (WHERE pnl_usd > 0)::int   AS wins,
+       count(*) FILTER (WHERE pnl_usd < 0)::int   AS losses,
+       count(*) FILTER (WHERE pnl_usd = 0)::int   AS breakeven,
+       count(*)::int                              AS total
+     FROM trade_events
+     WHERE mode = $1
+       AND event_type IN ('exit_filled','manual_close','reentry_close')`,
+    [mode]
+  );
+  const row = r.rows[0];
+  const wins = row.wins, losses = row.losses;
+  const decided = wins + losses;
+  return {
+    wins,
+    losses,
+    breakeven: row.breakeven,
+    total: row.total,
+    winRate: decided > 0 ? (wins / decided) * 100 : null,
+  };
+}
+
 export async function upsertBotControl(ctrl) {
   if (!ctrl || typeof ctrl !== "object") throw new Error("upsertBotControl: ctrl must be an object");
   return query(

@@ -10,6 +10,10 @@ import { buildSystemStatus, runSystemCheck } from "./system-guardian.js";
 // of bot_control after every successful writeFileSync(CONTROL_FILE,...).
 // Phase D-5.7.1 adds inTransaction + trade_events/positions helpers for
 // the manual PAPER_BUY / PAPER_CLOSE shadow writes inside handleTradeCommand.
+// Phase D-5.8 adds the read-side helpers (loadRecent*/loadOpenPosition/
+// loadPnL*/loadWinLoss*) used by getApiData, getHomeSummary,
+// modeScopedSummary, and buildV2DashboardPayload to source trade history,
+// P&L, W/L, and positions from Postgres instead of JSON/CSV.
 import {
   query as dbQuery,
   ping as dbPing,
@@ -22,6 +26,11 @@ import {
   insertTradeEvent,
   upsertPositionOpen,
   closePosition,
+  loadRecentTradeEvents,
+  loadOpenPosition,
+  loadClosedPositions,
+  loadPnLAggregates,
+  loadWinLossAggregates,
 } from "./db.js";
 
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
@@ -405,6 +414,129 @@ function shadowRecordManualPaperClose(exitEntry) {
   });
 }
 
+// ─── Phase D-5.8 — Postgres-first trade-history read wrappers ──────────────
+// Two layers:
+//   - Pure shape mappers (DB row → legacy log/position shape) so existing
+//     consumers/UI render functions don't have to change.
+//   - "_safe" wrappers around the db.js helpers that implement the
+//     Postgres-first / JSON-fallback / degraded-state policy:
+//       * dbAvailable() === false → caller falls through to JSON
+//       * DB query throws         → return { degraded: true, ... } so UI
+//         renders "—" / "Unavailable" rather than fake zeros (per scope)
+//
+// Policy rationale: JSON is wiped on every Railway deploy (no volume),
+// so silently falling back to JSON when the DB is degraded would lie to
+// the operator. The degraded shape makes it visible.
+
+function _dbTradeEventToLegacyShape(r) {
+  if (!r) return null;
+  // event_type → legacy 'type' field that consumers / UI render against
+  let type = null;
+  switch (r.event_type) {
+    case "buy_filled":     type = "BUY"; break;
+    case "manual_buy":     type = "MANUAL_BUY"; break;
+    case "reentry_buy":    type = "BUY_REENTRY"; break;
+    case "exit_filled":
+    case "manual_close":
+    case "reentry_close":  type = "EXIT"; break;
+    default:               type = String(r.event_type).toUpperCase();
+  }
+  // exit_reason: derive from event_type + metadata
+  let exitReason = null;
+  if (type === "EXIT") {
+    if      (r.event_type === "manual_close")  exitReason = "MANUAL_CLOSE";
+    else if (r.event_type === "reentry_close") exitReason = "REENTRY_SIGNAL";
+    else if (r.metadata && typeof r.metadata === "object" && r.metadata.original_exit_reason) {
+      exitReason = r.metadata.original_exit_reason;
+    }
+  }
+  const ts = r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp);
+  return {
+    type,
+    timestamp:    ts,
+    symbol:       r.symbol,
+    price:        r.price       != null ? parseFloat(r.price)       : null,
+    quantity:     r.quantity    != null ? parseFloat(r.quantity)    : null,
+    tradeSize:    r.usd_amount  != null ? parseFloat(r.usd_amount)  : null,
+    pnlUSD:       r.pnl_usd     != null ? parseFloat(r.pnl_usd).toFixed(2) : null,
+    pct:          r.pnl_pct     != null ? parseFloat(r.pnl_pct).toFixed(2) : null,
+    exitReason,
+    orderPlaced:  true,                               // these are lifecycle events, all "placed"
+    paperTrading: r.mode === "paper",
+    orderId:      r.kraken_order_id,
+    signalScore:  r.signal_score,
+    decisionLog:  r.decision_log,
+    entryPrice:   r.pos_entry_price != null ? parseFloat(r.pos_entry_price) : null,
+    // metadata flags useful for UI follow-ups (not currently rendered)
+    _imported:    !!(r.metadata && r.metadata.imported_from),
+  };
+}
+
+function _dbPositionToLegacyShape(r) {
+  if (!r) return null;
+  return {
+    open:           r.status === "open",
+    side:           r.side,
+    symbol:         r.symbol,
+    entryPrice:     r.entry_price        != null ? parseFloat(r.entry_price)        : null,
+    entryTime:      r.entry_time instanceof Date ? r.entry_time.toISOString() : String(r.entry_time),
+    quantity:       r.quantity           != null ? parseFloat(r.quantity)           : null,
+    tradeSize:      r.trade_size_usd     != null ? parseFloat(r.trade_size_usd)     : null,
+    leverage:       r.leverage,
+    effectiveSize:  r.effective_size_usd != null ? parseFloat(r.effective_size_usd) : null,
+    orderId:        r.kraken_order_id,
+    stopLoss:       r.stop_loss          != null ? parseFloat(r.stop_loss)          : null,
+    takeProfit:     r.take_profit        != null ? parseFloat(r.take_profit)        : null,
+    entrySignalScore: r.entry_signal_score,
+    volatilityLevel:  r.volatility_level,
+  };
+}
+
+// Read four mode-scoped DB results in parallel. Returns either:
+//   { source: "postgres", recentTrades, position, pnl, winLoss, fired, exits }
+// or:
+//   { source: "postgres-degraded", reason, degraded: true, plus null fields }
+//
+// Caller uses Postgres results when source === "postgres", and renders a
+// degraded UI state when source === "postgres-degraded". When the DB is
+// not configured at all (dbAvailable() === false), the caller skips this
+// helper entirely and uses its existing JSON path.
+async function _loadModeFromDb(mode) {
+  try {
+    const [te, op, plAgg, wlAgg] = await Promise.all([
+      loadRecentTradeEvents(mode, 30),
+      loadOpenPosition(mode),
+      loadPnLAggregates(mode),
+      loadWinLossAggregates(mode),
+    ]);
+    const recentTrades = te.map(_dbTradeEventToLegacyShape);
+    const position     = _dbPositionToLegacyShape(op);
+    const fired = te.filter(r => ["buy_filled", "manual_buy", "reentry_buy"].includes(r.event_type)).length;
+    return {
+      source: "postgres",
+      recentTrades,
+      position,
+      pnl: { totalUSD: plAgg.totalUSD, exitCount: plAgg.exitCount, orphanExitCount: plAgg.orphanExitCount },
+      winLoss: wlAgg,
+      fired,
+      exits: plAgg.exitCount,
+    };
+  } catch (e) {
+    log.warn("d-5.8 read", `_loadModeFromDb(${mode}) failed: ${e.message}`);
+    return {
+      source: "postgres-degraded",
+      degraded: true,
+      reason: e.message,
+      recentTrades: [],
+      position: null,
+      pnl:     { totalUSD: null, exitCount: 0, degraded: true },
+      winLoss: { wins: null, losses: null, breakeven: 0, total: 0, winRate: null, degraded: true },
+      fired: 0,
+      exits: 0,
+    };
+  }
+}
+
 // ─── Bot Log / CSV ────────────────────────────────────────────────────────────
 
 function loadLog() {
@@ -457,7 +589,14 @@ function calcPaperPnL(rows, currentPrice) {
   return { tradeCount: paperTrades.length, totalInvested, totalQty, currentValue, pnl, pnlPct, wins, losses, winRate };
 }
 
-function getApiData() {
+// Phase D-5.8 — async; paperPnLRealized + modeWinLoss + position now
+// sourced from Postgres when DB is available. Other fields (latest,
+// stats, recentTrades-from-CSV, paperPnL legacy mark-to-market, perfState,
+// capitalState, portfolioState) keep their JSON/CSV sources because they
+// belong to surfaces (legacy /dashboard panels) that haven't been
+// migrated yet — the D-2-h paper-fix script reads paperPnLRealized
+// specifically, which is the field this phase corrects.
+async function getApiData() {
   const log = loadLog();
   const rows = loadCsv();
   const latest = log.trades.length ? log.trades[log.trades.length - 1] : null;
@@ -475,8 +614,6 @@ function getApiData() {
   const currentPrice = latest?.price || null;
   const paperPnL = calcPaperPnL(rows, currentPrice);
   const paperStartingBalance = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
-  let position = { open: false };
-  try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE, "utf8")); } catch {}
   // Phase D-5.6 — DB-preferred read with JSON fallback. Safe defaults
   // preserved by spreading loadControl() over the defaults: any missing
   // field falls back to the historical safe value.
@@ -488,43 +625,90 @@ function getApiData() {
   let portfolioState = {};
   try { if (existsSync(PORTFOLIO_FILE)) portfolioState = JSON.parse(readFileSync(PORTFOLIO_FILE, "utf8")); } catch {}
 
-  // Mode-segregated W/L (Phase 3). Each side counted from safety-check-log
-  // EXIT entries filtered by .paperTrading. Returns null when no data, so
-  // the UI can render "unavailable" for the missing side instead of mixing.
-  const modeWL = (wantPaper) => {
-    const exits = log.trades.filter(t => t.type === "EXIT" && Boolean(t.paperTrading) === wantPaper);
-    if (!exits.length) return null;
-    const w = exits.filter(t => parseFloat(t.pnlUSD) > 0).length;
-    const l = exits.filter(t => parseFloat(t.pnlUSD) < 0).length;
-    return { wins: w, losses: l, total: w + l, winRate: (w + l) > 0 ? (w / (w + l)) * 100 : null };
-  };
-  const modeWinLoss = { paper: modeWL(true), live: modeWL(false) };
+  // ── Phase D-5.8 — modeWinLoss + paperPnLRealized + position from DB ──
+  // Postgres-first; JSON fallback when DB unavailable; degraded shape on
+  // DB query failure. Consumers (Combined /dashboard's D-2-h paper-fix
+  // overlay; legacy /dashboard's per-mode W/L card) read these fields.
+  let modeWinLoss = { paper: null, live: null };
+  let paperPnLRealized;
+  let position = null;
 
-  // Phase D-2-c — additive realized paper P&L payload, sourced the same way
-  // /paper does (safety-check-log paper-filtered EXIT rows + PAPER_STARTING_BALANCE).
-  // The legacy `paperPnL` field above (calcPaperPnL on cumulative BUY rows from
-  // trades.csv) stays in place for backwards compatibility; later D-2 phases
-  // will switch render sites to read from this new field. Do not consume both
-  // simultaneously — they measure different things by design.
-  const paperExits = log.trades.filter(t =>
-    t && Boolean(t.paperTrading) === true && t.type === "EXIT");
-  const paperWins = paperExits.filter(t => parseFloat(t.pnlUSD) > 0).length;
-  const paperLosses = paperExits.filter(t => parseFloat(t.pnlUSD) < 0).length;
-  const paperBreakeven = paperExits.filter(t => parseFloat(t.pnlUSD) === 0).length;
-  const paperRealizedPnL = paperExits.reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
-  const paperWLTotal = paperWins + paperLosses;
-  const paperPnLRealized = {
-    source: "safety-check-log.json paper-filtered EXIT rows + PAPER_STARTING_BALANCE",
-    realizedPnL_USD: paperRealizedPnL,
-    exitCount: paperExits.length,
-    wins: paperWins,
-    losses: paperLosses,
-    breakeven: paperBreakeven,
-    winRate: paperWLTotal > 0 ? (paperWins / paperWLTotal) * 100 : null,
-    startingBalance: paperStartingBalance,
-    currentBalance: paperStartingBalance + paperRealizedPnL,
-    asOf: paperExits.length ? paperExits[paperExits.length - 1].timestamp : null,
-  };
+  if (dbAvailable()) {
+    const [paperResult, liveResult] = await Promise.all([
+      _loadModeFromDb("paper"),
+      _loadModeFromDb("live"),
+    ]);
+    // mode-segregated W/L: null when no closed exits in mode, else { wins, losses, total, winRate }.
+    const toWLOrNull = (r) => (r.degraded || !r.winLoss || r.winLoss.total === 0)
+      ? (r.degraded ? r.winLoss : null)
+      : { wins: r.winLoss.wins, losses: r.winLoss.losses, total: r.winLoss.total, winRate: r.winLoss.winRate };
+    modeWinLoss = { paper: toWLOrNull(paperResult), live: toWLOrNull(liveResult) };
+
+    // paperPnLRealized: matches the legacy field shape; consumed by the
+    // D-2-h paper-fix script in the combined /dashboard.
+    const pnlUsd = paperResult.degraded ? null : paperResult.pnl.totalUSD;
+    paperPnLRealized = {
+      source: paperResult.degraded
+        ? `postgres-degraded: ${paperResult.reason}`
+        : "postgres trade_events (paper exits)",
+      realizedPnL_USD: pnlUsd,
+      exitCount: paperResult.exits,
+      wins:      paperResult.winLoss.wins,
+      losses:    paperResult.winLoss.losses,
+      breakeven: paperResult.winLoss.breakeven,
+      winRate:   paperResult.winLoss.winRate,
+      startingBalance: paperStartingBalance,
+      currentBalance: pnlUsd == null ? null : paperStartingBalance + pnlUsd,
+      asOf: paperResult.recentTrades.length
+        ? paperResult.recentTrades[0].timestamp   // newest-first → [0] is most recent
+        : null,
+    };
+
+    // position: prefer the active mode's open position (if any).
+    const activeMode = control.paperTrading !== false ? "paper" : "live";
+    const activeResult = activeMode === "paper" ? paperResult : liveResult;
+    if (activeResult.degraded) {
+      position = { open: false, _degraded: true, _reason: activeResult.reason };
+    } else if (activeResult.position) {
+      position = activeResult.position;
+    } else {
+      position = { open: false };
+    }
+  } else {
+    // JSON fallback (local dev / pre-Postgres deploy).
+    const modeWL = (wantPaper) => {
+      const exits = log.trades.filter(t => t.type === "EXIT" && Boolean(t.paperTrading) === wantPaper);
+      if (!exits.length) return null;
+      const w = exits.filter(t => parseFloat(t.pnlUSD) > 0).length;
+      const l = exits.filter(t => parseFloat(t.pnlUSD) < 0).length;
+      return { wins: w, losses: l, total: w + l, winRate: (w + l) > 0 ? (w / (w + l)) * 100 : null };
+    };
+    modeWinLoss = { paper: modeWL(true), live: modeWL(false) };
+
+    const paperExits = log.trades.filter(t =>
+      t && Boolean(t.paperTrading) === true && t.type === "EXIT");
+    const paperWins = paperExits.filter(t => parseFloat(t.pnlUSD) > 0).length;
+    const paperLosses = paperExits.filter(t => parseFloat(t.pnlUSD) < 0).length;
+    const paperBreakeven = paperExits.filter(t => parseFloat(t.pnlUSD) === 0).length;
+    const paperRealizedPnL = paperExits.reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
+    const paperWLTotal = paperWins + paperLosses;
+    paperPnLRealized = {
+      source: "safety-check-log.json paper-filtered EXIT rows + PAPER_STARTING_BALANCE",
+      realizedPnL_USD: paperRealizedPnL,
+      exitCount: paperExits.length,
+      wins: paperWins,
+      losses: paperLosses,
+      breakeven: paperBreakeven,
+      winRate: paperWLTotal > 0 ? (paperWins / paperWLTotal) * 100 : null,
+      startingBalance: paperStartingBalance,
+      currentBalance: paperStartingBalance + paperRealizedPnL,
+      asOf: paperExits.length ? paperExits[paperExits.length - 1].timestamp : null,
+    };
+
+    let pos = { open: false };
+    try { if (existsSync(POSITION_FILE)) pos = JSON.parse(readFileSync(POSITION_FILE, "utf8")); } catch {}
+    position = pos;
+  }
 
   return { latest, stats, recentTrades: [...rows].reverse().slice(0, 30), paperPnL, paperPnLRealized, paperStartingBalance, position, control, perfState, capitalState, portfolioState, modeWinLoss, recentLogs: log.trades.slice(-8).reverse(), allLogs: log.trades.slice(-20).reverse() };
 }
@@ -532,10 +716,12 @@ function getApiData() {
 // ─── Home summary (Phase 6e + 8d) ────────────────────────────────────────────
 // Slim endpoint for /. Phase 8d adds paper + live mini-stats so the homepage
 // mode cards can show "$X balance · NW/NL · +$P P&L" without hitting the
-// full /api/data payload. Stays sync — Kraken balance is intentionally not
-// fetched here (slow); user sees real Kraken value on /live.
-function getHomeSummary() {
-  // Phase D-5.6 — DB-preferred read with JSON fallback.
+// full /api/data payload.
+//
+// Phase D-5.8 — async; mode mini-stats now Postgres-first via modeScopedSummary.
+// `latest` (the most recent decision overall, including skip cycles) stays
+// on JSON because trade_events doesn't capture skip cycles (D-5.9 territory).
+async function getHomeSummary() {
   const control = loadControl();
   let latest = null;
   try {
@@ -552,19 +738,22 @@ function getHomeSummary() {
     }
   } catch {}
 
-  // Mode mini-stats from the same paperTrading-filtered log.
   let paper = null, live = null;
   try {
-    const pBase = modeScopedSummary(true);
+    const pBase = await modeScopedSummary(true);
     const startingBal = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
+    // Phase D-5.8 — pBase.pnl.totalUSD may be null when DB read is degraded.
+    // Pass null through the balance computation so the home card shows "—"
+    // rather than a misleading "$startingBal + null = NaN".
+    const pnlUsd = pBase.pnl?.totalUSD;
     paper = {
-      balance:  startingBal + pBase.pnl.totalUSD,
+      balance:  pnlUsd == null ? null : startingBal + pnlUsd,
       winLoss:  pBase.winLoss,
       pnl:      pBase.pnl,
     };
   } catch {}
   try {
-    const lBase = modeScopedSummary(false);
+    const lBase = await modeScopedSummary(false);
     live = {
       winLoss: lBase.winLoss,
       pnl:     lBase.pnl,
@@ -590,18 +779,21 @@ function getHomeSummary() {
 // control are shared files; we surface them ONLY when the bot is currently in
 // the matching mode. Otherwise the page shows "Unavailable".
 
-function modeScopedSummary(wantPaper) {
+// Phase D-5.8 — async; trade-history fields source from Postgres when
+// available, with JSON fallback ONLY when DB is hard-down (DATABASE_URL
+// unset / pool unavailable). On DB query failure (pool reachable but
+// query throws), returns degraded fields so the UI shows "—" rather
+// than fake zeros. latestDecision and recentSignalCycles stay on JSON
+// because skip-cycle data is not in trade_events (D-5.9 territory).
+async function modeScopedSummary(wantPaper) {
+  const mode = wantPaper ? "paper" : "live";
   const log = loadLog();
   const trades = log.trades.filter(t => Boolean(t.paperTrading) === wantPaper);
-  const exits  = trades.filter(t => t.type === "EXIT");
-  const fired  = trades.filter(t => t.orderPlaced === true && t.type !== "EXIT").length;
-  const wins   = exits.filter(t => parseFloat(t.pnlUSD) > 0).length;
-  const losses = exits.filter(t => parseFloat(t.pnlUSD) < 0).length;
-  const totalPnL = exits.reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
 
-  // Phase 4 — most recent bot decision in this mode (BUY / EXIT / BLOCKED).
-  // Picked from the same paper/live-filtered list so we never show the wrong
-  // mode's decision.
+  // ── Always-from-JSON fields (skip-cycle context) ─────────────────
+  // latestDecision and recentSignalCycles include skip cycles which
+  // trade_events does not capture. Until strategy_signals lands
+  // (D-5.9), JSON remains the source of truth for these.
   const last = trades.length ? trades[trades.length - 1] : null;
   const latestDecision = last ? {
     type: last.type || null,
@@ -611,47 +803,75 @@ function modeScopedSummary(wantPaper) {
     orderPlaced: last.orderPlaced === true,
     allPass: last.allPass === true,
   } : null;
+  const recentSignalCycles = trades.slice(-30).reverse();
+  const totalTradesFromJson = trades.length;
 
-  // Phase D-5.6 — DB-preferred read with JSON fallback.
+  // ── Control state (Postgres-first since D-5.6) ───────────────────
   const control = loadControl();
-  let position = { open: false };
-  try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE,"utf8")); } catch {}
   const botInPaperMode = control.paperTrading !== false;
   const isActive = wantPaper ? botInPaperMode : !botInPaperMode;
 
-  return {
-    mode: wantPaper ? "paper" : "live",
-    isActive,
-    botMode: botInPaperMode ? "paper" : "live",
-    totalTrades: trades.length,
-    fired,
-    exits: exits.length,
-    winLoss: {
-      wins,
-      losses,
+  // ── Trade history + P&L + W/L + position ────────────────────────
+  let recentTrades, position, pnl, winLoss, fired, exits, source, degraded = false, degradedReason = null;
+  if (dbAvailable()) {
+    const dbResult = await _loadModeFromDb(mode);
+    source = dbResult.source;
+    if (dbResult.degraded) {
+      degraded = true;
+      degradedReason = dbResult.reason;
+    }
+    recentTrades = dbResult.recentTrades;
+    position     = dbResult.position;
+    pnl          = dbResult.pnl;
+    winLoss      = dbResult.winLoss;
+    fired        = dbResult.fired;
+    exits        = dbResult.exits;
+  } else {
+    // JSON fallback (local dev / pre-Postgres deploy). Same logic as
+    // pre-D-5.8: filter the paper/live-scoped trades for lifecycle
+    // events and aggregate. Position from position.json.
+    source = "json";
+    const exitsFromJson = trades.filter(t => t.type === "EXIT");
+    const wins   = exitsFromJson.filter(t => parseFloat(t.pnlUSD) > 0).length;
+    const losses = exitsFromJson.filter(t => parseFloat(t.pnlUSD) < 0).length;
+    const totalPnL = exitsFromJson.reduce((s, t) => s + (parseFloat(t.pnlUSD) || 0), 0);
+    pnl = { totalUSD: totalPnL, exitCount: exitsFromJson.length };
+    winLoss = {
+      wins, losses,
       total: wins + losses,
       winRate: (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : null,
-    },
-    pnl: { totalUSD: totalPnL, exitCount: exits.length },
-    position: isActive && position.open ? position : null,
-    positionUnavailableReason: !isActive
-      ? `Bot currently in ${botInPaperMode ? "PAPER" : "LIVE"} mode — ${wantPaper ? "paper" : "live"} position not active`
-      : (position.open ? null : "No open position"),
-    latestDecision,
-    // Phase D-4-P-a — recentTrades is the last 30 actual trade events
-    // (BUY/MANUAL_BUY/EXIT/MANUAL_CLOSE), not the last 30 bot cycles.
-    // Cycles are dominated by BLOCKED/skip rows; surfaces that consumed
-    // the old shape (Performance Recent Trades, Profit Factor, Drawdown,
-    // /paper Advanced trade history) showed "no trades" any time the
-    // last 30 cycles happened to contain zero exits, even though the
-    // full history is preserved on disk in safety-check-log.json.
-    // recentSignalCycles preserves the old "last 30 cycles" stream for
-    // any consumer that genuinely wants the full decision feed.
-    recentTrades: trades
+    };
+    fired = trades.filter(t => t.orderPlaced === true && t.type !== "EXIT").length;
+    exits = exitsFromJson.length;
+    recentTrades = trades
       .filter(t => t && (t.type === "EXIT" || (t.orderPlaced === true && t.type !== "EXIT")))
       .slice(-30)
-      .reverse(),
-    recentSignalCycles: trades.slice(-30).reverse(),
+      .reverse();
+    let pos = { open: false };
+    try { if (existsSync(POSITION_FILE)) pos = JSON.parse(readFileSync(POSITION_FILE, "utf8")); } catch {}
+    position = (isActive && pos.open) ? pos : null;
+  }
+
+  return {
+    mode,
+    isActive,
+    botMode: botInPaperMode ? "paper" : "live",
+    totalTrades: totalTradesFromJson,
+    fired,
+    exits,
+    winLoss,
+    pnl,
+    position: isActive ? position : null,
+    positionUnavailableReason: !isActive
+      ? `Bot currently in ${botInPaperMode ? "PAPER" : "LIVE"} mode — ${wantPaper ? "paper" : "live"} position not active`
+      : (position ? null : "No open position"),
+    latestDecision,
+    // Phase D-4-P-a — recentTrades is the last 30 actual trade events.
+    // Phase D-5.8 — sourced from Postgres when DB available; JSON fallback.
+    recentTrades,
+    // recentSignalCycles preserves the old "last 30 cycles" stream;
+    // includes skip cycles which Postgres does not store (D-5.9 territory).
+    recentSignalCycles,
     control: {
       stopped: !!control.stopped,
       paused:  !!control.paused,
@@ -663,25 +883,36 @@ function modeScopedSummary(wantPaper) {
       pauseAfterLosses: control.pauseAfterLosses ?? null,
       consecutiveLosses: control.consecutiveLosses ?? 0,
     },
+    // Phase D-5.8 — informational; lets clients detect degraded state
+    // without breaking on missing field. Existing UI ignores these.
+    source,
+    degraded,
+    degradedReason,
   };
 }
 
-function getPaperSummary() {
-  const base = modeScopedSummary(true);
+// Phase D-5.8 — async (modeScopedSummary is now async).
+async function getPaperSummary() {
+  const base = await modeScopedSummary(true);
   const startingBalance = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
+  // Phase D-5.8 — when DB read is degraded, base.pnl.totalUSD may be null.
+  // Pass through unchanged so the balance card renders "—" rather than a
+  // misleading "$startingBalance + null" computation.
+  const pnl = base.pnl?.totalUSD;
+  const currentBalance = (pnl == null) ? null : startingBalance + pnl;
   return {
     ...base,
     balance: {
       source: "computed",
       startingBalance,
-      currentBalance: startingBalance + base.pnl.totalUSD,
+      currentBalance,
       currency: "USD",
     },
   };
 }
 
 async function getLiveSummary() {
-  const base = modeScopedSummary(false);
+  const base = await modeScopedSummary(false);
   let kraken;
   try { kraken = await fetchKrakenBalance(); }
   catch (e) { kraken = { error: e.message }; }
@@ -728,8 +959,11 @@ async function buildV2DashboardPayload() {
   const isPaper = ctrl.paperTrading !== false;
 
   // Mode-scoped summary (paper or live, never both).
+  // Phase D-5.8 — getPaperSummary, getLiveSummary, modeScopedSummary are
+  // all now async. await the active one; on Kraken-balance failure for
+  // live, fall back to modeScopedSummary (which is awaited too).
   const summary = isPaper
-    ? getPaperSummary()
+    ? await getPaperSummary()
     : await getLiveSummary().catch(() => modeScopedSummary(false));
 
   // Latest log entry (last decision + V2 shadow data) and current position.
@@ -10496,7 +10730,8 @@ function broadcastSSE(event, data) {
 
 async function sseLoop() {
   if (sseClients.size > 0) {
-    broadcastSSE("data", getApiData());
+    // Phase D-5.8 — getApiData is now async.
+    try { broadcastSSE("data", await getApiData()); } catch {}
     try { broadcastSSE("balance", await fetchKrakenBalance()); } catch {}
   }
   setTimeout(sseLoop, 5000);
@@ -10928,7 +11163,8 @@ const server = createServer(async (req, res) => {
   // ── Paper-only summary (paper trades, paper P&L, computed paper balance) ─
   if (req.url === "/api/paper-summary") {
     try {
-      const data = getPaperSummary();
+      // Phase D-5.8 — getPaperSummary is now async (Postgres-first via modeScopedSummary).
+      const data = await getPaperSummary();
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       res.end(JSON.stringify({ success: true, data }));
     } catch (e) {
@@ -10973,7 +11209,8 @@ const server = createServer(async (req, res) => {
     // Phase 8b — inline initial summary so first paint has real values.
     let initial = null;
     try {
-      initial = req.url === "/paper" ? getPaperSummary() : await getLiveSummary();
+      // Phase D-5.8 — both summaries are now async.
+      initial = req.url === "/paper" ? await getPaperSummary() : await getLiveSummary();
     } catch {}
     res.end(modePage(req.url === "/paper" ? "paper" : "live", initial));
     return;
@@ -11045,18 +11282,22 @@ const server = createServer(async (req, res) => {
     res.write(":ok\n\n");
     sseClients.add(res);
     req.on("close", () => sseClients.delete(res));
-    // Send current state immediately on connect
-    pushSSE(res, "data", getApiData());
+    // Send current state immediately on connect.
+    // Phase D-5.8 — getApiData is now async; fire-and-forget the SSE push.
+    getApiData().then(d => pushSSE(res, "data", d)).catch(() => {});
     fetchKrakenBalance().then(b => pushSSE(res, "balance", b)).catch(() => {});
     return;
   } else if (req.url === "/api/data") {
-    const data = getApiData();
+    // Phase D-5.8 — getApiData is now async (Postgres-first for paperPnLRealized,
+    // modeWinLoss, position; JSON fallback when DB unavailable).
+    const data = await getApiData();
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify(data));
   } else if (req.url === "/api/home-summary") {
     // Phase 6e — slim endpoint for the homepage. Returns only what / renders.
+    // Phase D-5.8 — getHomeSummary is now async.
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
-    res.end(JSON.stringify(getHomeSummary()));
+    res.end(JSON.stringify(await getHomeSummary()));
   } else if (req.url === "/api/balance") {
     try {
       const data = await fetchKrakenBalance();
@@ -11396,8 +11637,9 @@ RULES:
       "Cache-Control": "no-store, must-revalidate",
     });
     // Phase 8b — inline initial summary so first paint has real values.
+    // Phase D-5.8 — getHomeSummary is now async.
     let initial = null;
-    try { initial = getHomeSummary(); } catch {}
+    try { initial = await getHomeSummary(); } catch {}
     res.end(homepagePage(initial));
   }
 });
