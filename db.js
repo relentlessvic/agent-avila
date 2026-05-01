@@ -631,6 +631,97 @@ export async function loadRecentStrategySignals(mode, limit = 50) {
   return r.rows;
 }
 
+// ─── Phase D-5.10.5.2 — live halt dedup state on bot_control ────────────────
+// bot_control row #1 records the most recent halt-reason streak. Two helpers:
+//
+//   recordLiveHaltState(phase, reason, detail) — called whenever a live cycle
+//     halts. Reads current state; if (reason, detail) is unchanged, increments
+//     count and advances last_seen_at silently. If changed (or first halt),
+//     resets to a new streak. Returns { shouldAlert, transition, count }.
+//     Caller (bot.js _emitLiveHaltAlert) uses shouldAlert to gate Discord.
+//
+//   clearLiveHaltState() — called after a successful live cycle (all gates
+//     pass + reconciliation aligned). Returns { shouldAlert, previousReason }
+//     so the caller can emit a single "all-clear" Discord on transition.
+//
+// Both helpers are isolation-light (single-row UPDATE on bot_control). They
+// do not mutate paused/killed/leverage/risk_pct/etc. — only the new
+// last_live_halt_* columns introduced by migration 004.
+
+export async function recordLiveHaltState(phase, reason, detail) {
+  if (!reason) throw new Error("recordLiveHaltState: reason required");
+  const detailStr = detail == null ? null : String(detail);
+  const phaseStr = phase == null ? null : String(phase);
+  // Read current state in one round-trip with the UPDATE to avoid a race.
+  // Step 1: read prior state.
+  const prior = await query(
+    `SELECT last_live_halt_reason, last_live_halt_detail, last_live_halt_count
+     FROM bot_control WHERE id = 1`
+  );
+  const p = prior.rows[0] || {};
+  const sameStreak =
+    p.last_live_halt_reason === reason &&
+    (p.last_live_halt_detail ?? null) === (detailStr ?? null);
+  if (sameStreak) {
+    // Continue existing streak silently.
+    const r = await query(
+      `UPDATE bot_control SET
+         last_live_halt_last_seen_at = NOW(),
+         last_live_halt_count        = COALESCE(last_live_halt_count, 0) + 1,
+         updated_at                  = NOW()
+       WHERE id = 1
+       RETURNING last_live_halt_count`
+    );
+    return {
+      shouldAlert: false,
+      transition: "repeat",
+      count: r.rows[0]?.last_live_halt_count ?? null,
+    };
+  }
+  // New or transitioned streak — reset and alert.
+  await query(
+    `UPDATE bot_control SET
+       last_live_halt_reason        = $1,
+       last_live_halt_detail        = $2,
+       last_live_halt_phase         = $3,
+       last_live_halt_first_seen_at = NOW(),
+       last_live_halt_last_seen_at  = NOW(),
+       last_live_halt_count         = 1,
+       updated_at                   = NOW()
+     WHERE id = 1`,
+    [reason, detailStr, phaseStr]
+  );
+  return {
+    shouldAlert: true,
+    transition: p.last_live_halt_reason ? "changed" : "new",
+    count: 1,
+  };
+}
+
+export async function clearLiveHaltState() {
+  // Read prior state, clear it if any, return whether the operator should
+  // see a single "all-clear" Discord. No-op when state is already clear.
+  const prior = await query(
+    `SELECT last_live_halt_reason FROM bot_control WHERE id = 1`
+  );
+  const previousReason = prior.rows[0]?.last_live_halt_reason ?? null;
+  if (!previousReason) {
+    return { shouldAlert: false, previousReason: null };
+  }
+  await query(
+    `UPDATE bot_control SET
+       last_live_halt_reason        = NULL,
+       last_live_halt_detail        = NULL,
+       last_live_halt_phase         = NULL,
+       last_live_halt_first_seen_at = NULL,
+       last_live_halt_last_seen_at  = NOW(),
+       last_live_halt_count         = 0,
+       updated_at                   = NOW()
+     WHERE id = 1`
+  );
+  return { shouldAlert: true, previousReason };
+}
+
 export async function upsertBotControl(ctrl) {
   if (!ctrl || typeof ctrl !== "object") throw new Error("upsertBotControl: ctrl must be an object");
   return query(

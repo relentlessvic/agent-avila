@@ -30,6 +30,8 @@ import {
   ping as dbPing,
   schemaVersion as dbSchemaVersion,
   updatePositionRiskLevels as dbUpdatePositionRiskLevels,
+  recordLiveHaltState as dbRecordLiveHaltState,
+  clearLiveHaltState as dbClearLiveHaltState,
 } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -997,9 +999,12 @@ async function _liveDbPreflight() {
     return { ok: false, reason: "db-ping-failed", detail: pg.reason || "unknown" };
   }
   // Gate 4 — schema version high enough to support live helpers.
+  // Phase D-5.10.5.2 — bumped from >=3 to >=4 (migration 004 adds the
+  // bot_control halt-tracking columns used by recordLiveHaltState/
+  // clearLiveHaltState in the dedup wrappers).
   const sv = await dbSchemaVersion();
-  if (!sv || (sv.version ?? 0) < 3) {
-    return { ok: false, reason: "schema-too-old", detail: `version=${sv?.version ?? "null"} required>=3` };
+  if (!sv || (sv.version ?? 0) < 4) {
+    return { ok: false, reason: "schema-too-old", detail: `version=${sv?.version ?? "null"} required>=4` };
   }
   // Gate 5 — positions table healthy. The query exercises the table, the
   // partial unique index, and the mode='live' filter in one round-trip.
@@ -1063,6 +1068,216 @@ async function _liveDbPreflight() {
     };
   }
   return { ok: true, reason: null, detail: null };
+}
+
+// ─── Phase D-5.10.5.2 — live halt Discord dedup + plain-English messages ───
+// Operator-facing Discord copy. Style: calm, professional, plain English, no
+// developer jargon, one clear action item per message. Each template returns
+// the body paragraph; _formatDiscordMessage appends a short technical footer
+// for grep / ticket-filing. Console.warn keeps its phase-prefixed log format
+// so Railway logs remain greppable.
+//
+// HALT_TEMPLATES is a pure lookup map. Adding a new halt reason only requires
+// adding an entry here and (optionally) updating _phaseFromHaltReason if it
+// belongs to a new phase.
+
+const HALT_TEMPLATES = {
+  "not-armed": () =>
+    "Live mode tried to run but live trading is not armed. " +
+    "The bot did not place any live trades. " +
+    "To enable live mode, set the LIVE_TRADING_ARMED environment variable. " +
+    "To stay on paper, switch the bot back to paper mode.",
+
+  "paper-still-open": (_d) =>
+    "Live mode was blocked because paper trading still has an open position. " +
+    "The bot did not place any live trades. " +
+    "Close or resolve the paper position before trying live mode again.",
+
+  "paper-orphans-blocking": (_d) =>
+    "Live mode was blocked because there are unresolved paper-side records that " +
+    "still need attention. " +
+    "The bot did not place any live trades. " +
+    "Review and clean up the paper orphan rows before retrying live mode.",
+
+  "phantom-in-db": (_d) =>
+    "The bot's records show an open live position, but Kraken's account is " +
+    "currently flat. " +
+    "The bot stopped this cycle to avoid trading on a mismatch. " +
+    "Please check Kraken directly and reconcile the records manually before " +
+    "resuming live mode.",
+
+  "orphan-on-venue": (_d) =>
+    "Kraken has an open position that the bot's records don't recognize. " +
+    "The bot did not touch the position. " +
+    "Please review on Kraken and decide whether to close it or register it " +
+    "with the bot before resuming live mode.",
+
+  "orderid-mismatch": (_d) =>
+    "The bot's records and Kraken disagree on which order is open. " +
+    "The bot stopped this cycle to avoid trading on a mismatch. " +
+    "Please check Kraken and reconcile manually before resuming live mode.",
+
+  "side-mismatch": (_d) =>
+    "The bot's records and Kraken disagree on whether the position is long " +
+    "or short. " +
+    "The bot stopped this cycle for safety. " +
+    "Please check Kraken and reconcile manually before resuming live mode.",
+
+  "qty-drift": (_d) =>
+    "The bot's records and Kraken disagree on the position size by more than " +
+    "the safe threshold. " +
+    "The bot stopped this cycle for safety. " +
+    "Please check Kraken and reconcile the size before resuming live mode.",
+
+  "venue-auth": (_d) =>
+    "Kraken rejected the bot's API credentials. " +
+    "The bot did not place any live trades. " +
+    "Please verify the API key and secret are valid, unexpired, and have " +
+    "the right permissions.",
+
+  "venue-rate-limit": (_d) =>
+    "Kraken rate-limited the bot's API calls. " +
+    "The bot did not place any live trades. " +
+    "The next cycle will retry automatically. If this persists for several " +
+    "cycles, reduce trading frequency or contact Kraken about your tier.",
+
+  "venue-unreachable": (_d) =>
+    "Kraken was unreachable this cycle. " +
+    "The bot did not place any live trades. " +
+    "This is usually a transient network issue and will retry on the next " +
+    "cycle automatically. If it persists, check Kraken's status page or " +
+    "your network.",
+
+  "venue-unexpected": (_d) =>
+    "Kraken returned an unexpected response. " +
+    "The bot did not place any live trades. " +
+    "Please check Kraken's status page and the bot's logs for details.",
+
+  "live-multi-open": (_d) =>
+    "The bot's records show more than one open live position, which should " +
+    "never happen. " +
+    "The bot stopped this cycle for safety. " +
+    "Please review and resolve manually before resuming live mode.",
+
+  "schema-too-old": (_d) =>
+    "The bot's database schema is older than this code version requires. " +
+    "The bot did not run live this cycle. " +
+    "Please apply the pending database migrations and try again.",
+
+  "db-unavailable": () =>
+    "The bot couldn't reach its database. " +
+    "The bot did not run live this cycle. " +
+    "Please check that the database is up and the connection string is set.",
+
+  "db-ping-failed": (_d) =>
+    "The bot reached its database but the health check failed. " +
+    "The bot did not run live this cycle. " +
+    "This is usually transient; if it persists, check the database service.",
+
+  "positions-table-unhealthy": (_d) =>
+    "The bot couldn't read the positions table. " +
+    "The bot did not run live this cycle. " +
+    "Please check the database for schema or permission problems.",
+
+  "paper-table-unhealthy": (_d) =>
+    "The bot couldn't read the paper positions table during the safety check. " +
+    "The bot did not run live this cycle. " +
+    "Please check the database for schema or permission problems.",
+
+  "paper-orphan-query-failed": (_d) =>
+    "The bot couldn't check for paper orphan rows during the safety check. " +
+    "The bot did not run live this cycle. " +
+    "Please check the database for schema or permission problems.",
+};
+
+function _formatDiscordMessage(_phase, reason, detail) {
+  const template = HALT_TEMPLATES[reason];
+  const body = template
+    ? template(detail)
+    : "The bot stopped a live cycle for safety. " +
+      "The bot did not place any live trades. " +
+      "Please check the logs for details.";
+  return `${body}\n\nReason: ${reason}\nDetail: ${detail || "n/a"}`;
+}
+
+function _formatDiscordCleared(previousReason) {
+  return (
+    "All previous live mode issues have cleared. " +
+    "The bot is operating normally on live mode again.\n\n" +
+    `Previous reason: ${previousReason}`
+  );
+}
+
+// Phase tag derivation from halt reason. Used by _emitLiveHaltAlert to record
+// the source phase on bot_control.last_live_halt_phase. Keep in sync with the
+// gates in _liveDbPreflight() and reasons in reconcileLivePosition().
+function _phaseFromHaltReason(reason) {
+  if (!reason) return null;
+  if (reason.startsWith("paper-")) return "d-5.10.5.5";
+  if (
+    reason === "phantom-in-db" ||
+    reason === "orphan-on-venue" ||
+    reason === "orderid-mismatch" ||
+    reason === "side-mismatch" ||
+    reason === "qty-drift" ||
+    reason.startsWith("venue-")
+  ) return "d-5.10.5";
+  return "d-5.10.3";
+}
+
+// Halt-emit wrapper. Always writes the technical console.warn line (logs are
+// the unconditional contract). Then attempts to record the halt state in
+// bot_control via dbRecordLiveHaltState; if (reason, detail) is unchanged
+// from the prior streak, suppresses the Discord alert. Fails open: if the
+// dedup write throws, emits Discord anyway plus a [d-5.10.5.2 dedup-error]
+// warn so the operator sees both the original alert and the dedup failure.
+//
+// Trading halt behavior is independent: caller (run()) early-returns after
+// this wrapper resolves regardless of outcome. Discord delivery failures are
+// swallowed so the cycle exits cleanly under partial outages.
+async function _emitLiveHaltAlert(phase, reason, detail) {
+  const detailStr =
+    typeof detail === "string" ? detail : detail == null ? "" : JSON.stringify(detail);
+  // 1. Console — preserves existing phase-prefixed log format for grep.
+  const logTag = phase === "d-5.10.5" ? "d-5.10.5 reconcile" : `${phase} live-preflight`;
+  console.warn(`[${logTag}] halt: ${reason} — ${detailStr}`);
+
+  // 2. Dedup decision (fail-open on storage error).
+  let shouldAlert = true;
+  try {
+    const r = await dbRecordLiveHaltState(phase, reason, detailStr);
+    shouldAlert = !!r?.shouldAlert;
+  } catch (e) {
+    console.warn(`[d-5.10.5.2 dedup-error] state record failed: ${e.message}`);
+    // shouldAlert stays true — better to alert than miss.
+  }
+
+  // 3. Discord — plain-English message + technical footer.
+  if (shouldAlert) {
+    try {
+      await notifyDiscord(_formatDiscordMessage(phase, reason, detailStr));
+    } catch (_) {}
+  }
+}
+
+// Cleared-emit wrapper. Called once per live cycle that proceeds past every
+// gate (preflight + reconcile). dbClearLiveHaltState returns shouldAlert=true
+// only on the actual transition (prior reason was non-null); subsequent
+// cleared cycles silently no-op.
+async function _emitLiveHaltCleared() {
+  let r;
+  try {
+    r = await dbClearLiveHaltState();
+  } catch (e) {
+    console.warn(`[d-5.10.5.2 dedup-error] clear failed: ${e.message}`);
+    return;
+  }
+  if (r?.shouldAlert && r.previousReason) {
+    console.log(`[d-5.10.5.2 cleared] previous reason: ${r.previousReason}`);
+    try {
+      await notifyDiscord(_formatDiscordCleared(r.previousReason));
+    } catch (_) {}
+  }
 }
 
 // On first run, auto-restore any existing open paper trade from the log.
@@ -2258,11 +2473,12 @@ async function run() {
   if (!CONFIG.paperTrading) {
     const pre = await _liveDbPreflight();
     if (!pre.ok) {
+      // Phase D-5.10.5.2 — dedup-gated plain-English Discord. Console.warn
+      // is emitted by _emitLiveHaltAlert in the original phase-prefixed
+      // format for log greppability.
       const detailStr = typeof pre.detail === "string" ? pre.detail : JSON.stringify(pre.detail);
-      console.warn(`[d-5.10.3 live-preflight] halt: ${pre.reason} — ${detailStr}`);
-      try {
-        await notifyDiscord(`⛔ LIVE PREFLIGHT HALT — ${pre.reason}: ${detailStr}`);
-      } catch (_) {}
+      const phase = _phaseFromHaltReason(pre.reason);
+      await _emitLiveHaltAlert(phase, pre.reason, detailStr);
       console.log("═══════════════════════════════════════════════════════════\n");
       return;
     }
@@ -2278,14 +2494,15 @@ async function run() {
     _logVenueObservation(venue);
     const recon = reconcileLivePosition(dbPos, venue);
     if (!recon.aligned) {
-      console.warn(`[d-5.10.5 reconcile] halt: ${recon.reason} — ${recon.detail}`);
-      try {
-        await notifyDiscord(`⛔ LIVE RECONCILE HALT — ${recon.reason}: ${recon.detail}`);
-      } catch (_) {}
+      // Phase D-5.10.5.2 — dedup-gated plain-English Discord.
+      await _emitLiveHaltAlert("d-5.10.5", recon.reason, recon.detail);
       console.log("═══════════════════════════════════════════════════════════\n");
       return;
     }
     console.log(`[d-5.10.5 reconcile] aligned (${dbPos ? "open" : "flat"})`);
+    // Phase D-5.10.5.2 — emit one Discord "all-clear" if the prior streak just
+    // ended. Silent on subsequent aligned cycles.
+    await _emitLiveHaltCleared();
   }
 
   // Fetch market data
