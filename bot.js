@@ -1906,6 +1906,103 @@ function _logVenueObservation(venue) {
   console.warn(`[d-5.10.4 venue-error] kind=${venue.error?.kind} message=${venue.error?.message}`);
 }
 
+// ─── Phase D-5.10.5 — live reconciliation logic ─────────────────────────────
+// Pure function: diffs the Postgres "live open position" row (from D-5.8
+// loadOpenPosition('live')) against the Kraken venue read (from D-5.10.4
+// fetchKrakenOpenPosition). Returns { aligned, reason, detail } — no I/O,
+// no console, no Discord, no DB writes. The orchestration layer (run())
+// owns the halt-on-mismatch behavior + alert emission.
+//
+// Mismatch reasons (one per matrix row):
+//   - orphan-on-venue   — DB flat, Kraken has a position
+//   - phantom-in-db     — DB has a position, Kraken flat
+//   - orderid-mismatch  — both open, dbPos.kraken_order_id ∉ venue.orderTxIds
+//   - side-mismatch     — both open, dbPos.side !== venue.side
+//   - qty-drift         — both open, |dbQty - venueQty| / dbQty > tolerance
+//   - venue-auth        — Kraken fetch returned auth error
+//   - venue-rate-limit  — Kraken fetch returned rate-limit error
+//   - venue-unreachable — Kraken fetch threw / 5xx / DNS / timeout
+//   - venue-unexpected  — Kraken fetch returned malformed/unknown shape
+//
+// Never auto-resolves. Caller (run()) halts the cycle on any non-aligned
+// outcome; operator inspects every mismatch.
+const RECONCILE_QTY_TOLERANCE = 0.01; // 1% relative drift before halt
+
+function reconcileLivePosition(dbPos, venueResult) {
+  // Venue fetch failed → halt with a kind-specific reason. Independent of
+  // dbPos because we cannot trust either side's view when the read errored.
+  if (venueResult && venueResult.found === false) {
+    const k = venueResult.error?.kind;
+    let reason = "venue-unexpected";
+    if (k === "auth")             reason = "venue-auth";
+    else if (k === "rate-limit")  reason = "venue-rate-limit";
+    else if (k === "unreachable") reason = "venue-unreachable";
+    return {
+      aligned: false,
+      reason,
+      detail: venueResult.error?.message ?? "unknown",
+    };
+  }
+
+  const venueOpen = !!(venueResult && venueResult.found === true);
+
+  // Both flat → aligned.
+  if (!dbPos && !venueOpen) {
+    return { aligned: true, reason: null, detail: null };
+  }
+
+  // DB flat, venue open.
+  if (!dbPos && venueOpen) {
+    const ids = (venueResult.orderTxIds || []).join(",");
+    return {
+      aligned: false,
+      reason:  "orphan-on-venue",
+      detail:  `qty=${venueResult.quantity} orderTxIds=[${ids}]`,
+    };
+  }
+
+  // DB open, venue flat.
+  if (dbPos && !venueOpen) {
+    return {
+      aligned: false,
+      reason:  "phantom-in-db",
+      detail:  `dbOrderId=${dbPos.kraken_order_id ?? "null"} qty=${dbPos.quantity ?? "null"}`,
+    };
+  }
+
+  // Both open — diff fields. Order checked: orderId membership → side → qty.
+  // (orderId mismatch is the most diagnostic; qty drift is the most permissive.)
+  const dbOrderId       = dbPos.kraken_order_id;
+  const venueOrderTxIds = venueResult.orderTxIds || [];
+  if (dbOrderId && venueOrderTxIds.length > 0 && !venueOrderTxIds.includes(dbOrderId)) {
+    return {
+      aligned: false,
+      reason:  "orderid-mismatch",
+      detail:  `dbOrderId=${dbOrderId} venueOrderTxIds=[${venueOrderTxIds.join(",")}]`,
+    };
+  }
+  if (dbPos.side && venueResult.side && dbPos.side !== venueResult.side) {
+    return {
+      aligned: false,
+      reason:  "side-mismatch",
+      detail:  `dbSide=${dbPos.side} venueSide=${venueResult.side}`,
+    };
+  }
+  const dbQty    = dbPos.quantity != null ? parseFloat(dbPos.quantity) : null;
+  const venueQty = venueResult.quantity != null ? Number(venueResult.quantity) : null;
+  if (Number.isFinite(dbQty) && Number.isFinite(venueQty) && dbQty > 0) {
+    const drift = Math.abs(dbQty - venueQty) / dbQty;
+    if (drift > RECONCILE_QTY_TOLERANCE) {
+      return {
+        aligned: false,
+        reason:  "qty-drift",
+        detail:  `db=${dbQty} venue=${venueQty} drift=${(drift * 100).toFixed(2)}%`,
+      };
+    }
+  }
+  return { aligned: true, reason: null, detail: null };
+}
+
 // ─── Tax CSV Logging ─────────────────────────────────────────────────────────
 
 const CSV_FILE = dataPath("trades.csv");
@@ -2115,11 +2212,25 @@ async function run() {
       return;
     }
 
-    // Phase D-5.10.4 — observe-only Kraken venue state read. Does NOT gate
-    // trading in this phase. D-5.10.5 will introduce the reconciliation that
-    // consumes this output and halts on mismatch. Logged here for forensics.
+    // Phase D-5.10.5 — Postgres-vs-Kraken reconciliation. Halts the cycle
+    // on any mismatch via per-cycle no-trade. Never auto-resolves: no
+    // auto-close, no auto-open, no DB write. Operator inspects every halt.
+    // D-5.10.6 will replace the "aligned" fall-through with the actual live
+    // activation gate; for now an aligned cycle still falls through to the
+    // dormant live JSON read path from D-5.10.1.
+    const dbPos = await dbLoadOpenPosition("live");
     const venue = await fetchKrakenOpenPosition(CONFIG.symbol);
     _logVenueObservation(venue);
+    const recon = reconcileLivePosition(dbPos, venue);
+    if (!recon.aligned) {
+      console.warn(`[d-5.10.5 reconcile] halt: ${recon.reason} — ${recon.detail}`);
+      try {
+        await notifyDiscord(`⛔ LIVE RECONCILE HALT — ${recon.reason}: ${recon.detail}`);
+      } catch (_) {}
+      console.log("═══════════════════════════════════════════════════════════\n");
+      return;
+    }
+    console.log(`[d-5.10.5 reconcile] aligned (${dbPos ? "open" : "flat"})`);
   }
 
   // Fetch market data
