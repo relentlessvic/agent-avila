@@ -1628,6 +1628,29 @@ function mapToKrakenPair(symbol) {
   return map[symbol] || symbol;
 }
 
+// Phase D-5.10.4 — inverse of mapToKrakenPair. Kraken's private endpoints
+// (OpenPositions, Trades) often return canonical pair names with X/Z
+// prefixes (e.g. "XXRPZUSD"), while AddOrder accepts the short form
+// ("XRPUSD"). Handle both response shapes; unknown pairs pass through.
+function _krakenPairToSymbol(pair) {
+  if (!pair) return null;
+  const map = {
+    XBTUSD:   "BTCUSDT", XXBTZUSD: "BTCUSDT",
+    ETHUSD:   "ETHUSDT", XETHZUSD: "ETHUSDT",
+    SOLUSD:   "SOLUSDT", SOLZUSD:  "SOLUSDT",
+    ADAUSD:   "ADAUSDT", ADAZUSD:  "ADAUSDT",
+    XRPUSD:   "XRPUSDT", XXRPZUSD: "XRPUSDT",
+    XDGUSD:   "DOGEUSDT", XXDGZUSD: "DOGEUSDT",
+    XLTCUSD:  "LTCUSDT", XLTCZUSD: "LTCUSDT",
+    LINKUSD:  "LINKUSDT", LINKZUSD: "LINKUSDT",
+    DOTUSD:   "DOTUSDT",
+    AVAXUSD:  "AVAXUSDT",
+    MATICUSD: "MATICUSDT",
+    BNBUSD:   "BNBUSDT",
+  };
+  return map[pair] || pair;
+}
+
 // Kraken HMAC-SHA512 signing: API-Sign = HMAC-SHA512(path + SHA256(nonce + postdata), base64_decode(secret))
 function signKraken(path, nonce, postData) {
   const secretBuffer = Buffer.from(CONFIG.kraken.secretKey, "base64");
@@ -1730,6 +1753,157 @@ async function placeKrakenOrder(symbol, side, sizeUSD, price, leverage = 1) {
     filledVolume: fill.filledVolume,
     filledPrice: fill.filledPrice,
   };
+}
+
+// ─── Phase D-5.10.4 — read-only Kraken venue state fetcher ──────────────────
+// Signed POST to /0/private/OpenPositions. Read-only: no AddOrder, no
+// CancelOrder, no CancelAll, no SetLeverage. Used by run() in live mode
+// (after the D-5.10.3 preflight passes) for observation only; D-5.10.5+
+// will consume this output for reconciliation against Postgres positions.
+//
+// Never throws. Returns one of three shapes:
+//   - null                                — venue confirms flat for this symbol
+//   - { found: true,  state:'open',  ... }  — venue has a margin position; full normalized fields
+//   - { found: false, state:'error', error:{ kind, message } }
+//                                          — fetch failed (auth/rate-limit/unreachable/unexpected)
+//
+// Multiple position fragments for the same symbol+side are aggregated:
+// totalQty is summed, entryPrice is volume-weighted average, multiple=true.
+// Conflicting sides (long+short same symbol) returns 'unexpected' error.
+async function fetchKrakenOpenPosition(symbol) {
+  const targetPair = mapToKrakenPair(symbol);
+
+  let res, data;
+  try {
+    const nonce = Date.now().toString();
+    const path = "/0/private/OpenPositions";
+    const postData = new URLSearchParams({ nonce, docalcs: "true" }).toString();
+    const signature = signKraken(path, nonce, postData);
+    res = await fetch(`${CONFIG.kraken.baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "API-Key": CONFIG.kraken.apiKey,
+        "API-Sign": signature,
+      },
+      body: postData,
+    });
+  } catch (e) {
+    return { found: false, state: "error", error: { kind: "unreachable", message: e.message } };
+  }
+
+  if (!res.ok) {
+    let kind = "unexpected";
+    if (res.status === 401 || res.status === 403) kind = "auth";
+    else if (res.status >= 500) kind = "unreachable";
+    return { found: false, state: "error", error: { kind, message: `HTTP ${res.status}` } };
+  }
+
+  try {
+    data = await res.json();
+  } catch (_) {
+    return { found: false, state: "error", error: { kind: "unexpected", message: "non-JSON response" } };
+  }
+
+  if (Array.isArray(data?.error) && data.error.length > 0) {
+    const errStr = data.error.join(", ");
+    let kind = "unexpected";
+    if (/Invalid (key|signature|permissions|nonce)/i.test(errStr)) kind = "auth";
+    else if (/Rate limit/i.test(errStr)) kind = "rate-limit";
+    return { found: false, state: "error", error: { kind, message: errStr } };
+  }
+
+  if (!data || typeof data.result !== "object" || data.result === null) {
+    return { found: false, state: "error", error: { kind: "unexpected", message: "missing result field" } };
+  }
+
+  const result = data.result;
+  const positionIds = Object.keys(result);
+  if (positionIds.length === 0) return null;
+
+  // Filter to fragments matching the target symbol (handles canonical X/Z-prefixed
+  // pair names AND short-form pair names; unknown pairs pass through unchanged).
+  const matching = positionIds.filter(id => {
+    const p = result[id];
+    if (!p?.pair) return false;
+    return _krakenPairToSymbol(p.pair) === symbol || p.pair === targetPair;
+  });
+
+  if (matching.length === 0) {
+    // Operator has positions in non-target pairs. Visibility-only info hint.
+    console.log(`[d-5.10.4 venue-other] ${positionIds.length} positions in non-target pairs`);
+    return null;
+  }
+
+  let totalQty = 0;
+  let totalCost = 0;
+  let totalNet = 0;
+  const sides = new Set();
+  const orderTxIds = [];
+  let krakenPair = null;
+  let leverage = null;
+
+  for (const id of matching) {
+    const p = result[id];
+    const vol = parseFloat(p.vol || "0");
+    const volClosed = parseFloat(p.vol_closed || "0");
+    const openVol = vol - volClosed;
+    if (!Number.isFinite(openVol) || openVol <= 0) continue;
+    const fragCost = vol > 0 ? parseFloat(p.cost || "0") * (openVol / vol) : 0;
+    totalQty  += openVol;
+    totalCost += fragCost;
+    totalNet  += parseFloat(p.net || "0");
+    sides.add(p.type === "buy" ? "long" : "short");
+    krakenPair = krakenPair || p.pair;
+    if (leverage === null) {
+      const lev = (p.leverage || "").split(":")[0];
+      const parsed = parseFloat(lev);
+      if (Number.isFinite(parsed)) leverage = parsed;
+    }
+    if (p.ordertxid) orderTxIds.push(p.ordertxid);
+  }
+
+  if (sides.size > 1) {
+    return { found: false, state: "error", error: { kind: "unexpected", message: "conflicting sides for symbol" } };
+  }
+  if (totalQty <= 0) return null;
+
+  return {
+    found:           true,
+    state:           "open",
+    side:            [...sides][0],
+    symbol,
+    krakenPair,
+    quantity:        totalQty,
+    entryPrice:      totalCost / totalQty,
+    costUSD:         totalCost,
+    positionIds:     matching,
+    orderTxIds,
+    leverage,
+    unrealizedPnLUSD: totalNet,
+    multiple:        matching.length > 1,
+    raw:             result,
+  };
+}
+
+// One-line dispatch over the three return shapes from fetchKrakenOpenPosition.
+// Observation-only: no halt, no Discord, no decision gate. Consumed by D-5.10.5+
+// reconciliation in a later phase.
+function _logVenueObservation(venue) {
+  if (venue === null) {
+    console.log(`[d-5.10.4 venue] flat (no Kraken margin position for ${CONFIG.symbol})`);
+    return;
+  }
+  if (venue.found) {
+    const ep  = venue.entryPrice != null ? `$${venue.entryPrice.toFixed(5)}` : "?";
+    const ids = (venue.positionIds || []).join(",");
+    const tag = venue.multiple ? " (multi-fragment)" : "";
+    console.log(
+      `[d-5.10.4 venue] open: side=${venue.side} qty=${(venue.quantity ?? 0).toFixed(6)} entry=${ep} positionIds=[${ids}]${tag}`
+    );
+    return;
+  }
+  console.warn(`[d-5.10.4 venue-error] kind=${venue.error?.kind} message=${venue.error?.message}`);
 }
 
 // ─── Tax CSV Logging ─────────────────────────────────────────────────────────
@@ -1940,6 +2114,12 @@ async function run() {
       console.log("═══════════════════════════════════════════════════════════\n");
       return;
     }
+
+    // Phase D-5.10.4 — observe-only Kraken venue state read. Does NOT gate
+    // trading in this phase. D-5.10.5 will introduce the reconciliation that
+    // consumes this output and halts on mismatch. Logged here for forensics.
+    const venue = await fetchKrakenOpenPosition(CONFIG.symbol);
+    _logVenueObservation(venue);
   }
 
   // Fetch market data
