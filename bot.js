@@ -27,6 +27,8 @@ import {
   loadOpenPosition as dbLoadOpenPosition,
   countOpenPositions as dbCountOpenPositions,
   countOrphanedPositions as dbCountOrphanedPositions,
+  ping as dbPing,
+  schemaVersion as dbSchemaVersion,
 } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -957,6 +959,72 @@ function _stripPrivateKeys(p) {
   return rest;
 }
 
+// ─── Phase D-5.10.3 — live-mode DB preflight gate ──────────────────────────
+// Necessary-but-not-sufficient first safety layer for live trading. Runs in
+// run() before any market data fetch when CONFIG.paperTrading === false.
+// Kraken reconciliation is the next safety layer (D-5.10.4+); this phase only
+// validates that the local environment is plausibly safe to attempt a live
+// cycle — the umbrella LIVE_TRADING_ARMED arm flag, DATABASE_URL presence,
+// Postgres liveness, schema version, and the live positions table's integrity
+// (existence, queryable, no impossible multi-open state).
+//
+// Returns { ok, reason, detail }. Caller (run()) early-returns on ok=false
+// with one warn line and one Discord alert. No bot_control mutation; each
+// cycle independently re-runs the gates so transient failures self-heal.
+//
+// Intentionally minimal in this phase: no Kraken probe, no bot_control read/
+// write, no pause-or-kill. Those land in later sub-phases when their own
+// preconditions are tested in isolation first.
+
+function _liveArmed() {
+  const v = (process.env.LIVE_TRADING_ARMED || "").trim().toLowerCase();
+  return v === "1" || v === "true";
+}
+
+async function _liveDbPreflight() {
+  // Gate 1 — arm flag. Operator must explicitly opt in to live cycles.
+  if (!_liveArmed()) {
+    return { ok: false, reason: "not-armed", detail: "LIVE_TRADING_ARMED env var unset" };
+  }
+  // Gate 2 — DATABASE_URL present.
+  if (!dbAvailable()) {
+    return { ok: false, reason: "db-unavailable", detail: "DATABASE_URL not set" };
+  }
+  // Gate 3 — Postgres reachable.
+  const pg = await dbPing();
+  if (!pg.ok) {
+    return { ok: false, reason: "db-ping-failed", detail: pg.reason || "unknown" };
+  }
+  // Gate 4 — schema version high enough to support live helpers.
+  const sv = await dbSchemaVersion();
+  if (!sv || (sv.version ?? 0) < 3) {
+    return { ok: false, reason: "schema-too-old", detail: `version=${sv?.version ?? "null"} required>=3` };
+  }
+  // Gate 5 — positions table healthy. The query exercises the table, the
+  // partial unique index, and the mode='live' filter in one round-trip.
+  let openCount;
+  try {
+    openCount = await dbCountOpenPositions("live");
+  } catch (e) {
+    return { ok: false, reason: "positions-table-unhealthy", detail: e.message };
+  }
+  // Gate 6 — defensive multi-open check. The DDL-level partial unique index
+  // makes this state impossible; if it ever holds, never trade.
+  if (openCount > 1) {
+    return { ok: false, reason: "live-multi-open", detail: `count=${openCount}` };
+  }
+  // Gate 7 — orphan visibility (info only). Non-fatal: if the orphan query
+  // fails after Gate 5 passed, swallow silently; the operator-blocking case
+  // would need full reconciliation (D-5.10.5).
+  try {
+    const orphanCount = await dbCountOrphanedPositions("live");
+    if (orphanCount > 0) {
+      console.warn(`[d-5.10.3 live-orphans] count=${orphanCount} — visibility only, continuing`);
+    }
+  } catch (_) {}
+  return { ok: true, reason: null, detail: null };
+}
+
 // On first run, auto-restore any existing open paper trade from the log.
 // Phase D-5.10.1 — async because loadPosition() is now async; preserves the
 // legacy log-scan rebuild fallback only when the read came from JSON and the
@@ -1855,6 +1923,23 @@ async function run() {
     console.log(`⛔ Cycle skipped — paper integrity guard halted (reason=${position._haltReason})`);
     console.log("═══════════════════════════════════════════════════════════\n");
     return;
+  }
+
+  // Phase D-5.10.3 — live-mode DB preflight gate. Runs before any Kraken
+  // activity when paperTrading is off. Each halt is per-cycle no-trade; no
+  // bot_control mutation; transient failures self-heal on the next cron tick.
+  // Production is paperTrading=true, so this block is dormant in prod.
+  if (!CONFIG.paperTrading) {
+    const pre = await _liveDbPreflight();
+    if (!pre.ok) {
+      const detailStr = typeof pre.detail === "string" ? pre.detail : JSON.stringify(pre.detail);
+      console.warn(`[d-5.10.3 live-preflight] halt: ${pre.reason} — ${detailStr}`);
+      try {
+        await notifyDiscord(`⛔ LIVE PREFLIGHT HALT — ${pre.reason}: ${detailStr}`);
+      } catch (_) {}
+      console.log("═══════════════════════════════════════════════════════════\n");
+      return;
+    }
   }
 
   // Fetch market data
