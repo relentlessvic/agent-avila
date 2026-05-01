@@ -5,6 +5,17 @@ import { createServer } from "http";
 import { spawn } from "child_process";
 import crypto from "crypto";
 import { buildSystemStatus, runSystemCheck } from "./system-guardian.js";
+// Phase D-5.4 — Postgres connection module. Read-only consumption this
+// phase: only /api/health and the boot banner read DB state. No writes,
+// no schema dependency for the rest of dashboard.js (the bot_control
+// table is created by migrations but not yet read or written by any
+// runtime path — that lands in D-5.5+).
+import {
+  ping as dbPing,
+  schemaVersion as dbSchemaVersion,
+  databaseUrlPresent,
+  maskedDatabaseUrl,
+} from "./db.js";
 
 const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3000;
 
@@ -10408,6 +10419,35 @@ const server = createServer(async (req, res) => {
       files:    filesView,
     };
 
+    // Phase D-5.4 — Postgres health visibility on the public health
+    // endpoint. Always probes fresh (no cache here — this is the canonical
+    // liveness URL). Schema version comes from a separate quick query that
+    // tolerates a missing schema_migrations table (returns null).
+    let database;
+    if (!databaseUrlPresent) {
+      database = {
+        ok: false,
+        engine: "postgres",
+        latencyMs: 0,
+        url: null,
+        schemaVersion: null,
+        schemaName: null,
+        reason: "DATABASE_URL not set",
+      };
+    } else {
+      const h = await dbPing();
+      const sv = h.ok ? await dbSchemaVersion() : null;
+      database = {
+        ok: h.ok,
+        engine: "postgres",
+        latencyMs: h.latencyMs,
+        url: maskedDatabaseUrl,
+        schemaVersion: sv ? sv.version : null,
+        schemaName:    sv ? sv.name : null,
+        reason: h.reason,
+      };
+    }
+
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({
       success: errors.length === 0,
@@ -10420,6 +10460,7 @@ const server = createServer(async (req, res) => {
       serverTime: Date.now(),
       errors,
       persistence,
+      database,
       // legacy fields kept for backwards compat with existing UI
       krakenOk,
     }));
@@ -11004,6 +11045,26 @@ server.listen(PORT, () => {
     try { exists = existsSync(f); if (exists) size = statSync(f).size; } catch {}
     console.log(`[boot] ${exists ? "✓" : "·"}  ${path.relative(DATA_DIR, f) || path.basename(f)}  (${size} bytes)`);
   }
+  // Phase D-5.4 — Postgres connectivity probe at boot. Surfaces DB state
+  // alongside the persistence banner so an operator sees both signals
+  // together. Async-fired-and-forget so the listen callback isn't blocked
+  // by a slow DB; result lands in logs ~ms later. /api/health remains the
+  // authoritative on-demand probe.
+  (async () => {
+    if (!databaseUrlPresent) {
+      console.log(`[boot] db=DISABLED  reason=DATABASE_URL not set`);
+      return;
+    }
+    try {
+      const h = await dbPing();
+      const sv = h.ok ? await dbSchemaVersion() : null;
+      const ver = sv && sv.version != null ? `v${sv.version}` : "no-schema";
+      console.log(`[boot] db=${h.ok ? "ok" : "FAIL"}  latency=${h.latencyMs}ms  schema=${ver}  url=${maskedDatabaseUrl}`);
+      if (!h.ok) console.error(`[boot] db FAILED: ${h.reason}`);
+    } catch (e) {
+      console.error(`[boot] db probe threw: ${e.message}`);
+    }
+  })();
 });
 
 // ─── Embedded bot runner — only on Railway, runs every 5 minutes ─────────────
