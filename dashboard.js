@@ -102,14 +102,136 @@ async function withRetry(fn, retries = 2, delay = 500) {
   }
 }
 
+// ─── Phase D-5.6 — bot_control read flip (DB-preferred, JSON fallback) ─────
+// Read-side counterpart to D-5.5. Dashboard read paths now consume
+// loadControl() instead of inline existsSync(CONTROL_FILE)+JSON.parse, which
+// returns the Postgres-cached row when DB is healthy, the JSON file when DB
+// is unavailable, and JSON when JSON's mtime is newer than the DB row's
+// updated_at (the latter handles bot.js auto-pause / auto-kill / cooldown
+// updates that haven't been replicated to Postgres yet — bot.js still writes
+// JSON only; that dual-write lands in a future phase).
+//
+// Sync semantics preserved: existing callers (getApiData, getHomeSummary,
+// modeScopedSummary) remain synchronous. The DB cache is refreshed on a
+// 30-second TTL by fire-and-forget background reads, plus immediately after
+// every successful syncBotControlToDb() upsert.
+//
+// Mutation paths (/api/control POST, /api/chat auto-execute) intentionally
+// keep JSON-direct reads so a stale DB cache cannot mask the latest
+// bot-driven state when applying a user command.
+
+let _dbCtrlCache = null;
+let _dbCtrlCacheTs = 0;
+const DB_CTRL_CACHE_TTL_MS = 30_000;
+
+function _mapDbRowToCtrl(row) {
+  if (!row) return null;
+  // Inverse of the snake_case→camelCase mapping done by syncBotControlToDb.
+  // pg returns NUMERIC as strings (precision-preserving) and TIMESTAMPTZ /
+  // DATE as Date objects; coerce to the JSON shape every consumer expects.
+  const toIso = (v) => v ? (v instanceof Date ? v.toISOString() : String(v)) : null;
+  const toDate = (v) => v ? (v instanceof Date ? v.toISOString().slice(0,10) : String(v)) : null;
+  return {
+    paperTrading:           row.paper_trading,
+    stopped:                row.stopped,
+    paused:                 row.paused,
+    pausedUntil:            toIso(row.paused_until),
+    killed:                 row.killed,
+    leverage:               row.leverage,
+    riskPct:                parseFloat(row.risk_pct),
+    dynamicSizing:          row.dynamic_sizing,
+    maxDailyLossPct:        parseFloat(row.max_daily_loss_pct),
+    cooldownMinutes:        row.cooldown_minutes,
+    killSwitchEnabled:      row.kill_switch_enabled,
+    killSwitchDrawdownPct:  parseFloat(row.kill_switch_drawdown_pct),
+    pauseAfterLosses:       row.pause_after_losses,
+    consecutiveLosses:      row.consecutive_losses,
+    lastTradeTime:          toIso(row.last_trade_time),
+    leverageDisabledUntil:  toIso(row.leverage_disabled_until),
+    lastSummaryDate:        toDate(row.last_summary_date),
+    updatedBy:              row.updated_by,
+    updatedAt:              toIso(row.updated_at),
+  };
+}
+
+async function _refreshDbCtrlCache() {
+  if (!dbAvailable()) return;
+  try {
+    const r = await dbQuery("SELECT * FROM bot_control WHERE id = 1");
+    if (r.rows.length) {
+      _dbCtrlCache = _mapDbRowToCtrl(r.rows[0]);
+      _dbCtrlCacheTs = Date.now();
+    }
+  } catch (e) {
+    // Don't clear an existing cache — stale-but-set beats empty during a blip.
+    log.warn("d-5.6 cache", `bot_control DB read failed: ${e.message}`);
+  }
+}
+
+function _loadControlFromJson() {
+  if (!existsSync(CONTROL_FILE)) return {};
+  try { return JSON.parse(readFileSync(CONTROL_FILE, "utf8")); }
+  catch { return {}; }
+}
+
+// Sync API. Returns the freshest available control state.
+//
+// Decision tree:
+//   1. If DATABASE_URL unset → JSON only. (Local dev / pre-Postgres.)
+//   2. If DB cache fresh (<30s) AND JSON mtime <= cache.updated_at + 2s
+//        → return cache.
+//   3. If DB cache fresh BUT JSON mtime newer than cache by >2s
+//        → return JSON, kick async sync to push JSON state into DB cache+row.
+//          (This is the bot.js-wrote-JSON-but-not-DB reconciliation path.)
+//   4. If DB cache stale or missing → return JSON, kick async refresh.
+//      Next call should land in branch 2 or 3.
+function loadControl() {
+  if (!dbAvailable()) return _loadControlFromJson();
+
+  const now = Date.now();
+  const cacheFresh = _dbCtrlCache && (now - _dbCtrlCacheTs) < DB_CTRL_CACHE_TTL_MS;
+
+  if (cacheFresh) {
+    // Reconcile against JSON mtime: if JSON is newer than the cached DB
+    // row's updated_at by >2s (clock-skew tolerance), bot.js wrote a
+    // bot-driven update and Postgres is behind. Use JSON, sync DB.
+    let jsonMtime = 0;
+    try {
+      if (existsSync(CONTROL_FILE)) jsonMtime = statSync(CONTROL_FILE).mtimeMs;
+    } catch {}
+    const cacheUpdatedMs = _dbCtrlCache.updatedAt ? new Date(_dbCtrlCache.updatedAt).getTime() : 0;
+    if (jsonMtime > cacheUpdatedMs + 2000) {
+      const jsonCtrl = _loadControlFromJson();
+      if (Object.keys(jsonCtrl).length > 0) {
+        // Push the JSON state to DB so subsequent reads converge. The
+        // sync helper updates _dbCtrlCache on success, so the next
+        // loadControl() call will land in the cacheFresh branch with a
+        // matching updated_at and skip this reconcile.
+        syncBotControlToDb(jsonCtrl);
+        return jsonCtrl;
+      }
+    }
+    return _dbCtrlCache;
+  }
+
+  // Cache stale or missing — kick a refresh, return JSON now so the caller
+  // gets fresh-as-possible state without blocking.
+  _refreshDbCtrlCache().catch(() => {});
+  return _loadControlFromJson();
+}
+
+// Module-load warm-up: populate _dbCtrlCache before the first request lands.
+// Fire-and-forget — local dev or pre-Postgres deploys silently no-op.
+if (databaseUrlPresent) {
+  _refreshDbCtrlCache().catch(() => {});
+}
+
 // ─── Phase D-5.5 — bot_control dual-write to Postgres ──────────────────────
 // Shadow write: every successful writeFileSync(CONTROL_FILE, ...) is followed
-// by an UPSERT into the Postgres bot_control row (id=1). JSON file remains
-// the source of truth for reads in this phase — Postgres is observed-only
-// until D-5.6 flips reads. Fire-and-forget: failure logs a warn line and is
-// invisible to the /api/control caller, so paper controls are never blocked
-// by DB latency or outages. The DB write semantics are idempotent (UPSERT)
-// so duplicate calls cannot corrupt state.
+// by an UPSERT into the Postgres bot_control row (id=1). The dual-write also
+// updates _dbCtrlCache on success so loadControl() converges immediately.
+// Fire-and-forget: failure logs a warn line and is invisible to the
+// /api/control caller, so paper controls are never blocked by DB latency.
 //
 // Mapping JSON-camelCase → SQL-snake_case is done explicitly here; the
 // SQL column list mirrors migrations/001_init.sql. Defaults match
@@ -180,6 +302,11 @@ function syncBotControlToDb(ctrl) {
           ctrl.updatedAt ?? null,                      // $19 (COALESCE → NOW())
         ]
       );
+      // Phase D-5.6 — mirror the just-written state into the read cache so
+      // the next loadControl() call sees consistent state without waiting
+      // for the 30s TTL refresh.
+      _dbCtrlCache = { ...ctrl };
+      _dbCtrlCacheTs = Date.now();
     } catch (e) {
       log.warn("d-5.5 dual-write", `bot_control DB sync failed: ${e.message}`);
     }
@@ -258,8 +385,10 @@ function getApiData() {
   const paperStartingBalance = parseFloat(process.env.PAPER_STARTING_BALANCE || "500");
   let position = { open: false };
   try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE, "utf8")); } catch {}
-  let control = { stopped: false, paused: false, paperTrading: true, leverage: 2, riskPct: 1 };
-  try { if (existsSync(CONTROL_FILE)) control = JSON.parse(readFileSync(CONTROL_FILE, "utf8")); } catch {}
+  // Phase D-5.6 — DB-preferred read with JSON fallback. Safe defaults
+  // preserved by spreading loadControl() over the defaults: any missing
+  // field falls back to the historical safe value.
+  const control = { stopped: false, paused: false, paperTrading: true, leverage: 2, riskPct: 1, ...loadControl() };
   let perfState = {};
   try { if (existsSync(PERF_STATE_FILE)) perfState = JSON.parse(readFileSync(PERF_STATE_FILE, "utf8")); } catch {}
   let capitalState = { xrpRole: "HOLD_ASSET", autoConversion: false, activePct: 70, reservePct: 30 };
@@ -314,8 +443,8 @@ function getApiData() {
 // full /api/data payload. Stays sync — Kraken balance is intentionally not
 // fetched here (slow); user sees real Kraken value on /live.
 function getHomeSummary() {
-  let control = {};
-  try { if (existsSync(CONTROL_FILE)) control = JSON.parse(readFileSync(CONTROL_FILE,"utf8")); } catch {}
+  // Phase D-5.6 — DB-preferred read with JSON fallback.
+  const control = loadControl();
   let latest = null;
   try {
     if (existsSync(LOG_FILE)) {
@@ -391,8 +520,8 @@ function modeScopedSummary(wantPaper) {
     allPass: last.allPass === true,
   } : null;
 
-  let control = {};
-  try { if (existsSync(CONTROL_FILE)) control = JSON.parse(readFileSync(CONTROL_FILE,"utf8")); } catch {}
+  // Phase D-5.6 — DB-preferred read with JSON fallback.
+  const control = loadControl();
   let position = { open: false };
   try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE,"utf8")); } catch {}
   const botInPaperMode = control.paperTrading !== false;
@@ -502,8 +631,8 @@ async function getCachedKrakenHealth(maxAgeMs = 30_000) {
 // today's loss AND unrealized open-position exposure, so an operator
 // cannot be misled by a "healthy" buffer while a position is bleeding.
 async function buildV2DashboardPayload() {
-  let ctrl = {};
-  try { if (existsSync(CONTROL_FILE)) ctrl = JSON.parse(readFileSync(CONTROL_FILE,"utf8")); } catch {}
+  // Phase D-5.6 — DB-preferred read with JSON fallback.
+  const ctrl = loadControl();
   const isPaper = ctrl.paperTrading !== false;
 
   // Mode-scoped summary (paper or live, never both).
@@ -806,7 +935,10 @@ async function execKrakenOrder(side, pair, volume, leverage = 1) {
 }
 
 async function handleTradeCommand(command, params = {}) {
-  const ctrl = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE, "utf8")) : {};
+  // Phase D-5.6 — DB-preferred read with JSON fallback. Manual paper trade
+  // commands (BUY/CLOSE) gate on paperTrading; loadControl() returns the
+  // freshest known state.
+  const ctrl = loadControl();
   const isPaper = ctrl.paperTrading !== false;
   const symbol  = "XRPUSDT";
   const krakenPair = PAIR_TO_KRAKEN[symbol];
@@ -10592,7 +10724,8 @@ const server = createServer(async (req, res) => {
       // Phase 3 — server-side confirmation gate. Spawning the bot in LIVE
       // mode requires explicit { confirm: "CONFIRM" } in the body. Paper-mode
       // self-heal keeps its no-confirm path so the dashboard stays self-healing.
-      const ctrlNow = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE,"utf8")) : {};
+      // Phase D-5.6 — DB-preferred read with JSON fallback for the gate check.
+      const ctrlNow = loadControl();
       if (ctrlNow.paperTrading === false) {
         let body = {};
         try { body = JSON.parse(await readBody(req)); } catch {}
@@ -10903,7 +11036,8 @@ const server = createServer(async (req, res) => {
       if (_release) _release();
     }
   } else if (req.url === "/api/control" && req.method === "GET") {
-    const ctrl = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE, "utf8")) : {};
+    // Phase D-5.6 — DB-preferred read with JSON fallback.
+    const ctrl = loadControl();
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(ctrl));
   } else if (req.url === "/api/trade" && req.method === "POST") {
@@ -10922,7 +11056,8 @@ const server = createServer(async (req, res) => {
       // Phase 3 — server-side confirmation gate. Live trades require
       // { confirm: "CONFIRM" } so a stray authenticated POST can't place an
       // order. Paper trades stay unguarded to match existing UX.
-      const ctrlNow = existsSync(CONTROL_FILE) ? JSON.parse(readFileSync(CONTROL_FILE,"utf8")) : {};
+      // Phase D-5.6 — DB-preferred read with JSON fallback for the gate check.
+      const ctrlNow = loadControl();
       if (ctrlNow.paperTrading === false && body.confirm !== "CONFIRM") {
         res.writeHead(403, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: "Confirmation required for live trade" }));
@@ -10949,7 +11084,10 @@ const server = createServer(async (req, res) => {
       try {
         const log  = existsSync(LOG_FILE) ? JSON.parse(readFileSync(LOG_FILE,"utf8")) : { trades: [] };
         const pos  = existsSync(POSITION_FILE)         ? JSON.parse(readFileSync(POSITION_FILE,"utf8"))         : { open: false };
-        const ctrl = existsSync(CONTROL_FILE)      ? JSON.parse(readFileSync(CONTROL_FILE,"utf8"))      : {};
+        // Phase D-5.6 — DB-preferred read with JSON fallback. Chat context
+        // builder is read-only (used to compose the AI assistant's system
+        // prompt); auto-execute mutations below stay on JSON.
+        const ctrl = loadControl();
         const perf = existsSync(PERF_STATE_FILE)? JSON.parse(readFileSync(PERF_STATE_FILE,"utf8")): {};
         const cap  = existsSync(CAPITAL_FILE)    ? JSON.parse(readFileSync(CAPITAL_FILE,"utf8"))    : {};
         const latest = log.trades.length ? log.trades[log.trades.length - 1] : null;
