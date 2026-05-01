@@ -966,8 +966,9 @@ async function buildV2DashboardPayload() {
     ? await getPaperSummary()
     : await getLiveSummary().catch(() => modeScopedSummary(false));
 
-  // Latest log entry (last decision + V2 shadow data) and current position.
-  let latest = null, position = { open: false };
+  // Latest log entry (last decision + V2 shadow data) — stays JSON-sourced
+  // because skip cycles aren't in trade_events (D-5.9 territory).
+  let latest = null;
   let allTrades = [];
   try {
     if (existsSync(LOG_FILE)) {
@@ -976,7 +977,13 @@ async function buildV2DashboardPayload() {
       latest = allTrades.length ? allTrades[allTrades.length - 1] : null;
     }
   } catch {}
-  try { if (existsSync(POSITION_FILE)) position = JSON.parse(readFileSync(POSITION_FILE,"utf8")); } catch {}
+  // Phase D-5.8.1 — top-level position now uses summary.position (which
+  // is Postgres-sourced via getPaperSummary/getLiveSummary → modeScopedSummary
+  // → _loadModeFromDb in D-5.8). Previously this re-read position.json,
+  // which is wiped on every Railway redeploy (no volume); after a deploy
+  // the v2 dashboard's Open Position card showed "no open trade" even
+  // when Postgres had a real open position row.
+  const position = summary.position ?? { open: false };
 
   // Today-only realized P&L for the active mode.
   const todayDate = new Date().toISOString().slice(0, 10);
