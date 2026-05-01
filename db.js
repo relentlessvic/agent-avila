@@ -522,12 +522,19 @@ export async function insertStrategySignal(signal) {
       signal.spike_ratio ?? null,
       _coerceInt(signal.effective_lev),
       !!signal.paper_trading,
-      signal.subscores  ?? {},
-      signal.conditions ?? [],
-      signal.gates      ?? {},
-      signal.v2_shadow  ?? {},
+      // Phase D-5.9.1.1 — explicit JSON.stringify on every JSONB-bound param.
+      // node-postgres auto-stringifies plain objects for JSONB columns but
+      // routes JS arrays through its Postgres-array formatter (text[] / int[]
+      // literals), which the JSONB column rejects with "invalid input syntax
+      // for type json". `conditions` is the only array param here, but we
+      // stringify all five for uniformity so a future caller adding an
+      // array-shaped value to any JSONB field doesn't reintroduce the bug.
+      JSON.stringify(signal.subscores  ?? {}),
+      JSON.stringify(signal.conditions ?? []),
+      JSON.stringify(signal.gates      ?? {}),
+      JSON.stringify(signal.v2_shadow  ?? {}),
       signal.decision_log ?? null,
-      signal.metadata ?? {},
+      JSON.stringify(signal.metadata ?? {}),
     ]
   );
 }
