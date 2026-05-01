@@ -414,6 +414,32 @@ export async function loadPnLAggregates(mode) {
   };
 }
 
+// ─── Phase D-5.10.2 — paper integrity guard helpers ────────────────────────
+// Two trivial count queries used by bot.js's _paperConflictGuard. Both ride
+// the existing positions_mode_status_idx BTREE for an index-only scan; the
+// guard fires both in parallel via Promise.all in the calling cycle.
+//
+// Defined here (not inline in bot.js) so a future system_events / live-mode
+// guard can reuse them without duplicating the SQL.
+
+export async function countOpenPositions(mode) {
+  _requireMode("countOpenPositions", mode);
+  const r = await query(
+    "SELECT count(*)::int AS c FROM positions WHERE mode = $1 AND status = 'open'",
+    [mode]
+  );
+  return r.rows[0].c;
+}
+
+export async function countOrphanedPositions(mode) {
+  _requireMode("countOrphanedPositions", mode);
+  const r = await query(
+    "SELECT count(*)::int AS c FROM positions WHERE mode = $1 AND status = 'orphaned'",
+    [mode]
+  );
+  return r.rows[0].c;
+}
+
 // W/L counts for a mode. Same orphan-inclusive rule as loadPnLAggregates.
 // Returns wins, losses, breakeven, total, and computed winRate (0–100
 // percent or null when total=0).

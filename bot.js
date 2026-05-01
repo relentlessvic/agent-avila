@@ -25,6 +25,8 @@ import {
   upsertPositionOpen, closePosition,
   insertStrategySignal,
   loadOpenPosition as dbLoadOpenPosition,
+  countOpenPositions as dbCountOpenPositions,
+  countOrphanedPositions as dbCountOrphanedPositions,
 } from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
@@ -860,17 +862,134 @@ function savePosition(pos) {
   atomicWrite(POSITION_FILE, JSON.stringify(pos, null, 2));
 }
 
+// ─── Phase D-5.10.2 — paper integrity guard + JSON rehydration ──────────────
+// _paperConflictGuard runs once per cycle (paper + DB available only).
+// Returns { ok, action, reason, detail }:
+//   - action='halt'    → multi-open detected; run() early-returns. Defensive
+//                        only; the partial unique index makes this state
+//                        theoretically impossible.
+//   - action='proceed' with reason='orphans-present' → visibility warn; cycle
+//                        continues normally (orphans don't block trading).
+//   - action='proceed' with reason='guard-skipped'   → count query failed;
+//                        continue with existing fallback behavior.
+//   - action='proceed' with no reason                → all healthy, silent.
+async function _paperConflictGuard() {
+  let openCount, orphanCount;
+  try {
+    [openCount, orphanCount] = await Promise.all([
+      dbCountOpenPositions("paper"),
+      dbCountOrphanedPositions("paper"),
+    ]);
+  } catch (e) {
+    console.warn(`[d-5.10.2 guard] count query failed: ${e.message} — proceeding under JSON fallback`);
+    return { ok: true, action: "proceed", reason: "guard-skipped", detail: e.message };
+  }
+  if (openCount > 1) {
+    console.warn(`[d-5.10.2 halt] paper multi-open detected (count=${openCount}) — refusing to trade this cycle`);
+    return { ok: false, action: "halt", reason: "multi-open", detail: { count: openCount } };
+  }
+  if (orphanCount > 0) {
+    console.warn(`[d-5.10.2 guard] paper orphans present (count=${orphanCount}) — visibility only, continuing`);
+    return { ok: true, action: "proceed", reason: "orphans-present", detail: { count: orphanCount } };
+  }
+  return { ok: true, action: "proceed", reason: null, detail: null };
+}
+
+// Compare two legacy-shape position objects for semantic equality. Both-closed
+// (open=false on both) is equal. Both-open is equal when the discriminating
+// fields agree within float tolerance and orderId/symbol/leverage match.
+// Returns false on any null/missing input so the caller falls into rewrite.
+function _legacyPositionsEqual(a, b) {
+  if (!a || !b) return false;
+  if (a.open !== b.open) return false;
+  if (!a.open) return true;
+  const eqNum = (x, y, eps) => Math.abs((x ?? 0) - (y ?? 0)) < eps;
+  return (
+    a.orderId === b.orderId &&
+    a.symbol  === b.symbol  &&
+    a.leverage === b.leverage &&
+    eqNum(a.entryPrice, b.entryPrice, 1e-6) &&
+    eqNum(a.stopLoss,   b.stopLoss,   1e-6) &&
+    eqNum(a.takeProfit, b.takeProfit, 1e-6) &&
+    eqNum(a.quantity,   b.quantity,   1e-6) &&
+    eqNum(a.tradeSize,  b.tradeSize,  1e-4)
+  );
+}
+
+// _rehydratePositionJson keeps position.json as a write-through cache of the
+// DB-authoritative paper position state. Idempotent: skips the write when JSON
+// already matches. OrderId mismatch is detected first so the conflict warn
+// always fires, even if other fields happen to align.
+function _rehydratePositionJson(canonical) {
+  let onDisk = null;
+  if (existsSync(POSITION_FILE)) {
+    try {
+      onDisk = JSON.parse(readFileSync(POSITION_FILE, "utf8"));
+    } catch (e) {
+      console.warn(`[d-5.10.2 json-parse] position.json corrupt — rewriting from DB: ${e.message}`);
+      onDisk = null;
+    }
+  }
+  if (canonical.open && onDisk?.open && onDisk.orderId && onDisk.orderId !== canonical.orderId) {
+    console.warn(
+      `[d-5.10.2 conflict] JSON had stale orderId=${onDisk.orderId}, DB has ${canonical.orderId} — overwriting JSON to match DB`
+    );
+    savePosition(canonical);
+    return;
+  }
+  if (_legacyPositionsEqual(canonical, onDisk)) return;
+  if (canonical.open) {
+    console.log(
+      `[d-5.10.2 rehydrate] paper open from Postgres: orderId=${canonical.orderId} entry=$${(canonical.entryPrice ?? 0).toFixed(4)}`
+    );
+  } else {
+    console.log(`[d-5.10.2 rehydrate] DB shows no open paper — clearing JSON`);
+  }
+  savePosition(canonical);
+}
+
+// Strip private discriminator keys before propagating the position object to
+// the rest of run(). Keeps downstream code (savePosition writes, manual close
+// path, signal evaluation) free of internal-only metadata.
+function _stripPrivateKeys(p) {
+  if (!p || typeof p !== "object") return p;
+  const { _source, _halted, _haltReason, ...rest } = p;
+  return rest;
+}
+
 // On first run, auto-restore any existing open paper trade from the log.
 // Phase D-5.10.1 — async because loadPosition() is now async; preserves the
-// legacy log-scan rebuild fallback only when the read came from JSON and
-// the JSON file was missing (paper-DB-down or live-no-JSON path). When the
-// answer came from Postgres (DB-authoritative empty), no rebuild occurs.
+// legacy log-scan rebuild fallback only when the read came from JSON and the
+// JSON file was missing (paper-DB-down or live-no-JSON path). When the answer
+// came from Postgres (DB-authoritative empty), no rebuild occurs.
+// Phase D-5.10.2 — orchestrates _paperConflictGuard (halt-or-proceed) and
+// _rehydratePositionJson (write-through cache) for paper mode with DB up.
 async function initPosition(log) {
-  const pos = await loadPosition();
-  if (pos.open) {
-    delete pos._source;
-    return pos;
+  const mode = CONFIG.paperTrading ? "paper" : "live";
+  const dbGuardActive = mode === "paper" && dbAvailable();
+
+  // Step 1: paper integrity guard. Halt the cycle on multi-open; warn on
+  // orphans/guard-skipped; proceed silently otherwise.
+  if (dbGuardActive) {
+    const guard = await _paperConflictGuard();
+    if (guard.action === "halt") {
+      return { open: false, _halted: true, _haltReason: guard.reason };
+    }
   }
+
+  // Step 2: read position (D-5.10.1 — DB-first paper, JSON live).
+  const pos = await loadPosition();
+
+  // Step 3: paper JSON rehydration. Only rewrites when the read was DB-
+  // authoritative (db / db-empty); the JSON-fallback path leaves position.json
+  // untouched so a transient DB error doesn't churn the file.
+  if (dbGuardActive && (pos._source === "db" || pos._source === "db-empty")) {
+    const canonical = pos.open ? _stripPrivateKeys(pos) : { open: false };
+    _rehydratePositionJson(canonical);
+  }
+
+  if (pos.open) return _stripPrivateKeys(pos);
+
   // No open position. Decide whether to run the legacy log-scan rebuild.
   const src = pos._source;
   if (src === "db" || src === "db-empty" || src === "json") {
@@ -1727,6 +1846,16 @@ async function run() {
 
   const log = loadLog();
   const position = await initPosition(log);
+
+  // Phase D-5.10.2 — paper integrity guard halt. The guard runs inside
+  // initPosition() and returns a sentinel here when DB invariants are
+  // violated (currently only multi-open). No market fetch, no signal eval,
+  // no trade — exit cleanly so the D-5.6.1 finally-drain still runs.
+  if (position._halted) {
+    console.log(`⛔ Cycle skipped — paper integrity guard halted (reason=${position._haltReason})`);
+    console.log("═══════════════════════════════════════════════════════════\n");
+    return;
+  }
 
   // Fetch market data
   console.log("\n── Fetching market data from Kraken ────────────────────\n");
