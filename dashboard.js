@@ -11058,6 +11058,30 @@ const server = createServer(async (req, res) => {
           log.warn("d-5.7.2 health", `positions count failed: ${e.message}`);
           tables.positions = { error: e.message };
         }
+        // Phase D-5.9.1.2 — strategy_signals visibility.
+        // Total + paper/live split + most recent cycle_ts. Same FILTER-aggregate
+        // shape as trade_events; uses the (mode, cycle_ts DESC) BTREE index from
+        // migration 003 for an index-only scan. Per-block try/catch keeps a
+        // missing/broken strategy_signals from taking down /api/health.
+        try {
+          const r = await dbQuery(
+            `SELECT count(*)::int                                   AS total,
+                    count(*) FILTER (WHERE mode = 'paper')::int     AS paper,
+                    count(*) FILTER (WHERE mode = 'live')::int      AS live,
+                    MAX(cycle_ts)                                   AS last_signal
+             FROM strategy_signals`
+          );
+          const row = r.rows[0];
+          tables.strategy_signals = {
+            rows:         row.total,
+            paper:        row.paper,
+            live:         row.live,
+            lastSignalAt: row.last_signal ? row.last_signal.toISOString() : null,
+          };
+        } catch (e) {
+          log.warn("d-5.9.1.2 health", `strategy_signals count failed: ${e.message}`);
+          tables.strategy_signals = { error: e.message };
+        }
       }
       database = {
         ok: h.ok,
