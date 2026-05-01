@@ -168,6 +168,19 @@ export function buildEventId(seed, eventType) {
   return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20,32)}`;
 }
 
+// Phase D-5.7.3.1 — coerce float-shaped values to integers for INTEGER
+// columns. bot.js's evalSignal accumulates condition subscores including
+// fractional terms (e.g. RSI-dip = 30 * (45 - rsi3) / 10), so signal_score
+// can arrive as e.g. 99.047619... — Postgres rejects floats on INTEGER
+// columns. Round defensively. Returns null for missing/non-finite input
+// so optional columns stay nullable.
+function _coerceInt(v) {
+  if (v == null) return null;
+  const n = parseFloat(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n);
+}
+
 // INSERT ... ON CONFLICT (event_id) DO NOTHING. Returns { id } of the
 // inserted row, or undefined if a conflict skipped the insert (caller
 // can no-op since the existing row is already correct).
@@ -202,10 +215,10 @@ export async function insertTradeEvent(client, event) {
       event.slippage_bps ?? null,
       event.pnl_usd ?? null,
       event.pnl_pct ?? null,
-      event.signal_score ?? null,
-      event.signal_threshold ?? null,
+      _coerceInt(event.signal_score),       // Phase D-5.7.3.1 — INTEGER column; round defensively
+      _coerceInt(event.signal_threshold),   // Phase D-5.7.3.1 — INTEGER column
       event.regime ?? null,
-      event.leverage ?? null,
+      _coerceInt(event.leverage),           // Phase D-5.7.3.1 — INTEGER column
       event.kraken_order_id ?? null,
       event.decision_log ?? null,
       event.error ?? null,
@@ -238,10 +251,10 @@ export async function upsertPositionOpen(client, pos) {
       pos.side ?? "long",
       pos.entry_price,
       pos.entry_time,
-      pos.entry_signal_score ?? null,
+      _coerceInt(pos.entry_signal_score),    // Phase D-5.7.3.1 — INTEGER column
       pos.quantity,
       pos.trade_size_usd,
-      pos.leverage ?? 1,
+      _coerceInt(pos.leverage) ?? 1,         // Phase D-5.7.3.1 — INTEGER column; default 1 if missing
       pos.effective_size_usd ?? null,
       pos.stop_loss,
       pos.take_profit,
