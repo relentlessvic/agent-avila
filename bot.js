@@ -1023,6 +1023,45 @@ async function _liveDbPreflight() {
       console.warn(`[d-5.10.3 live-orphans] count=${orphanCount} — visibility only, continuing`);
     }
   } catch (_) {}
+  // ─── Phase D-5.10.5.5 — mode-cutover protection ────────────────────────
+  // Refuse to enter live cycles while paper-side state is still active or
+  // dirty. The bot would silently abandon any open paper position after a
+  // mode flip (positions table is mode-scoped — flipping to live makes the
+  // paper row invisible to loadPosition()), leaving it stale in Postgres
+  // forever. Orphans are operator-investigation-required by definition;
+  // adding live exposure on top of unresolved paper-side state is unsafe.
+  //
+  // Both gates are conservative-by-design — they refuse activation rather
+  // than auto-resolve. Operator manually closes paper positions and
+  // reconciles orphans before live activation.
+  // Gate 8 — paper still open. Headline cutover protection.
+  let paperOpenCount;
+  try {
+    paperOpenCount = await dbCountOpenPositions("paper");
+  } catch (e) {
+    return { ok: false, reason: "paper-table-unhealthy", detail: e.message };
+  }
+  if (paperOpenCount > 0) {
+    return {
+      ok: false,
+      reason: "paper-still-open",
+      detail: `count=${paperOpenCount}`,
+    };
+  }
+  // Gate 9 — paper orphans block live cutover.
+  let paperOrphanCount;
+  try {
+    paperOrphanCount = await dbCountOrphanedPositions("paper");
+  } catch (e) {
+    return { ok: false, reason: "paper-orphan-query-failed", detail: e.message };
+  }
+  if (paperOrphanCount > 0) {
+    return {
+      ok: false,
+      reason: "paper-orphans-blocking",
+      detail: `count=${paperOrphanCount}`,
+    };
+  }
   return { ok: true, reason: null, detail: null };
 }
 
