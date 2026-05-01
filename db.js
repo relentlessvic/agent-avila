@@ -15,6 +15,7 @@
 
 import "dotenv/config";
 import pg from "pg";
+import crypto from "crypto";
 
 const { Pool } = pg;
 const DATABASE_URL = process.env.DATABASE_URL || null;
@@ -148,6 +149,153 @@ export async function close() {
 // Field mapping (camelCase → snake_case) and defaults match bot.js
 // DEFAULT_CONTROL so a partial ctrl object never writes a NULL where a
 // NOT NULL DEFAULT is expected.
+// ─── Phase D-5.7 — trade_events + positions helpers ────────────────────────
+// Three small helpers used by bot.js's BUY/EXIT/REENTRY/failed-attempt
+// dual-writes. All take a transactional `client` from inTransaction(...)
+// so the caller controls BEGIN/COMMIT/ROLLBACK boundaries: a position
+// insert + its trade_event insert commit atomically or not at all.
+
+// Deterministic UUID derived from a stable seed. Idempotent on retry:
+// same (seed, eventType) → same UUID → ON CONFLICT (event_id) DO NOTHING
+// in trade_events safely deduplicates re-runs after a crash mid-write.
+//
+// Seeds we use:
+//   - kraken_order_id (real or PAPER-<ts>) for normal events
+//   - "<timestamp>:<symbol>" for failed live attempts (no orderId yet)
+export function buildEventId(seed, eventType) {
+  if (!seed || !eventType) throw new Error("buildEventId: seed and eventType required");
+  const h = crypto.createHash("sha256").update(`${seed}:${eventType}`).digest("hex");
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20,32)}`;
+}
+
+// INSERT ... ON CONFLICT (event_id) DO NOTHING. Returns { id } of the
+// inserted row, or undefined if a conflict skipped the insert (caller
+// can no-op since the existing row is already correct).
+export async function insertTradeEvent(client, event) {
+  if (!client) throw new Error("insertTradeEvent: client required (use inTransaction)");
+  if (!event || !event.event_id) throw new Error("insertTradeEvent: event.event_id required");
+  return client.query(
+    `INSERT INTO trade_events (
+       event_id, timestamp, mode, event_type, symbol, position_id,
+       price, quantity, usd_amount, fees_usd, slippage_bps,
+       pnl_usd, pnl_pct, signal_score, signal_threshold, regime,
+       leverage, kraken_order_id, decision_log, error, metadata
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6,
+       $7, $8, $9, $10, $11,
+       $12, $13, $14, $15, $16,
+       $17, $18, $19, $20, $21
+     )
+     ON CONFLICT (event_id) DO NOTHING
+     RETURNING id`,
+    [
+      event.event_id,
+      event.timestamp,
+      event.mode,
+      event.event_type,
+      event.symbol,
+      event.position_id ?? null,
+      event.price ?? null,
+      event.quantity ?? null,
+      event.usd_amount ?? null,
+      event.fees_usd ?? null,
+      event.slippage_bps ?? null,
+      event.pnl_usd ?? null,
+      event.pnl_pct ?? null,
+      event.signal_score ?? null,
+      event.signal_threshold ?? null,
+      event.regime ?? null,
+      event.leverage ?? null,
+      event.kraken_order_id ?? null,
+      event.decision_log ?? null,
+      event.error ?? null,
+      event.metadata ?? {},
+    ]
+  );
+}
+
+// INSERT a new position with status='open'. ON CONFLICT (kraken_order_id)
+// DO NOTHING handles a retry that would create a duplicate row. Returns
+// the id of the newly-inserted row, OR the id of the existing row when
+// a conflict skipped the insert. Returns null if neither resolves
+// (caller logs and gives up on linking the trade_event to a position).
+export async function upsertPositionOpen(client, pos) {
+  if (!client) throw new Error("upsertPositionOpen: client required");
+  if (!pos || !pos.mode || !pos.symbol) throw new Error("upsertPositionOpen: pos.mode + pos.symbol required");
+  const r = await client.query(
+    `INSERT INTO positions (
+       mode, symbol, side, status, entry_price, entry_time, entry_signal_score,
+       quantity, trade_size_usd, leverage, effective_size_usd,
+       stop_loss, take_profit, volatility_level, kraken_order_id, metadata
+     ) VALUES (
+       $1, $2, $3, 'open', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+     )
+     ON CONFLICT (kraken_order_id) DO NOTHING
+     RETURNING id`,
+    [
+      pos.mode,
+      pos.symbol,
+      pos.side ?? "long",
+      pos.entry_price,
+      pos.entry_time,
+      pos.entry_signal_score ?? null,
+      pos.quantity,
+      pos.trade_size_usd,
+      pos.leverage ?? 1,
+      pos.effective_size_usd ?? null,
+      pos.stop_loss,
+      pos.take_profit,
+      pos.volatility_level ?? null,
+      pos.kraken_order_id ?? null,
+      pos.metadata ?? {},
+    ]
+  );
+  if (r.rows.length > 0) return r.rows[0].id;
+  // Conflict — row already exists. Look up its id by kraken_order_id.
+  if (pos.kraken_order_id) {
+    const existing = await client.query(
+      `SELECT id FROM positions WHERE kraken_order_id = $1 LIMIT 1`,
+      [pos.kraken_order_id]
+    );
+    if (existing.rows.length > 0) return existing.rows[0].id;
+  }
+  return null;
+}
+
+// UPDATE the open position for the given mode to closed. Optimistic-
+// concurrency via WHERE status='open' makes a duplicate close a no-op
+// (rowCount=0). Returns the id of the closed position, or null if no
+// open position existed (caller continues with a null position_id on
+// the trade_event — historical reconstruction can still link via
+// kraken_order_id metadata).
+export async function closePosition(client, mode, exit) {
+  if (!client) throw new Error("closePosition: client required");
+  if (!mode) throw new Error("closePosition: mode required");
+  const r = await client.query(
+    `UPDATE positions SET
+       status               = 'closed',
+       exit_price           = $1,
+       exit_time            = $2,
+       exit_reason          = $3,
+       realized_pnl_usd     = $4,
+       realized_pnl_pct     = $5,
+       kraken_exit_order_id = $6,
+       updated_at           = NOW()
+     WHERE mode = $7 AND status = 'open'
+     RETURNING id`,
+    [
+      exit.exit_price ?? null,
+      exit.exit_time ?? null,
+      exit.exit_reason ?? null,
+      exit.realized_pnl_usd ?? null,
+      exit.realized_pnl_pct ?? null,
+      exit.kraken_exit_order_id ?? null,
+      mode,
+    ]
+  );
+  return r.rows[0]?.id ?? null;
+}
+
 export async function upsertBotControl(ctrl) {
   if (!ctrl || typeof ctrl !== "object") throw new Error("upsertBotControl: ctrl must be an object");
   return query(

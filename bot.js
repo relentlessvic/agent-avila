@@ -15,9 +15,15 @@ import path from "path";
 import crypto from "crypto";
 import { execSync } from "child_process";
 // Phase D-5.6.1 — Postgres dual-write of bot_control auto-updates.
-// Imported lazily-friendly (pool init deferred until first query); local
-// dev without DATABASE_URL silently no-ops via dbAvailable().
-import { upsertBotControl, dbAvailable, close as dbClose } from "./db.js";
+// Phase D-5.7  — adds trade_events + positions dual-writes via the
+// inTransaction helper so a position INSERT and its trade_event INSERT
+// commit atomically. All db.js exports below are no-ops when
+// DATABASE_URL is unset (dbAvailable() returns false).
+import {
+  upsertBotControl, dbAvailable, close as dbClose,
+  inTransaction, buildEventId, insertTradeEvent,
+  upsertPositionOpen, closePosition,
+} from "./db.js";
 
 // ─── Phase D-5.2 — DATA_DIR resolver + persistence probe ────────────────────
 // Routes every runtime state file through dataPath(...). When DATA_DIR is set
@@ -530,7 +536,7 @@ function saveControl(ctrl) {
 // Phase D-5.6.1 — drain in-flight dual-writes at process exit so the bot
 // cycle finishes cleanly without leaving open Postgres connections or
 // abandoning a write mid-flight. Hard 5-second budget so a stuck DB
-// cannot wedge the cron-driven exit.
+// cannot wedge the cron-driven exit. D-5.7 reuses the same queue.
 async function drainDbWritesAndClose() {
   if (_pendingDbWrites.length > 0) {
     const all = Promise.allSettled(_pendingDbWrites);
@@ -542,6 +548,150 @@ async function drainDbWritesAndClose() {
     _pendingDbWrites.length = 0;
   }
   try { await dbClose(); } catch {}
+}
+
+// ─── Phase D-5.7 — trade_events + positions dual-write helpers ─────────────
+// Three fire-and-forget shadow writers wired into bot.js's BUY/EXIT/REENTRY/
+// failed-attempt paths AFTER the existing JSON/CSV writes. Each writer
+// wraps related INSERT/UPDATE statements in a single Postgres transaction
+// so a partial-write rolls back. Failure logs a [d-5.7 dual-write] warn
+// line; paper trading continues unimpaired because JSON is authoritative.
+//
+// All three are no-ops when DATABASE_URL is unset.
+
+function _modeFromConfig() { return CONFIG.paperTrading ? "paper" : "live"; }
+
+// BUY: insert the open position + the buy_filled trade_event in one tx.
+// Used for signal-driven auto BUYs (event_type='buy_filled'), MANUAL_BUY
+// (event_type='manual_buy'), and REENTRY new BUYs (event_type='reentry_buy').
+function shadowRecordBuy(entry, vol, signal) {
+  if (!dbAvailable()) return;
+  if (!entry || !entry.orderPlaced || !entry.orderId) return; // failed paths use shadowRecordFailedAttempt
+  const mode = _modeFromConfig();
+  const eventType = entry.type === "MANUAL_BUY" ? "manual_buy"
+                  : entry.type === "BUY_REENTRY" ? "reentry_buy"
+                  : "buy_filled";
+  const tradeSize = Number(entry.tradeSize);
+  const leverage = vol?.leverage ?? 1;
+  const stopLoss = entry.price * (1 - (vol?.slPct ?? 1.25) / 100);
+  const takeProfit = entry.price * (1 + (vol?.tpPct ?? 2.0) / 100);
+
+  const p = inTransaction(async (client) => {
+    const positionId = await upsertPositionOpen(client, {
+      mode,
+      symbol: entry.symbol,
+      side: "long",
+      entry_price: entry.price,
+      entry_time: entry.timestamp,
+      entry_signal_score: signal?.score ?? null,
+      quantity: (tradeSize * leverage) / entry.price,
+      trade_size_usd: tradeSize,
+      leverage,
+      effective_size_usd: tradeSize * leverage,
+      stop_loss: stopLoss,
+      take_profit: takeProfit,
+      volatility_level: vol?.level ?? null,
+      kraken_order_id: entry.orderId,
+      metadata: { from: "bot.js", filledPrice: entry.filledPrice ?? null, filledVolume: entry.filledVolume ?? null },
+    });
+    await insertTradeEvent(client, {
+      event_id: buildEventId(entry.orderId, eventType),
+      timestamp: entry.timestamp,
+      mode,
+      event_type: eventType,
+      symbol: entry.symbol,
+      position_id: positionId,
+      price: entry.price,
+      quantity: (tradeSize * leverage) / entry.price,
+      usd_amount: tradeSize,
+      signal_score: signal?.score ?? entry.signalScore ?? null,
+      signal_threshold: signal?.threshold ?? null,
+      regime: vol?.regime ?? vol?.level ?? null,
+      leverage,
+      kraken_order_id: entry.orderId,
+      decision_log: entry.decisionLog ?? null,
+      metadata: {},
+    });
+  }).catch((e) => {
+    console.warn(`[d-5.7 dual-write] BUY DB write failed: ${e.message}`);
+  });
+  _pendingDbWrites.push(p);
+}
+
+// EXIT: close the open position + insert the exit trade_event in one tx.
+// Used for SL/TP closes (event_type='exit_filled'), MANUAL_CLOSE
+// (event_type='manual_close'), and REENTRY closes (event_type='reentry_close').
+function shadowRecordExit(exitEntry) {
+  if (!dbAvailable()) return;
+  if (!exitEntry || !exitEntry.orderPlaced) return; // failed paths use shadowRecordFailedAttempt
+  const mode = _modeFromConfig();
+  const eventType = exitEntry.exitReason === "MANUAL_CLOSE" ? "manual_close"
+                  : exitEntry.exitReason === "REENTRY_SIGNAL" ? "reentry_close"
+                  : "exit_filled";
+  const orderId = exitEntry.orderId;
+  // Seed the event_id with the orderId when available; fall back to a
+  // timestamp+symbol seed so historical entries that lack orderId still
+  // generate stable UUIDs.
+  const seed = orderId || `${exitEntry.timestamp}:${exitEntry.symbol}:exit`;
+
+  const p = inTransaction(async (client) => {
+    const positionId = await closePosition(client, mode, {
+      exit_price: exitEntry.price,
+      exit_time: exitEntry.timestamp,
+      exit_reason: exitEntry.exitReason ?? null,
+      realized_pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+      realized_pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+      kraken_exit_order_id: orderId ?? null,
+    });
+    await insertTradeEvent(client, {
+      event_id: buildEventId(seed, eventType),
+      timestamp: exitEntry.timestamp,
+      mode,
+      event_type: eventType,
+      symbol: exitEntry.symbol,
+      position_id: positionId,
+      price: exitEntry.price,
+      quantity: exitEntry.quantity ?? null,
+      usd_amount: exitEntry.tradeSize ?? null,
+      pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+      pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+      kraken_order_id: orderId ?? null,
+      decision_log: exitEntry.decisionLog ?? null,
+      metadata: {},
+    });
+  }).catch((e) => {
+    console.warn(`[d-5.7 dual-write] EXIT DB write failed: ${e.message}`);
+  });
+  _pendingDbWrites.push(p);
+}
+
+// FAILED live order attempt (BUY or EXIT). Single trade_event INSERT;
+// no position transition because the order didn't actually fill.
+function shadowRecordFailedAttempt(failedEntry, attemptType) {
+  if (!dbAvailable()) return;
+  if (!failedEntry) return;
+  const mode = _modeFromConfig();
+  const seed = `${failedEntry.timestamp}:${failedEntry.symbol || CONFIG.symbol}:${attemptType}`;
+  const p = inTransaction(async (client) => {
+    await insertTradeEvent(client, {
+      event_id: buildEventId(seed, attemptType),
+      timestamp: failedEntry.timestamp,
+      mode,
+      event_type: attemptType, // 'buy_attempt' or 'exit_attempt'
+      symbol: failedEntry.symbol || CONFIG.symbol,
+      position_id: null,
+      price: failedEntry.price ?? null,
+      signal_score: failedEntry.signalScore ?? null,
+      regime: failedEntry.volatility?.regime ?? failedEntry.volatility?.level ?? null,
+      kraken_order_id: null,
+      decision_log: failedEntry.decisionLog ?? null,
+      error: failedEntry.error ?? null,
+      metadata: {},
+    });
+  }).catch((e) => {
+    console.warn(`[d-5.7 dual-write] failed-attempt DB write failed: ${e.message}`);
+  });
+  _pendingDbWrites.push(p);
 }
 
 function applyControl() {
@@ -1589,6 +1739,9 @@ async function run() {
         log.trades.push(attachV2(exitEntry));
         saveLog(log);
         writeTradeCsv(exitEntry);
+        // Phase D-5.7 — shadow-write the EXIT to Postgres after JSON/CSV
+        // have settled. Fire-and-forget; failure logs warn line.
+        shadowRecordExit(exitEntry);
 
         notifyDiscord(
           `📉 SELL XRP SIGNAL\n` +
@@ -1623,6 +1776,9 @@ async function run() {
         exitEntry.exitReason = `${exit.reason}_FAILED_RETRY_PENDING`;
         log.trades.push(attachV2(exitEntry));
         saveLog(log);
+        // Phase D-5.7 — shadow-write the failed exit attempt for audit
+        // visibility. position_id stays null; no position transition.
+        shadowRecordFailedAttempt(exitEntry, "exit_attempt");
         console.log(`\nDecision log saved → ${LOG_FILE} (exit attempt failed; position retained as OPEN)`);
       }
     } else {
@@ -1681,6 +1837,9 @@ async function run() {
           log.trades.push(attachV2(reexitEntry));
           saveLog(log);
           writeTradeCsv(reexitEntry);
+          // Phase D-5.7 — shadow-write the REENTRY close. event_type
+          // resolves to 'reentry_close' via reexitEntry.exitReason='REENTRY_SIGNAL'.
+          shadowRecordExit(reexitEntry);
 
           // Immediately re-enter with new signal
           const vol2 = classifyRegime(candles, ema8);
@@ -1721,6 +1880,24 @@ async function run() {
                 filledVolume: filledVol, filledPrice: filledPx,
               });
               console.log(`  ✅ Re-entered — SL $${sl2.toFixed(4)} | TP $${tp2.toFixed(4)} | score ${newSig.score.toFixed(0)}`);
+              // Phase D-5.7 — shadow-write the REENTRY new BUY. The reentry
+              // path is the one place where bot.js writes a new position
+              // without pushing to safety-check-log; this dual-write makes
+              // the new BUY visible in Postgres for the first time. JSON
+              // behavior is unchanged.
+              shadowRecordBuy({
+                timestamp: new Date().toISOString(),
+                symbol: CONFIG.symbol,
+                price: filledPx || price,
+                orderId: reorderId,
+                type: "BUY_REENTRY",
+                orderPlaced: true,
+                tradeSize: ts2,
+                filledPrice: filledPx,
+                filledVolume: filledVol,
+                signalScore: newSig.score,
+                decisionLog: null,
+              }, vol2, { score: newSig.score });
             }
           }
         } else {
@@ -1728,6 +1905,8 @@ async function run() {
           reexitEntry.exitReason = "REENTRY_SIGNAL_FAILED_RETRY_PENDING";
           log.trades.push(attachV2(reexitEntry));
           saveLog(log);
+          // Phase D-5.7 — shadow-write the failed reentry close attempt.
+          shadowRecordFailedAttempt(reexitEntry, "exit_attempt");
         }
       } else {
         const perfNow = loadPerfState();
@@ -2002,6 +2181,17 @@ async function run() {
   log.trades.push(attachV2(logEntry));
   saveLog(log);
   writeTradeCsv(logEntry);
+  // Phase D-5.7 — shadow-write the cycle's terminal event. Three branches:
+  //   1. orderPlaced=true  → BUY (event_type='buy_filled')
+  //   2. allPass=true but not orderPlaced AND error set → live BUY failed
+  //   3. otherwise → SKIP/BLOCKED/HOLD; not a trade event, do nothing
+  //      (skipped/blocked decisions belong in a future strategy_signals
+  //       table — out of D-5.7 scope per the design doc).
+  if (logEntry.orderPlaced) {
+    shadowRecordBuy(logEntry, vol, signal);
+  } else if (logEntry.error && signal && signal.allPass) {
+    shadowRecordFailedAttempt(logEntry, "buy_attempt");
+  }
   console.log(`\nDecision log saved → ${LOG_FILE}`);
   console.log("═══════════════════════════════════════════════════════════\n");
 }
