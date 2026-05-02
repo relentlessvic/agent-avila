@@ -81,6 +81,21 @@ const PERF_STATE_FILE   = dataPath("performance-state.json");
 const CAPITAL_FILE      = dataPath("capital-state.json");
 const PORTFOLIO_FILE    = dataPath("portfolio-state.json");
 
+// Phase D-5.12b — manual-live action allowlist used by the /api/trade
+// Layer 1 MANUAL_LIVE_ARMED gate. Must match the operator-facing command
+// tokens the dashboard sends to /api/trade. Layer 2 inside
+// handleTradeCommand applies a mode-aware gate on every command the
+// function handles, providing defense-in-depth if a future routing path
+// reaches handleTradeCommand without going through /api/trade.
+const MANUAL_LIVE_COMMANDS = new Set([
+  "BUY_MARKET",
+  "OPEN_LONG",
+  "CLOSE_POSITION",
+  "SELL_ALL",
+  "SET_STOP_LOSS",
+  "SET_TAKE_PROFIT",
+]);
+
 // Structured logger — appears in Railway console, browser fetch errors, and local stdout
 const log = {
   info:  (src, msg, ...x) => console.log(`[${new Date().toISOString()}] [INFO]  [${src}]`,  msg, ...x),
@@ -1437,6 +1452,16 @@ async function handleTradeCommand(command, params = {}) {
   // freshest known state.
   const ctrl = loadControl();
   const isPaper = ctrl.paperTrading !== false;
+  // Phase D-5.12b — Layer 2 MANUAL_LIVE_ARMED gate (defense-in-depth).
+  // Layer 1 lives at the /api/trade POST entry handler. This second layer
+  // catches any future code path that reaches handleTradeCommand without
+  // going through /api/trade (internal calls, automation scripts, future
+  // routing refactors). Mirror of the bot.js LIVE_TRADING_ARMED discipline
+  // at _liveDbPreflight: live action surface must require an explicit
+  // operator opt-in via env var.
+  if (!isPaper && process.env.MANUAL_LIVE_ARMED !== "true") {
+    throw new Error("Manual live trading is not armed (MANUAL_LIVE_ARMED unset). Refusing all live manual actions.");
+  }
   const symbol  = "XRPUSDT";
   const krakenPair = PAIR_TO_KRAKEN[symbol];
   let   pos  = { open: false };
@@ -12097,6 +12122,39 @@ const server = createServer(async (req, res) => {
       // surprise (resetting kill via paper logic before a live flip is the
       // operator's responsibility). Fails CLOSED on missing/malformed state.
       if (command === "SET_MODE_LIVE" || command === "SET_MODE_PAPER") {
+        // Phase D-5.12b — lock-before-read. Acquire the transition lock
+        // BEFORE the preflight reads (position.json existence, control
+        // state re-check) so a concurrent /api/trade live action cannot
+        // race the mode-switch gate. Earlier behavior acquired the lock
+        // AFTER the reads, leaving a TOCTOU window where stale preflight
+        // state could pass while another request was about to flip the
+        // underlying state. acquireTransitionLock is synchronous (no
+        // async yield between check and set), closing the in-process
+        // race at this layer. Multi-replica scaling would require a
+        // Postgres advisory lock instead — tracked as future scaling
+        // item per the v4 D-5.12 design.
+        _release = acquireTransitionLock(command);
+        if (!_release) {
+          res.writeHead(409, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: another transition is in progress (" + transitionLockHolder() + "). Try again in a moment." }));
+          return;
+        }
+        // Phase D-5.12b — Codex-required scoped re-read under the lock.
+        // The outer pre-lock ctrl snapshot (above) is intentionally
+        // retained for the non-SET_MODE requiresConfirm branch and must
+        // NOT be moved. Inside the SET_MODE branch, re-read CONTROL_FILE
+        // now that the transition lock is held so the subsequent
+        // _ctrlReadable check, ctrl.killed preflight, and the eventual
+        // writeFileSync below operate on a snapshot coherent with the
+        // lock window — closing the residual TOCTOU between the
+        // pre-lock outer read and the locked SET_MODE preflight.
+        ctrl = {};
+        _ctrlReadable = true;
+        try {
+          if (existsSync(CONTROL_FILE)) ctrl = JSON.parse(readFileSync(CONTROL_FILE, "utf8"));
+        } catch (e) {
+          _ctrlReadable = false;
+        }
         let pos = null;
         try {
           if (!existsSync(POSITION_FILE)) throw new Error("position.json missing");
@@ -12120,12 +12178,6 @@ const server = createServer(async (req, res) => {
         if (command === "SET_MODE_LIVE" && ctrl.killed === true) {
           res.writeHead(409, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ ok: false, error: "Cannot switch to live: kill switch is active. Reset the kill switch first." }));
-          return;
-        }
-        _release = acquireTransitionLock(command);
-        if (!_release) {
-          res.writeHead(409, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ ok: false, error: "Cannot switch mode: another transition is in progress (" + transitionLockHolder() + "). Try again in a moment." }));
           return;
         }
       }
@@ -12210,6 +12262,24 @@ const server = createServer(async (req, res) => {
       // order. Paper trades stay unguarded to match existing UX.
       // Phase D-5.6 — DB-preferred read with JSON fallback for the gate check.
       const ctrlNow = loadControl();
+      // Phase D-5.12b — Layer 1 MANUAL_LIVE_ARMED gate at the routing
+      // perimeter. Refuse live manual commands when MANUAL_LIVE_ARMED is
+      // not exactly "true", before the existing CONFIRM gate or the
+      // handleTradeCommand call. Layer 2 inside handleTradeCommand
+      // provides defense-in-depth. Live autonomous trading uses a separate
+      // bot.js LIVE_TRADING_ARMED gate (bot.js _liveDbPreflight); the two
+      // arm flags are independent so an operator can disarm dashboard
+      // manual live actions without grounding the bot's autonomous loop
+      // and vice versa.
+      if (
+        MANUAL_LIVE_COMMANDS.has(body.command) &&
+        ctrlNow.paperTrading === false &&
+        process.env.MANUAL_LIVE_ARMED !== "true"
+      ) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "Manual live trading is not armed (MANUAL_LIVE_ARMED unset). Refusing all live manual actions." }));
+        return;
+      }
       if (ctrlNow.paperTrading === false && body.confirm !== "CONFIRM") {
         res.writeHead(403, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: "Confirmation required for live trade" }));
