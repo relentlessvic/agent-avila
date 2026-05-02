@@ -155,8 +155,22 @@ async function showNullFkTradeEvents(mode) {
     console.log("    (none)");
     return;
   }
+  // Phase C.3 — audit-only event types from B.2b-SL / B.2d manual SL/TP
+  // edits. The dashboard wrappers (shadowRecordManualPaperSLUpdate /
+  // shadowRecordManualPaperTPUpdate) skip insertTradeEvent when
+  // updatePositionRiskLevelsTx returns null, so a null-FK row of these
+  // types should not be produced by current code paths. The dedicated
+  // classification here is operator-playbook clarity, not correctness.
+  const AUDIT_ONLY_EVENT_TYPES = new Set(["manual_sl_update", "manual_tp_update"]);
   for (const row of r.rows) {
-    const note = /_attempt$/.test(row.event_type) ? "  (expected — failed attempt)" : "  (suspicious — review)";
+    let note;
+    if (/_attempt$/.test(row.event_type)) {
+      note = "  (expected — failed attempt)";
+    } else if (AUDIT_ONLY_EVENT_TYPES.has(row.event_type)) {
+      note = "  (audit-only — investigate if seen)";
+    } else {
+      note = "  (suspicious — review)";
+    }
     console.log(`    ${row.event_type.padEnd(20)} = ${row.c}${note}`);
   }
 }
