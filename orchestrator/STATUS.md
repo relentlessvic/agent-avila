@@ -4,6 +4,8 @@ Last updated: 2026-05-02
 
 ## Current phase
 
+**Smoke-test wording cleanup — closed (source committed `735b10f`).** `scripts/smoke-test-live-writes.js` four wording sites refreshed: file-header coverage table at line 11, Step 3 banner at line 225, Step 3 operator-visible label at line 226, and Step 3 assertion message at line 238. New line 238 message: `"take_profit round-trips through helper both-field path"`. The stale "active management dual-write" / "take_profit unchanged but rewritten" wording (which had been inaccurate since B.2c-bot-preserve-TP narrowed bot.js's manage-update payload to `{ stop_loss }` only) is removed from the script. Test logic byte-identical: helper call, fixture constants, assertion booleans, cleanup, exit codes, imports, SAFETY framing all preserved. Codex implementation review = PASS with notes (three LOW-severity informational notes about stale wording in archival prose, line-11 length, and speculative label-string matchers — none blocking).
+
 **Phase C.3 — closed (source committed `1a16dd8`).** `scripts/recovery-inspect.js` `showNullFkTradeEvents(mode)` heuristic refined: the previous 1-line ternary at line 159 (split between `_attempt$` "expected" and a default "suspicious" tag) is now a 3-way classification — `_attempt$` → "expected — failed attempt", `manual_sl_update` / `manual_tp_update` → "audit-only — investigate if seen", everything else → "suspicious — review". A function-local `AUDIT_ONLY_EVENT_TYPES` Set holds the new types. SQL query, SAFETY CONTRACT, function signature, bind params, and per-row `console.log` print pattern are all unchanged. `scripts/recovery-inspect.js`-only; `dashboard.js` / `bot.js` / `db.js` / `migrations/` / `scripts/smoke-test-live-writes.js` untouched. Codex implementation review = PASS, all checklist items PASS, no required edits.
 
 **Full Phase C track is now functionally landed.** All three sub-phases closed:
@@ -30,6 +32,8 @@ Live-mode write paths remain `position.json`-only behind Phase D-5.12.
 
 | Phase | Commit | Description |
 |---|---|---|
+| Smoke-test wording cleanup | `735b10f` | smoke-test wording cleanup |
+| Phase C.3 closeout | `a18b9be` | Phase C.3 closeout: update STATUS, CHECKLIST, NEXT-ACTION |
 | Phase C.3 | `1a16dd8` | Phase C.3: classify manual SL/TP audit events in recovery inspect |
 | Phase C.2 closeout | `1372392` | Phase C.2 closeout: update STATUS, CHECKLIST, NEXT-ACTION |
 | Phase C.2 | `2d10107` | Phase C.2: render manual SL/TP risk edits in performance dashboard |
@@ -56,8 +60,8 @@ Live-mode write paths remain `position.json`-only behind Phase D-5.12.
 ## Working tree state (truth)
 
 - All tracked source files clean apart from this closeout's pending doc edits.
-- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Remained untracked across the B.2b-SL (`511f94e`), B.2c-bot-preserve-TP (`cc6bd2e`), B.2d-dashboard-TP (`eca2659`), C.1 (`d0c8817`), C.2 (`2d10107`), and C.3 (`1a16dd8`) commits; explicitly excluded from all commits.
-- `scripts/smoke-test-live-writes.js:225–239` — wording is still stale ("active management dual-write" / "take_profit unchanged but rewritten") because `bot.js` no longer rewrites `take_profit` from manage-update. Test logic remains valid (it calls the helper directly, which still supports both fields). Cleanup tracked as LOW/cosmetic; the Phase C track has now closed (C.1 + C.2 + C.3 landed), so this is the natural next safe action.
+- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Remained untracked across the B.2b-SL (`511f94e`), B.2c-bot-preserve-TP (`cc6bd2e`), B.2d-dashboard-TP (`eca2659`), C.1 (`d0c8817`), C.2 (`2d10107`), C.3 (`1a16dd8`), and smoke-test wording cleanup (`735b10f`) commits; explicitly excluded from all commits.
+- `scripts/smoke-test-live-writes.js` wording cleanup — **closed** (`735b10f`). The stale "active management dual-write" / "take_profit unchanged but rewritten" wording is gone; line 238 now reads `"take_profit round-trips through helper both-field path"`. Test logic byte-identical.
 
 ## Phase status summary
 
@@ -83,19 +87,18 @@ Live-mode write paths remain `position.json`-only behind Phase D-5.12.
 | Phase C.2 — design | Codex APPROVE-WITH-REQUIRED-EDITS (Option B — dedicated "Recent Risk Edits" panel; required edits: MEDIUM "displayed window" caveat for shared LIMIT 30, LOW Order ID escaping via btEsc) |
 | Phase C.2 — implementation | Closed, committed `2d10107` (Codex implementation review = PASS, all 41 checklist items PASS, no required edits; both required edits from design review confirmed present) — closeout `1372392` |
 | Phase C.3 — design | Codex APPROVE-WITH-REQUIRED-EDITS (3-way classification — `_attempt$` / audit-only / suspicious; one LOW required edit: replace "review if non-zero" wording with "investigate if seen") |
-| Phase C.3 — implementation | **Closed, committed `1a16dd8` (Codex implementation review = PASS, all checklist items PASS, no required edits; required wording edit from design review confirmed present)** |
+| Phase C.3 — implementation | Closed, committed `1a16dd8` (Codex implementation review = PASS, all checklist items PASS, no required edits; required wording edit from design review confirmed present) — closeout `a18b9be` |
 | Full Phase C track | **Functionally landed.** C.1 (read filter) + C.2 (Recent Risk Edits panel) + C.3 (recovery-inspect heuristic refinement) all closed. Manual SL/TP audit visibility complete from DB read → UI render → operator-playbook classification. |
+| Smoke-test wording cleanup — design | Codex APPROVE (4-site wording-only refresh; three LOW-severity informational concerns about archival prose, line-11 length, and speculative label-string matchers — none blocking) |
+| Smoke-test wording cleanup — implementation | **Closed, committed `735b10f` (Codex implementation review = PASS with notes; verbatim match against the approved design at all four sites; no test-logic changes)** |
 
 ## Current allowed next action
 
-> **Smoke-test wording cleanup design-only review. LOW/cosmetic. No code.**
+> **Phase D-5.12 design-only review. Live persistence gate lift. No code.**
 
-The full Phase C track has now closed; the natural next item is the deferred LOW/cosmetic smoke-test wording cleanup. `scripts/smoke-test-live-writes.js:225–239` step label ("active management dual-write") and assertion message ("take_profit unchanged but rewritten") have been stale since the B.2c-bot-preserve-TP commit (`cc6bd2e`) narrowed bot.js's manage-update payload to `{ stop_loss }` only. Test logic still passes because the script calls the `db.js` helper directly with both fields, and the helper still supports both-field calls. The cleanup is purely wording — no logic change, no test-assertion change beyond the message strings.
-
-This phase cannot enter implementation until: Codex design review, explicit operator authorization, and a scoped `scripts/smoke-test-live-writes.js` HARD BLOCK lift (mirror of the C.3 scoped lift discipline).
+D-5.12 is now the only remaining write-side dual-truth surface in the system. Live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` paths still write `position.json` directly without a DB update, and the live `OPEN_LONG` / `CLOSE_POSITION` / `SELL_ALL` paths in `dashboard.js` continue to be JSON-authoritative by design. D-5.12 will lift that gate. Implementation cannot proceed yet; only design discussion / Codex design review is allowed at this stage. D-5.12 requires its own design audit and operator-led safety review before any implementation lift.
 
 The operator may also choose to advance an alternative phase instead:
-- Phase D-5.12 — Live persistence gate lift (only remaining write-side dual-truth surface; requires its own design audit and operator-led safety review)
 - Phase O-5 — Bug Audit System
 - Phase O-6 — Security Audit System
 - Phase O-7 — Drift Forensics resumption (Phase 2.5 reactivation; reconciliation persist now schema-unblocked after migration 006 applied)
@@ -127,7 +130,7 @@ When applying migration 007 via `scripts/run-migrations.js`, the runner also app
 - Editing `migrations/` (HARD BLOCK reinstated post-B.2a; same scope)
 - Editing `dashboard.js` (HARD BLOCK reinstated post-C.2; the C.2 lift was scoped to that phase only)
 - Editing `scripts/recovery-inspect.js` (HARD BLOCK reinstated post-C.3; the C.3 lift was scoped to that phase only)
-- Editing `scripts/smoke-test-live-writes.js` (smoke-test wording cleanup is now the recommended next safe action; lift required)
+- Editing `scripts/smoke-test-live-writes.js` (HARD BLOCK reinstated post-smoke-test-cleanup; the lift was scoped to that phase only)
 - Editing any other `scripts/` file (default HARD BLOCK; lift required per file)
 - Phase D-5.12 implementation (live persistence gate lift — design-only review pending; safety review required)
 - Touching live trading logic
@@ -139,8 +142,8 @@ When applying migration 007 via `scripts/run-migrations.js`, the runner also app
 
 ## Current risk level
 
-**LOW.** No uncommitted code. Full paper-mode write surface is DB-canonical: paper BUY (`959fef7`), CLOSE/SELL_ALL (`cb7facb`), SET_STOP_LOSS (`511f94e`), SET_TAKE_PROFIT (`eca2659`). Both `manual_sl_update` and `manual_tp_update` are now live event types with active dashboard-driven inserts (B.2b-SL / B.2d), active dashboard reads (C.1, `d0c8817`), active dashboard rendering via the dedicated "Recent Risk Edits" panel (C.2, `2d10107`), and active operator-playbook classification in `recovery-inspect.js` (C.3, `1a16dd8`). `bot.js` `manageActiveTrade` no longer overwrites DB `take_profit` from in-memory state (`cc6bd2e`). Paper dashboard edits cannot be silently overwritten by bot rehydrate.
+**LOW.** No uncommitted code. Full paper-mode write surface is DB-canonical: paper BUY (`959fef7`), CLOSE/SELL_ALL (`cb7facb`), SET_STOP_LOSS (`511f94e`), SET_TAKE_PROFIT (`eca2659`). Both `manual_sl_update` and `manual_tp_update` are live event types with active dashboard-driven inserts (B.2b-SL / B.2d), active dashboard reads (C.1, `d0c8817`), active dashboard rendering via the dedicated "Recent Risk Edits" panel (C.2, `2d10107`), and active operator-playbook classification in `recovery-inspect.js` (C.3, `1a16dd8`). `bot.js` `manageActiveTrade` no longer overwrites DB `take_profit` from in-memory state (`cc6bd2e`). Paper dashboard edits cannot be silently overwritten by bot rehydrate. Smoke-test wording is now consistent with the post-B.2c bot-side state (`735b10f`).
 
-**All Phase C visibility gaps closed.** Read filter (C.1), UI rendering (C.2), and operator-playbook classification (C.3) all landed. `fired` counter, P&L aggregates, win-loss aggregates, and `renderTradeTable` are all unchanged (allowlist / exit-only filtering preserves the existing semantics).
+**All Phase C visibility gaps closed.** Read filter (C.1), UI rendering (C.2), and operator-playbook classification (C.3) all landed. `fired` counter, P&L aggregates, win-loss aggregates, and `renderTradeTable` are all unchanged (allowlist / exit-only filtering preserves the existing semantics). Smoke-test wording cleanup (`735b10f`) brings test-suite documentation in line with the post-B.2c bot-side payload narrowing.
 
-**No remaining paper dual-truth surface.** The only remaining write-side dual-truth surface in the system is **live mode**: live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` paths still write `position.json` directly without a DB update. This is intentional and gated behind Phase D-5.12 (Live persistence gate lift). Until D-5.12 lifts, live mode remains JSON-authoritative by design. D-5.12 has its own design-only review pending and is NOT started.
+**No remaining paper dual-truth surface.** The only remaining write-side dual-truth surface in the system is **live mode**: live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` paths still write `position.json` directly without a DB update. This is intentional and gated behind Phase D-5.12 (Live persistence gate lift). Until D-5.12 lifts, live mode remains JSON-authoritative by design. **D-5.12 has not started**; it requires its own design-only review and operator-led safety review before any implementation lift. **No O-* automation phase has started.**

@@ -121,9 +121,20 @@ All paper-mode write paths are now DB-canonical:
 
 Live-mode write paths remain `position.json`-only by design until **Phase D-5.12** (Live persistence gate lift). The only currently active remaining dual-truth surface in the system is the live-mode write path, which is intentional.
 
+- [x] **Smoke-test wording cleanup — `scripts/smoke-test-live-writes.js` four-site wording refresh — commit `735b10f`**
+  - [x] Audit identified four stale wording sites: file-header coverage table at line 11, Step 3 banner at line 225, Step 3 operator-visible label at line 226, Step 3 assertion message at line 238. The "active management dual-write" / "take_profit unchanged but rewritten" wording had been inaccurate since B.2c-bot-preserve-TP narrowed bot.js's manage-update payload to `{ stop_loss }` only.
+  - [x] Codex design review = APPROVE (4-site wording-only refresh; three LOW-severity informational concerns about archival prose, line-11 length, and speculative label-string matchers — none blocking)
+  - [x] Implementation: line 11 → `//   3. updatePositionRiskLevels — direct helper test (D-5.10.5.3 helper; bot.js now SL-only post-B.2c).`; line 225 → `// ── Step 3: updatePositionRiskLevels — direct helper test (both fields) ────`; line 226 → `"updatePositionRiskLevels (D-5.10.5.3) — open row, SL→entry, helper both-field path"`; line 238 → `"take_profit round-trips through helper both-field path"`.
+  - [x] Behavior invariants preserved: helper call (`updatePositionRiskLevels("live", SMOKE_ORDER_ID, { stop_loss, take_profit })`) byte-identical, fixture constants unchanged, all assertion booleans on lines 231/237/238/239 unchanged, cleanup logic unchanged, exit-code behavior unchanged (0/1/2), imports unchanged, SAFETY framing at lines 23–25 unchanged
+  - [x] No bot/dashboard/db/migration/runtime behavior changed
+  - [x] `node --check scripts/smoke-test-live-writes.js` PASS
+  - [x] Codex implementation review = PASS with notes (four wording sites match the approved design verbatim; three LOW-severity informational notes — none blocking)
+  - [x] Committed (`735b10f`) — `scripts/smoke-test-live-writes.js` only; `dashboard.js`, `bot.js`, `db.js`, `migrations/`, `scripts/recovery-inspect.js`, and all other `scripts/` files untouched; `position.json.snap.20260502T020154Z` remained untracked
+  - [x] HARD BLOCK on `scripts/smoke-test-live-writes.js` reinstated after commit (the lift was scoped to this phase only)
+
 ## Active phase
 
-- [~] **Smoke-test wording cleanup — design-only review (deferred LOW/cosmetic).** No active code work. The full Phase C track (C.1 + C.2 + C.3) has now closed; the natural next item is the deferred wording cleanup at `scripts/smoke-test-live-writes.js:225-239`.
+- [~] **Phase D-5.12 — design-only live persistence gate lift review (deferred).** No active code work. D-5.12 is the only remaining write-side dual-truth surface in the system; live `dashboard.js` write paths (`OPEN_LONG` / `CLOSE_POSITION` / `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT`) still write `position.json` directly. D-5.12 design audit must confirm the live-mode wiring template against the B.2 paper-mode track and produce a phase plan (single phase or multi-phase split). Operator-led safety review required.
 
 ## Full Phase C track — closed
 
@@ -131,18 +142,18 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
 |---|---|---|---|
 | C.1 | `db.js` `loadRecentTradeEvents` admits `manual_sl_update` / `manual_tp_update` | `d0c8817` | `a967a12` |
 | C.2 | `dashboard.js` mapper + dedicated "Recent Risk Edits" panel in Performance tab | `2d10107` | `1372392` |
-| C.3 | `scripts/recovery-inspect.js` 3-way classification (audit-only — investigate if seen) | `1a16dd8` | (this closeout) |
+| C.3 | `scripts/recovery-inspect.js` 3-way classification (audit-only — investigate if seen) | `1a16dd8` | `a18b9be` |
+| Smoke-test cleanup | `scripts/smoke-test-live-writes.js` four-site wording refresh aligned with post-B.2c bot-side state | `735b10f` | (this closeout) |
 
-Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (C.2) → operator-playbook classification (C.3).
+Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (C.2) → operator-playbook classification (C.3) → smoke-test wording aligned with bot-side state (smoke-test cleanup).
 
 ## Future phases
 
-- [ ] Smoke-test wording cleanup in `scripts/smoke-test-live-writes.js:225-239` — refresh the step label and the "take_profit unchanged but rewritten" assertion message to reflect that `bot.js` no longer rewrites `take_profit` from manage-update. LOW priority / cosmetic. Test logic still passes today (the script calls the `db.js` helper directly with both fields, and the helper still supports both-field calls); cleanup is purely wording.
-  - Required: `scripts/smoke-test-live-writes.js` HARD BLOCK lift (scoped, mirror of C.3 cadence).
-  - Required: Codex design review.
-  - Required: explicit operator authorization.
-- [ ] Phase D-5.12 — Live persistence gate lift (live mode JSON → DB-authoritative)
-  - Required before live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` can be moved to DB-first
+- [ ] Phase D-5.12 — Live persistence gate lift (live mode JSON → DB-authoritative for `dashboard.js` write paths)
+  - Required before live `OPEN_LONG` / `CLOSE_POSITION` / `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT` can be moved to DB-first
+  - Mirrors B.2 paper-mode track template, but for live mode
+  - Required: Codex design review + operator-led safety review + scoped HARD BLOCK lift(s) per audit findings + operator authorization
+  - May split into multiple sub-phases depending on findings (mirror of B.2 sub-phase split)
 - [ ] Phase O-5 — Bug Audit System
 - [ ] Phase O-6 — Security Audit System
 - [ ] Phase O-7 — Drift Forensics resumption (Phase 2.5 reactivation; reconciliation persist now schema-unblocked after migration 006 applied)
@@ -159,10 +170,10 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 | `dashboard.js` modifications | Operator approval | Closed (post-C.2; lift was scoped) |
 | `bot.js` modifications | Operator approval | Closed (post-B.2c-bot-preserve-TP; lift was scoped) |
 | `scripts/recovery-inspect.js` modifications | Operator approval | Closed (post-C.3; lift was scoped) |
-| `scripts/smoke-test-live-writes.js` modifications | Operator approval | Closed (deferred LOW/cosmetic phase; lift required) |
+| `scripts/smoke-test-live-writes.js` modifications | Operator approval | Closed (post-smoke-test-cleanup; lift was scoped) |
 | Other `scripts/` modifications | Operator approval | Closed (per-file scoped lift required) |
 | Live mode write-path changes | Operator approval + Phase D-5.12 | Closed |
-| Smoke-test wording cleanup implementation | Codex design review + `scripts/smoke-test-live-writes.js` scoped lift + operator authorization | Closed |
+| Phase D-5.12 implementation | Codex design review + operator-led safety review + scoped HARD BLOCK lift(s) + operator authorization | Closed |
 | Force push / `git reset --hard` / rebase | Explicit operator command | Closed |
 | Deployment to Railway | Explicit operator command | Closed |
 | Adding new `event_type` values beyond the current 10 | Migration + operator approval | Closed |
