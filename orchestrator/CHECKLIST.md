@@ -20,7 +20,7 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
   - [x] B.1 Codex implementation review = PASS-WITH-NOTES
   - [x] B.1 committed (`cb7facb`)
   - [x] B.1 closeout docs committed (`63bbac4`)
-- [x] **Phase B.2a — Infrastructure: transactional helper + event_type CHECK extension — commit `a324290`**
+- [x] **Phase B.2a — Infrastructure: transactional helper + event_type CHECK extension — commit `a324290`** (closeout `f081b6f`)
   - [x] B.2a design audit found existing `updatePositionRiskLevels` already does similar work; chose Option β (additive transactional variant)
   - [x] B.2a design Codex-approved (3 review rounds: initial → Option β → final)
   - [x] B.2a pre-flight: live constraint name verified (`trade_events_event_type_check`) via safe non-secret-printing query
@@ -32,25 +32,36 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
   - [x] B.2a migration 007 applied to production via `scripts/run-migrations.js`; verified via post-migration `pg_constraint` query
   - [x] **Side effect documented:** migration 006 also applied (runner applies all unapplied; 006 was on disk but unapplied). 006 is runtime-inert; no automatic behavior change. Do not revert without explicit safety review.
   - [x] HARD BLOCK on `db.js` and `migrations/` reinstated after B.2a commit (the lift was scoped to B.2a only)
+- [x] **Phase B.2b-SL — Paper SET_STOP_LOSS DB-first caller integration in `dashboard.js` — commit `511f94e`**
+  - [x] Original B.2b (paper SL + paper TP) Codex implementation review = FAIL-WITH-CONDITIONS over a MEDIUM TP stale-overwrite risk (bot.js trailing/breakeven can write stale `take_profit` back to DB after rehydrate)
+  - [x] Operator decision: split phase — keep SL, defer TP to a separate B.2c-TP phase pending bot/dashboard TP conflict-policy design
+  - [x] Implementation: new `shadowRecordManualPaperSLUpdate` wrapper in `dashboard.js` (calls `updatePositionRiskLevelsTx` + atomic `manual_sl_update` audit insert via `inTransaction`); event-id seed uses `Date.now()` + `crypto.randomBytes(4)` to avoid PK collision on repeated updates; no `position.json` or `LOG_FILE` write on the paper branch; caller throws on `!ok` (no JSON fallback)
+  - [x] Live `SET_STOP_LOSS` byte-identical to pre-phase (still writes `position.json`; no DB call)
+  - [x] `SET_TAKE_PROFIT` handler restored to pre-B.2b form (single shared paper+live path, `position.json` write only); `shadowRecordManualPaperTPUpdate` removed; no `manual_tp_update` references remain in `dashboard.js`
+  - [x] Comment block at `dashboard.js:337–381` updated: B.2b covers paper SET_STOP_LOSS only, ratchet-up SL wording, migration 007 required for `manual_sl_update`, paper SET_TAKE_PROFIT explicitly deferred to B.2c with stale-overwrite reason
+  - [x] `node --check dashboard.js` PASS
+  - [x] B.2b-SL Codex re-review = PASS, safe to commit
+  - [x] B.2b-SL committed (`511f94e`) — `dashboard.js` only; `bot.js`, `db.js`, `migrations/` untouched; `position.json.snap.20260502T020154Z` remained untracked
+  - [x] HARD BLOCK on `dashboard.js` reinstated after B.2b-SL commit (the lift was scoped to B.2b-SL only)
 
 ## Active phase
 
-- [~] **Phase B.2b — design-only review (deferred, awaiting design decisions resolution).** No active code work.
+- [~] **Phase B.2c-TP — design-only review (deferred, blocked on bot/dashboard TP conflict-policy design).** No active code work.
 
 ## Future phases
 
-- [ ] Phase B.2b — Paper SET_STOP_LOSS / SET_TAKE_PROFIT caller integration in `dashboard.js`
-  - Blocked by: B.2b design review with Codex
-  - **Required design decisions** (B.2b cannot proceed until each is resolved):
-    - Conflict-resolution policy between manual dashboard SL/TP writes and bot.js trailing-stop writes (last-writer-wins / manual-overrides-bot / mutual exclusion)
-    - Idempotency strategy: timestamp-in-seed for `buildEventId(\`${orderId}-${Date.now()}\`, "manual_sl_update")` to avoid PK collision on repeated updates
-    - Whether to append a best-effort LOG_FILE history entry on paper SL/TP update (mirror of B.1 close pattern, or skip)
-    - Caller throw wording for `db_unavailable` / `db_error` / `validation_failed` / `no_open_position` cases
-    - Comment block update for the existing Phase D-5.7.1 / A.2 block in `dashboard.js`
-  - Required: `dashboard.js` HARD BLOCK lift for B.2b (precedent: B.1 already did this for paper close paths)
+- [ ] Phase B.2c-TP — Paper SET_TAKE_PROFIT DB-first caller integration in `dashboard.js`
+  - **Design blocker:** bot.js trailing/breakeven can write stale `take_profit` back to DB after rehydrate, silently overwriting a manual dashboard TP edit. TP cannot move to DB-first until this is resolved.
+  - **Required design decisions** (B.2c-TP cannot proceed until each is resolved):
+    - Conflict-resolution policy between manual dashboard TP writes and bot.js trailing/breakeven writes (last-writer-wins / manual-overrides-bot / mutual exclusion)
+    - Whether to append a best-effort LOG_FILE history entry on paper TP update (mirror of B.1 close pattern, or skip)
+    - Caller throw wording for `db_unavailable` / `db_error` / `validation_failed` / `no_open_position` cases (precedent: B.2b-SL wording)
+    - Comment block update in `dashboard.js` once TP is no longer deferred
+  - Required: `dashboard.js` HARD BLOCK lift for B.2c-TP (scoped, precedent: B.2b-SL)
+  - Required: Codex design review
   - Required: explicit operator authorization
 - [ ] Phase D-5.12 — Live persistence gate lift (live mode JSON → DB-authoritative)
-  - Required before live `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT` can be moved to DB-first
+  - Required before live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` can be moved to DB-first
 - [ ] Phase O-5 — Bug Audit System
 - [ ] Phase O-6 — Security Audit System
 - [ ] Phase O-7 — Drift Forensics resumption (Phase 2.5 reactivation; reconciliation persist now schema-unblocked after migration 006 applied)
@@ -64,9 +75,10 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
 |---|---|---|
 | `db.js` modifications | Operator approval | Closed (post-B.2a; lift was scoped) |
 | `migrations/` modifications | Operator approval | Closed (post-B.2a; lift was scoped) |
+| `dashboard.js` modifications | Operator approval | Closed (post-B.2b-SL; lift was scoped) |
 | `bot.js` modifications | Operator approval | Closed |
 | Live mode write-path changes | Operator approval + Phase D-5.12 | Closed |
-| Phase B.2b implementation | `dashboard.js` scoped lift + Codex design review + operator authorization | Closed |
+| Phase B.2c-TP implementation | TP conflict-policy design + Codex design review + `dashboard.js` scoped lift + operator authorization | Closed |
 | Force push / `git reset --hard` / rebase | Explicit operator command | Closed |
 | Deployment to Railway | Explicit operator command | Closed |
 | Adding new `event_type` values beyond the current 10 | Migration + operator approval | Closed |
