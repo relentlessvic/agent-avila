@@ -154,10 +154,26 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
   - [x] D-5.12b committed (`24246d8`) — `dashboard.js` only (76 insertions, 6 deletions); `bot.js`, `db.js`, `migrations/`, and `scripts/` untouched; `position.json.snap.20260502T020154Z` remained untracked
   - [x] HARD BLOCK on `dashboard.js` reinstated after D-5.12b commit (the lift was scoped to D-5.12b only)
   - [x] **Out of scope for D-5.12b (deferred to later sub-phases):** DB persistence, helper wrappers (`shadowRecordManualLive*`), `emergency_audit_log` table, Migration 008, Kraken execution path changes, SL/TP/breakeven/trailing-stop logic changes, live rehydrate enable, smoke harness — all D-5.12c through D-5.12h
+- [x] **Phase D-5.12c — live helper wrappers + Migration 008 (`emergency_audit_log`) + `db.js` emergency-audit insert helper + dashboard.js emergency utilities — commit `4ae3689`**
+  - [x] Scoped `dashboard.js` + `db.js` + `migrations/` HARD BLOCK lifts authorized by operator
+  - [x] D-5.12c design v1 = Codex PASS-WITH-REQUIRED-EDITS (3 HIGH: SQL contract `DO NOTHING` vs `DO UPDATE` contradiction, helper-vs-caller emergency-audit responsibility, P0-L3 unique-violation claim wrong; 1 MEDIUM: retry_history concrete storage; 2 PASS-with-notes: `attempted_payload_hash` dual placement, redaction guard)
+  - [x] D-5.12c design v2 = **Codex PASS, design ready for operator scoped-file approval** (all 3 HIGH edits resolved + MEDIUM concrete + 2 PASS-with-notes folded; all 9 prior Codex Q-rulings preserved)
+  - [x] `migrations/008_emergency_audit_log.sql` created on disk (46 lines): operator-warning header forbidding runner application without explicit authorization; `CREATE TABLE IF NOT EXISTS emergency_audit_log` with all 13 columns (`id BIGSERIAL PRIMARY KEY`, `event_id TEXT NOT NULL UNIQUE`, `timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()`, `mode TEXT NOT NULL CHECK (mode IN ('paper','live'))`, `source TEXT NOT NULL`, `kraken_order_id TEXT`, `failure_class TEXT NOT NULL`, `error_message TEXT`, `attempted_payload JSONB NOT NULL DEFAULT '{}'::jsonb`, `resolved_at TIMESTAMPTZ`, `resolved_by TEXT`, `resolution_notes TEXT`, `metadata JSONB NOT NULL DEFAULT '{}'::jsonb`); four `IF NOT EXISTS` indexes (unresolved partial, kraken_order_id partial, source/timestamp, failure_class/timestamp); forward-only / idempotent
+  - [x] `db.js` additions (+118 lines): `_canonicalJsonSorted(value)` private helper (RFC-8785-style), `sha256HexCanonical(obj)` exported, `buildEmergencyEventId(allowlistedPayload)` exported with `d512-emergency-` prefix, `classifyDbError(err)` exported (returns `unique_violation_one_open_per_mode` / `unique_violation_kraken_order_id` / `other`), `insertEmergencyAuditLog(client, event)` exported with `ON CONFLICT (event_id) DO UPDATE` appending `metadata.retry_history` via `jsonb_set` and preserving first-attempt `attempted_payload` and `error_message` via `COALESCE`
+  - [x] `dashboard.js` additions (+379 lines): four live wrappers `shadowRecordManualLive{Buy,Close,SLUpdate,TPUpdate}` mirroring paper helper return contract `{ ok, reason, error?, errorClass?, emergency_context? }` with `mode: "live"` hard-coded, `metadata.source` tagged `manual_live_*` (paper tags unchanged); `_redactAttemptedPayload(rawObj)` recursive redaction (regex `/secret|key|token|cookie|auth|signature|password|credential|nonce/i`); `_loglineFallback(line)` (LOG_FILE append + stderr `triple_fault` fallback); `_emergencyAuditWrite(failureContext)` (fresh `inTransaction`, defensive re-redact and re-hash, `attempted_payload_hash` written into both event_id allowlist AND `attempted_payload` top-level)
+  - [x] Helpers remain unused at end-of-phase: no `/api/trade` handler call-site references any `shadowRecordManualLive*`. Live handler wiring is D-5.12d/e/f/g.
+  - [x] D-5.12c implementation review round 1 = FAIL [MEDIUM] over `classifyDbError` constraint-name mismatch: matched the Postgres-default `positions_kraken_order_id_key`, but the actual constraint declared in `migrations/002_trade_events_positions.sql:66-67` is `positions_kraken_order_unique`
+  - [x] Revision applied: literal-string swap in `db.js` `classifyDbError` from `positions_kraken_order_id_key` to `positions_kraken_order_unique`. No other behavior changed.
+  - [x] D-5.12c implementation review round 2 = **Codex PASS, safe to commit** (all 22 sub-items PASS post-revision)
+  - [x] `node --check db.js` PASS; `node --check dashboard.js` PASS
+  - [x] D-5.12c committed (`4ae3689`) — 3 files (dashboard.js + db.js + migrations/008_emergency_audit_log.sql) / 543 insertions / 0 deletions; `bot.js`, `scripts/` untouched; `position.json.snap.20260502T020154Z` remained untracked
+  - [x] HARD BLOCK on `dashboard.js`, `db.js`, `migrations/` reinstated after D-5.12c commit (the lifts were scoped to D-5.12c only)
+  - [x] **Migration 008 NOT APPLIED to production.** Application gated by separate explicit operator authorization. Migration file's header forbids running via `scripts/run-migrations.js` without authorization.
+  - [x] **Out of scope for D-5.12c (deferred to later sub-phases):** wiring the four live wrappers into live `OPEN_LONG` / `CLOSE_POSITION` / `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT` handlers (D-5.12d/e/f/g); P0-L3 `positions_one_open_per_mode_idx` recovery branch (D-5.12d); live rehydrate (D-5.12h); smoke harness (D-5.12h); recovery-script updates (D-5.12h); operator playbook (D-5.12i); Migration 008 production application (separate authorization gate)
 
 ## Active phase
 
-- [~] **Phase D-5.12c — live helper wrappers + Migration 008 (`emergency_audit_log`) + `db.js` emergency-audit insert helper (deferred — awaiting scoped lifts).** No active code work. Implements live-mode `shadowRecordManualLive*` wrappers in `dashboard.js`, creates Migration 008 (`emergency_audit_log` table with `event_id UNIQUE` canonical SHA-256 recipe, `mode CHECK ('paper','live')`, `retry_history` jsonb append, four triage indexes), and adds the `db.js` emergency-audit insert helper. Implementation cannot proceed until: scoped `dashboard.js` + `db.js` + `migrations/` HARD BLOCK lifts, Codex design review of the D-5.12c diff, and explicit operator authorization.
+- [~] **Phase D-5.12d — live OPEN_LONG persistence design-only review (deferred — awaiting design-stage Codex review).** No active code work. Designs the live OPEN_LONG handler wiring that calls `shadowRecordManualLiveBuy` from `/api/trade` and integrates the failure ladder (Layer 1 helper return → caller decision → Layer 2 `_emergencyAuditWrite` → Layer 3 `_loglineFallback` → Layer 4 stderr). Will design the P0-L3 unique-violation recovery branch (catch helper's `errorClass: "unique_violation_one_open_per_mode"`, build emergency_context, call `_emergencyAuditWrite`, throw operator-visible error, no auto-retry). D-5.12d implementation requires its own scoped `dashboard.js` HARD BLOCK lift, Codex design review, Codex implementation review, and explicit operator authorization. Migration 008 application to production remains a separate authorization gate independent of D-5.12d code work.
 
 ## Full Phase C track — closed
 
@@ -172,10 +188,6 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 
 ## Future phases
 
-- [ ] Phase D-5.12c — Live helper wrappers (`shadowRecordManualLive*`) + Migration 008 (`emergency_audit_log`) + `db.js` emergency-audit insert helper
-  - dashboard.js + db.js + migrations/. Three scoped lifts.
-  - Migration 008 must be applied to production AS PART OF D-5.12c (mirror of B.2a migration 007 cadence).
-  - Carry-forward LOW concerns: canonical event_id precision (UTC ISO bucket math, kraken_order_id-as-string), retry_history growth/retention cap (Codex v4 notes 9.a / 9.b).
 - [ ] Phase D-5.12d — Live OPEN_LONG persistence with P0-L3 unique-violation recovery + P0-L4 fail-loud + P1-L4 retry-aware emergency audit
   - dashboard.js-only. Scoped `dashboard.js` HARD BLOCK lift.
   - DB + position.json compatibility write-through (interim-state invariant).
@@ -210,9 +222,9 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 
 | Gate | Requires | Status |
 |---|---|---|
-| `db.js` modifications | Operator approval | Closed (post-C.1; lift was scoped) |
-| `migrations/` modifications | Operator approval | Closed (post-B.2a; lift was scoped) |
-| `dashboard.js` modifications | Operator approval | Closed (post-D-5.12b; lift was scoped) |
+| `db.js` modifications | Operator approval | Closed (post-D-5.12c; lift was scoped) |
+| `migrations/` modifications | Operator approval | Closed (post-D-5.12c; lift was scoped) |
+| `dashboard.js` modifications | Operator approval | Closed (post-D-5.12c; lift was scoped) |
 | `bot.js` modifications | Operator approval | Closed (post-B.2c-bot-preserve-TP; lift was scoped) |
 | `scripts/recovery-inspect.js` modifications | Operator approval | Closed (post-C.3; lift was scoped) |
 | `scripts/smoke-test-live-writes.js` modifications | Operator approval | Closed (post-smoke-test-cleanup; lift was scoped) |
@@ -220,7 +232,8 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 | Live mode write-path changes | Operator approval + Phase D-5.12 | Closed |
 | Phase D-5.12a design | Codex 4-iteration design refinement + operator-led safety review + 8 operator decisions accepted | **Closed (v4 PASS WITH NOTES); operator decisions accepted; ready for D-5.12b** |
 | Phase D-5.12b implementation (manual live gating) | Scoped `dashboard.js` lift + Codex implementation review + operator authorization | Closed |
-| Phase D-5.12c implementation (helpers + migration 008) | Scoped `dashboard.js` + `db.js` + `migrations/` lifts + Codex implementation review + operator authorization | Closed |
+| Phase D-5.12c implementation (helpers + migration 008) | Scoped `dashboard.js` + `db.js` + `migrations/` lifts + Codex implementation review + operator authorization | **Closed, committed `4ae3689` (Codex round-2 PASS, all 22 sub-items)** |
+| Phase D-5.12c Migration 008 application to production | Separate explicit operator authorization + verify no other unapplied migrations on disk | **Not given (file present, not applied)** |
 | Phase D-5.12d through D-5.12g implementation (per-handler live persistence) | Scoped `dashboard.js` lift per sub-phase + all-five-handler smoke per partial deploy + Codex implementation review + operator authorization | Closed |
 | Phase D-5.12h implementation (rehydrate + harness + rollback) | Scoped `bot.js` (potentially) + `scripts/` lifts + Codex implementation review + operator authorization | Closed |
 | Phase D-5.12i closeout docs | orchestrator/* updates only | Closed |
