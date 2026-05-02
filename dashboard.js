@@ -360,8 +360,8 @@ function syncBotControlToDb(ctrl) {
 // ephemeral; per D-5.8 policy at lines ~423–435, silent JSON fallback
 // would lie).
 //
-// Phase B.2b — paper SET_STOP_LOSS DB-first update only. The paper
-// branch routes through shadowRecordManualPaperSLUpdate, which calls
+// Phase B.2b-SL — paper SET_STOP_LOSS DB-first update. The paper branch
+// routes through shadowRecordManualPaperSLUpdate, which calls
 // updatePositionRiskLevelsTx + insertTradeEvent atomically inside an
 // inTransaction block. Migration 007 must be applied or trade_events
 // CHECK rejects manual_sl_update audit inserts.
@@ -372,13 +372,18 @@ function syncBotControlToDb(ctrl) {
 // by the bot trailing safety floor. Live SL behavior is unchanged
 // until D-5.12.
 //
-// Paper SET_TAKE_PROFIT is deferred to Phase B.2c. Reason: bot.js
-// trailing/breakeven can write stale take_profit back to DB after
-// rehydrate, silently overwriting a manual dashboard TP edit. TP needs
-// a separate conflict-policy design (last-writer-wins vs. manual-
-// overrides-bot vs. mutual-exclusion) and Codex review before paper TP
-// can move to DB-first. Until B.2c lands, the paper SET_TAKE_PROFIT
-// handler keeps its pre-B.2b position.json behavior.
+// Phase B.2d — paper SET_TAKE_PROFIT DB-first update. The paper branch
+// routes through shadowRecordManualPaperTPUpdate (mirror of the SL
+// wrapper), which calls updatePositionRiskLevelsTx + insertTradeEvent
+// atomically inside an inTransaction block, emitting a manual_tp_update
+// audit row. Migration 007 must be applied or trade_events CHECK
+// rejects manual_tp_update inserts.
+//
+// Bot-side prerequisite resolved by Phase B.2c-bot-preserve-TP (commit
+// cc6bd2e): bot.js manageActiveTrade no longer writes take_profit on
+// breakeven/trail dual-writes; the payload is narrowed to { stop_loss }.
+// Manual dashboard TP edits are therefore safe from stale in-memory
+// overwrite. Live TP behavior is unchanged until D-5.12.
 
 async function shadowRecordManualPaperBuy(entry, newPos) {
   if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
@@ -510,6 +515,50 @@ async function shadowRecordManualPaperSLUpdate(dbPos, newSL) {
     return { ok: true };
   } catch (e) {
     log.warn("d-5.7.1 dual-write", `manual SL DB write failed: ${e.message}`);
+    return { ok: false, reason: "db_error", error: e };
+  }
+}
+
+async function shadowRecordManualPaperTPUpdate(dbPos, newTP) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!dbPos || !dbPos.kraken_order_id) return { ok: false, reason: "validation_failed" };
+  let raceDetected = false;
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await updatePositionRiskLevelsTx(client, "paper", dbPos.kraken_order_id, {
+        take_profit: newTP,
+      });
+      if (!positionId) {
+        // No open row matched — bot.js or another process closed it first.
+        // Skip insertTradeEvent to avoid an orphan manual_tp_update event.
+        raceDetected = true;
+        return;
+      }
+      const seed = `${dbPos.kraken_order_id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+      await insertTradeEvent(client, {
+        event_id: buildEventId(seed, "manual_tp_update"),
+        timestamp: new Date().toISOString(),
+        mode: "paper",
+        event_type: "manual_tp_update",
+        symbol: dbPos.symbol,
+        position_id: positionId,
+        price: null,
+        quantity: null,
+        usd_amount: null,
+        leverage: null,
+        kraken_order_id: dbPos.kraken_order_id,
+        decision_log: null,
+        metadata: {
+          source: "manual_tp_update",
+          old_take_profit: dbPos.take_profit != null ? parseFloat(dbPos.take_profit) : null,
+          new_take_profit: newTP,
+        },
+      });
+    });
+    if (raceDetected) return { ok: false, reason: "no_open_position" };
+    return { ok: true };
+  } catch (e) {
+    log.warn("d-5.7.1 dual-write", `manual TP DB write failed: ${e.message}`);
     return { ok: false, reason: "db_error", error: e };
   }
 }
@@ -1538,6 +1587,24 @@ async function handleTradeCommand(command, params = {}) {
   }
 
   if (command === "SET_TAKE_PROFIT") {
+    if (isPaper) {
+      // Phase B.2d — DB-canonical paper TP update. Bot-side stale-TP
+      // overwrite race resolved by Phase B.2c-bot-preserve-TP (cc6bd2e):
+      // bot.js manage-update no longer writes take_profit, so manual TP
+      // edits are safe from in-memory clobber.
+      const dbPos = await loadOpenPosition("paper");
+      if (!dbPos) throw new Error("No open paper position to update");
+      const pct = parseFloat(params.pct || 2.0);
+      const entryPrice = parseFloat(dbPos.entry_price);
+      const newTP = entryPrice * (1 + pct / 100);
+      const r = await shadowRecordManualPaperTPUpdate(dbPos, newTP);
+      if (!r.ok) {
+        log.warn("d-5.7.1 dual-write", `manual TP caller: ${r.reason}`);
+        throw new Error(`Manual paper TP update not recorded in DB (${r.reason}). Take profit NOT updated.`);
+      }
+      return { ok: true, message: `Take profit updated to $${newTP.toFixed(4)} (+${pct}% from entry $${entryPrice.toFixed(4)})` };
+    }
+    // Live path: byte-identical to today (writes position.json directly).
     if (!pos.open) throw new Error("No open position — open a trade first");
     const pct       = parseFloat(params.pct || 2.0);
     pos.takeProfit  = pos.entryPrice * (1 + pct / 100);
