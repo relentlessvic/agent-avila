@@ -404,8 +404,11 @@ function _requireMode(fn, mode) {
 }
 
 // Returns the most recent trade lifecycle events for a mode, newest first.
-// Excludes failed *_attempt rows (those are operational audit, not trade
-// history). LEFT JOIN positions for entry-price context on EXIT rows.
+// Phase C.1 — also includes manual_sl_update / manual_tp_update audit rows
+// so the dashboard can surface operator-driven risk-level changes alongside
+// lifecycle events. Excludes failed *_attempt rows (those are operational
+// audit, not trade history). LEFT JOIN positions for entry-price context on
+// EXIT rows.
 export async function loadRecentTradeEvents(mode, limit = 30) {
   _requireMode("loadRecentTradeEvents", mode);
   const r = await query(
@@ -419,7 +422,7 @@ export async function loadRecentTradeEvents(mode, limit = 30) {
      FROM trade_events te
      LEFT JOIN positions p ON p.id = te.position_id
      WHERE te.mode = $1
-       AND te.event_type IN ('buy_filled','exit_filled','manual_buy','manual_close','reentry_buy','reentry_close')
+       AND te.event_type IN ('buy_filled','exit_filled','manual_buy','manual_close','reentry_buy','reentry_close','manual_sl_update','manual_tp_update')
      ORDER BY te.timestamp DESC
      LIMIT $2`,
     [mode, limit]
