@@ -346,78 +346,86 @@ function syncBotControlToDb(ctrl) {
 // Failure mode: caught .catch() emits a [d-5.7.1 dual-write] warn line;
 // JSON has already succeeded, so the manual trade response is unaffected.
 
-function shadowRecordManualPaperBuy(entry, newPos) {
-  if (!dbAvailable()) return;
-  if (!entry || !newPos || !newPos.orderId) return;
-  inTransaction(async (client) => {
-    const positionId = await upsertPositionOpen(client, {
-      mode: "paper",
-      symbol: newPos.symbol,
-      side: newPos.side ?? "long",
-      entry_price: newPos.entryPrice,
-      entry_time: newPos.entryTime,
-      entry_signal_score: null,                  // manual; no strategy score
-      quantity: newPos.quantity,
-      trade_size_usd: newPos.tradeSize,
-      leverage: newPos.leverage ?? 1,
-      effective_size_usd: newPos.effectiveSize ?? null,
-      stop_loss: newPos.stopLoss,
-      take_profit: newPos.takeProfit,
-      volatility_level: null,
-      kraken_order_id: newPos.orderId,
-      metadata: { from: "dashboard", source: "manual_buy" },
+async function shadowRecordManualPaperBuy(entry, newPos) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!entry || !newPos || !newPos.orderId) return { ok: false, reason: "validation_failed" };
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await upsertPositionOpen(client, {
+        mode: "paper",
+        symbol: newPos.symbol,
+        side: newPos.side ?? "long",
+        entry_price: newPos.entryPrice,
+        entry_time: newPos.entryTime,
+        entry_signal_score: null,                  // manual; no strategy score
+        quantity: newPos.quantity,
+        trade_size_usd: newPos.tradeSize,
+        leverage: newPos.leverage ?? 1,
+        effective_size_usd: newPos.effectiveSize ?? null,
+        stop_loss: newPos.stopLoss,
+        take_profit: newPos.takeProfit,
+        volatility_level: null,
+        kraken_order_id: newPos.orderId,
+        metadata: { from: "dashboard", source: "manual_buy" },
+      });
+      await insertTradeEvent(client, {
+        event_id: buildEventId(newPos.orderId, "manual_buy"),
+        timestamp: entry.timestamp,
+        mode: "paper",
+        event_type: "manual_buy",
+        symbol: entry.symbol,
+        position_id: positionId,
+        price: entry.price,
+        quantity: newPos.quantity,
+        usd_amount: entry.tradeSize,
+        leverage: entry.leverage,
+        kraken_order_id: newPos.orderId,
+        decision_log: null,
+        metadata: { source: "manual_buy" },
+      });
     });
-    await insertTradeEvent(client, {
-      event_id: buildEventId(newPos.orderId, "manual_buy"),
-      timestamp: entry.timestamp,
-      mode: "paper",
-      event_type: "manual_buy",
-      symbol: entry.symbol,
-      position_id: positionId,
-      price: entry.price,
-      quantity: newPos.quantity,
-      usd_amount: entry.tradeSize,
-      leverage: entry.leverage,
-      kraken_order_id: newPos.orderId,
-      decision_log: null,
-      metadata: { source: "manual_buy" },
-    });
-  }).catch((e) => {
+    return { ok: true };
+  } catch (e) {
     log.warn("d-5.7.1 dual-write", `manual BUY DB write failed: ${e.message}`);
-  });
+    return { ok: false, reason: "db_error", error: e };
+  }
 }
 
-function shadowRecordManualPaperClose(exitEntry) {
-  if (!dbAvailable()) return;
-  if (!exitEntry || !exitEntry.orderId) return;
-  inTransaction(async (client) => {
-    const positionId = await closePosition(client, "paper", {
-      exit_price: exitEntry.price,
-      exit_time: exitEntry.timestamp,
-      exit_reason: "MANUAL_CLOSE",
-      realized_pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
-      realized_pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
-      kraken_exit_order_id: exitEntry.orderId,
+async function shadowRecordManualPaperClose(exitEntry) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!exitEntry || !exitEntry.orderId) return { ok: false, reason: "validation_failed" };
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await closePosition(client, "paper", {
+        exit_price: exitEntry.price,
+        exit_time: exitEntry.timestamp,
+        exit_reason: "MANUAL_CLOSE",
+        realized_pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+        realized_pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+        kraken_exit_order_id: exitEntry.orderId,
+      });
+      await insertTradeEvent(client, {
+        event_id: buildEventId(exitEntry.orderId, "manual_close"),
+        timestamp: exitEntry.timestamp,
+        mode: "paper",
+        event_type: "manual_close",
+        symbol: exitEntry.symbol,
+        position_id: positionId,
+        price: exitEntry.price,
+        quantity: exitEntry.quantity,
+        usd_amount: exitEntry.tradeSize,
+        pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+        pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+        kraken_order_id: exitEntry.orderId,
+        decision_log: null,
+        metadata: { source: "manual_close" },
+      });
     });
-    await insertTradeEvent(client, {
-      event_id: buildEventId(exitEntry.orderId, "manual_close"),
-      timestamp: exitEntry.timestamp,
-      mode: "paper",
-      event_type: "manual_close",
-      symbol: exitEntry.symbol,
-      position_id: positionId,
-      price: exitEntry.price,
-      quantity: exitEntry.quantity,
-      usd_amount: exitEntry.tradeSize,
-      pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
-      pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
-      kraken_order_id: exitEntry.orderId,
-      decision_log: null,
-      metadata: { source: "manual_close" },
-    });
-  }).catch((e) => {
+    return { ok: true };
+  } catch (e) {
     log.warn("d-5.7.1 dual-write", `manual CLOSE DB write failed: ${e.message}`);
-  });
+    return { ok: false, reason: "db_error", error: e };
+  }
 }
 
 // ─── Phase D-5.8 — Postgres-first trade-history read wrappers ──────────────
