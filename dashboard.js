@@ -407,16 +407,23 @@ async function shadowRecordManualPaperBuy(entry, newPos) {
 async function shadowRecordManualPaperClose(exitEntry) {
   if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
   if (!exitEntry || !exitEntry.orderId) return { ok: false, reason: "validation_failed" };
+  let raceDetected = false;
   try {
     await inTransaction(async (client) => {
       const positionId = await closePosition(client, "paper", {
         exit_price: exitEntry.price,
         exit_time: exitEntry.timestamp,
-        exit_reason: "MANUAL_CLOSE",
+        exit_reason: exitEntry.exitReason ?? "MANUAL_CLOSE",
         realized_pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
         realized_pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
         kraken_exit_order_id: exitEntry.orderId,
       });
+      if (!positionId) {
+        // No open row matched — bot.js or another process closed it first.
+        // Skip insertTradeEvent to avoid an orphan manual_close event.
+        raceDetected = true;
+        return;
+      }
       await insertTradeEvent(client, {
         event_id: buildEventId(exitEntry.orderId, "manual_close"),
         timestamp: exitEntry.timestamp,
@@ -434,6 +441,7 @@ async function shadowRecordManualPaperClose(exitEntry) {
         metadata: { source: "manual_close" },
       });
     });
+    if (raceDetected) return { ok: false, reason: "no_open_position" };
     return { ok: true };
   } catch (e) {
     log.warn("d-5.7.1 dual-write", `manual CLOSE DB write failed: ${e.message}`);
@@ -1360,18 +1368,17 @@ async function handleTradeCommand(command, params = {}) {
   }
 
   if (command === "CLOSE_POSITION") {
-    if (!pos.open) throw new Error("No open position to close");
-    let orderId = isPaper ? `PAPER-SELL-${Date.now()}` : null;
-    if (!isPaper) {
-      const sellVol = pos.quantity.toFixed(8);
-      const order   = await execKrakenOrder("sell", krakenPair, sellVol, 1);
-      orderId = order.orderId;
-    }
-    const pnlPct = ((price - pos.entryPrice) / pos.entryPrice * 100).toFixed(2);
-    const pnlUSD = ((price - pos.entryPrice) / pos.entryPrice * pos.tradeSize).toFixed(2);
-    const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity: pos.quantity, tradeSize: pos.tradeSize, entryPrice: pos.entryPrice, exitReason: "MANUAL_CLOSE", pct: pnlPct, pnlUSD, paperTrading: isPaper, orderId, conditions: [], allPass: false, orderPlaced: true };
     if (isPaper) {
-      // Phase A.2 — DB-first paper persistence. position.json rehydrates from bot.js next cycle.
+      // Phase B.1 — DB-canonical paper close. No reliance on stale position.json.
+      const dbPos = await loadOpenPosition("paper");
+      if (!dbPos) throw new Error("No open paper position to close");
+      const exitOrderId = `PAPER-SELL-${Date.now()}`;
+      const entryPrice = parseFloat(dbPos.entry_price);
+      const quantity   = parseFloat(dbPos.quantity);
+      const tradeSize  = parseFloat(dbPos.trade_size_usd);
+      const pnlPct = ((price - entryPrice) / entryPrice * 100).toFixed(2);
+      const pnlUSD = ((price - entryPrice) / entryPrice * tradeSize).toFixed(2);
+      const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity, tradeSize, entryPrice, exitReason: "MANUAL_CLOSE", pct: pnlPct, pnlUSD, paperTrading: true, orderId: exitOrderId, conditions: [], allPass: false, orderPlaced: true };
       const r = await shadowRecordManualPaperClose(exitEntry);
       if (!r.ok) {
         log.warn("d-5.7.1 dual-write", `manual CLOSE caller: ${r.reason}`);
@@ -1384,27 +1391,60 @@ async function handleTradeCommand(command, params = {}) {
       } catch (e) {
         log.warn("d-5.7.1 dual-write", `manual CLOSE LOG_FILE write failed (DB committed): ${e.message}`);
       }
-    } else {
-      tradeLog.trades.push(exitEntry);
-      writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
-      writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
+      balanceCache = null;
+      return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | Paper SELL at $${price.toFixed(4)}`, price, orderId: exitOrderId, pnlPct, pnlUSD };
     }
+    // Live path: byte-identical to today (uses JSON pos, calls Kraken, writes position.json + LOG_FILE).
+    if (!pos.open) throw new Error("No open position to close");
+    const sellVol = pos.quantity.toFixed(8);
+    const order   = await execKrakenOrder("sell", krakenPair, sellVol, 1);
+    const orderId = order.orderId;
+    const pnlPct = ((price - pos.entryPrice) / pos.entryPrice * 100).toFixed(2);
+    const pnlUSD = ((price - pos.entryPrice) / pos.entryPrice * pos.tradeSize).toFixed(2);
+    const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity: pos.quantity, tradeSize: pos.tradeSize, entryPrice: pos.entryPrice, exitReason: "MANUAL_CLOSE", pct: pnlPct, pnlUSD, paperTrading: false, orderId, conditions: [], allPass: false, orderPlaced: true };
+    tradeLog.trades.push(exitEntry);
+    writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+    writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
     balanceCache = null;
-    return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | ${isPaper ? "Paper" : "Live"} SELL at $${price.toFixed(4)}`, price, orderId, pnlPct, pnlUSD };
+    return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | Live SELL at $${price.toFixed(4)}`, price, orderId, pnlPct, pnlUSD };
   }
 
   if (command === "SELL_ALL") {
+    if (isPaper) {
+      // Phase B.1 — DB-canonical paper sellall. No Kraken balance call, no JSON write.
+      const dbPos = await loadOpenPosition("paper");
+      if (!dbPos) throw new Error("No open paper position to sell");
+      const exitOrderId = `PAPER-SELLALL-${Date.now()}`;
+      const entryPrice = parseFloat(dbPos.entry_price);
+      const quantity   = parseFloat(dbPos.quantity);
+      const tradeSize  = parseFloat(dbPos.trade_size_usd);
+      const pnlPct = ((price - entryPrice) / entryPrice * 100).toFixed(2);
+      const pnlUSD = ((price - entryPrice) / entryPrice * tradeSize).toFixed(2);
+      const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity, tradeSize, entryPrice, exitReason: "MANUAL_SELLALL", pct: pnlPct, pnlUSD, paperTrading: true, orderId: exitOrderId, conditions: [], allPass: false, orderPlaced: true };
+      const r = await shadowRecordManualPaperClose(exitEntry);
+      if (!r.ok) {
+        log.warn("d-5.7.1 dual-write", `manual SELL_ALL caller: ${r.reason}`);
+        throw new Error(`Manual paper SELL_ALL not recorded in DB (${r.reason}). Position NOT closed.`);
+      }
+      // DB committed; LOG_FILE is best-effort local audit.
+      try {
+        tradeLog.trades.push(exitEntry);
+        writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+      } catch (e) {
+        log.warn("d-5.7.1 dual-write", `manual SELL_ALL LOG_FILE write failed (DB committed): ${e.message}`);
+      }
+      balanceCache = null;
+      return { ok: true, message: `Paper SELL ALL — ${quantity.toFixed(4)} XRP at $${price.toFixed(4)} | P&L ${pnlPct}% ($${pnlUSD})`, price, orderId: exitOrderId, quantity, pnlPct, pnlUSD };
+    }
+    // Live path: byte-identical to today (Kraken balance gate + Kraken sell + JSON write).
     const bal = await fetchKrakenBalance();
     const xrp = bal.balances?.find(b => b.asset === "XRP");
     if (!xrp || xrp.amount < 0.001) throw new Error("No XRP balance to sell");
-    let orderId = isPaper ? `PAPER-SELLALL-${Date.now()}` : null;
-    if (!isPaper) {
-      const order = await execKrakenOrder("sell", krakenPair, xrp.amount.toFixed(8), 1);
-      orderId = order.orderId;
-    }
+    const order = await execKrakenOrder("sell", krakenPair, xrp.amount.toFixed(8), 1);
+    const orderId = order.orderId;
     writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
     balanceCache = null;
-    return { ok: true, message: `${isPaper ? "Paper" : "Live"} SELL ALL — ${xrp.amount.toFixed(4)} XRP at $${price.toFixed(4)}`, price, orderId, quantity: xrp.amount };
+    return { ok: true, message: `Live SELL ALL — ${xrp.amount.toFixed(4)} XRP at $${price.toFixed(4)}`, price, orderId, quantity: xrp.amount };
   }
 
   if (command === "SET_STOP_LOSS") {
