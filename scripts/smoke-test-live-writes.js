@@ -8,7 +8,7 @@
 // Coverage (7 helper paths, in order):
 //   1. upsertPositionOpen (mode='live')
 //   2. insertTradeEvent (buy_filled, linked to position_id)
-//   3. updatePositionRiskLevels — D-5.10.5.3 active-management dual-write
+//   3. updatePositionRiskLevels — direct helper test (D-5.10.5.3 helper; bot.js now SL-only post-B.2c).
 //   4. closePosition (mode='live')
 //   5. insertTradeEvent (exit_filled, linked to same position_id)
 //   6. updatePositionRiskLevels post-close — should no-op (rowCount=0)
@@ -222,8 +222,8 @@ async function main() {
     assert(e2.signal_threshold === TEST_THRESHOLD, "signal_threshold INTEGER round-trips", `got ${e2.signal_threshold}`);
     assert(e2.leverage === TEST_LEVERAGE, "leverage INTEGER round-trips", `got ${e2.leverage}`);
 
-    // ── Step 3: updatePositionRiskLevels (active management dual-write) ────
-    step(3, "updatePositionRiskLevels (D-5.10.5.3) — open row, SL→entry");
+    // ── Step 3: updatePositionRiskLevels — direct helper test (both fields) ────
+    step(3, "updatePositionRiskLevels (D-5.10.5.3) — open row, SL→entry, helper both-field path");
     const updateOpenId = await updatePositionRiskLevels("live", SMOKE_ORDER_ID, {
       stop_loss:   TEST_NEW_SL,
       take_profit: TEST_TAKE_PROFIT,
@@ -235,7 +235,7 @@ async function main() {
     );
     const p3 = r3.rows[0] || {};
     assert(eqNum(p3.stop_loss, TEST_NEW_SL), "stop_loss UPDATEd", `db=${p3.stop_loss}`);
-    assert(eqNum(p3.take_profit, TEST_TAKE_PROFIT), "take_profit unchanged but rewritten", `db=${p3.take_profit}`);
+    assert(eqNum(p3.take_profit, TEST_TAKE_PROFIT), "take_profit round-trips through helper both-field path", `db=${p3.take_profit}`);
     assert(p3.updated_at instanceof Date, "updated_at advanced", `type=${typeof p3.updated_at}`);
 
     // ── Step 4: closePosition ──────────────────────────────────────────────
