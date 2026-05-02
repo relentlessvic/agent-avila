@@ -333,18 +333,31 @@ function syncBotControlToDb(ctrl) {
   })();
 }
 
-// ─── Phase D-5.7.1 — manual paper trade dual-write ──────────────────────────
-// Two fire-and-forget shadow writers wired into handleTradeCommand's
-// PAPER_BUY (BUY_MARKET / OPEN_LONG) and PAPER_CLOSE (CLOSE_POSITION)
-// branches AFTER the existing JSON writes. Reuses D-5.7's transactional
-// db.js helpers (upsertPositionOpen / closePosition / insertTradeEvent)
-// so positions and trade_events stay in lockstep with a single BEGIN/COMMIT.
+// ─── Phase D-5.7.1 / A.2 — manual paper trade DB-first persistence ──────────
+// Two awaitable shadow writers wired into handleTradeCommand's PAPER_BUY
+// (BUY_MARKET / OPEN_LONG) and PAPER_CLOSE (CLOSE_POSITION) branches.
+// Reuse D-5.7's transactional db.js helpers (upsertPositionOpen /
+// closePosition / insertTradeEvent) so positions and trade_events stay in
+// lockstep with a single BEGIN/COMMIT.
 //
-// Paper-only: the call sites guard with `if (isPaper)` so live manual
-// commands continue writing JSON only — that path waits for D-5.12.
+// Paper mode: Postgres is the sole durable truth. The caller awaits the
+// helper and throws on { ok: false } so the route returns HTTP 400 to the
+// operator. position.json is NOT written by dashboard in paper — bot.js
+// rehydrates it from DB on its next cycle. LOG_FILE history is appended
+// AFTER successful DB commit as best-effort local audit; if the LOG_FILE
+// write itself fails, the trade is still persisted (in DB), the failure
+// is warn-logged, and the route still returns 200. LOG_FILE is not
+// authoritative — query Postgres for truth.
 //
-// Failure mode: caught .catch() emits a [d-5.7.1 dual-write] warn line;
-// JSON has already succeeded, so the manual trade response is unaffected.
+// Live mode: position.json and LOG_FILE writes remain authoritative until
+// Phase D-5.12 lifts the live persistence gate. No DB call.
+//
+// Failure mode: helper returns { ok: false, reason } and emits a
+// [d-5.7.1 dual-write] warn line for db_error; caller emits its own warn
+// line for db_unavailable / validation_failed and throws "Trade NOT
+// persisted" so the operator is informed. No JSON fallback (Railway is
+// ephemeral; per D-5.8 policy at lines ~423–435, silent JSON fallback
+// would lie).
 
 async function shadowRecordManualPaperBuy(entry, newPos) {
   if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
@@ -1300,7 +1313,7 @@ async function handleTradeCommand(command, params = {}) {
   const price = await fetchCurrentPrice(symbol);
   const volume = (tradeSize / price).toFixed(8);
 
-  const log = existsSync(LOG_FILE)
+  const tradeLog = existsSync(LOG_FILE)
     ? JSON.parse(readFileSync(LOG_FILE, "utf8"))
     : { trades: [] };
 
@@ -1323,14 +1336,26 @@ async function handleTradeCommand(command, params = {}) {
       stopLoss:   price * (1 - slPct   / 100),
       takeProfit: price * (1 + tpPct   / 100),
     };
-    writeFileSync(POSITION_FILE, JSON.stringify(newPos, null, 2));
     const entry = { type: "MANUAL_BUY", timestamp: new Date().toISOString(), symbol, price, tradeSize, leverage: useLev, orderId, paperTrading: isPaper, conditions: [], allPass: true, orderPlaced: true };
-    log.trades.push(entry);
-    writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
-    // Phase D-5.7.1 — shadow-write manual paper BUY to Postgres after
-    // JSON writes have settled. Paper-only; live manual commands continue
-    // writing JSON only until D-5.12 lifts the live persistence gate.
-    if (isPaper) shadowRecordManualPaperBuy(entry, newPos);
+    if (isPaper) {
+      // Phase A.2 — DB-first paper persistence. position.json rehydrates from bot.js next cycle.
+      const r = await shadowRecordManualPaperBuy(entry, newPos);
+      if (!r.ok) {
+        log.warn("d-5.7.1 dual-write", `manual BUY caller: ${r.reason}`);
+        throw new Error(`Manual paper BUY not recorded in DB (${r.reason}). Trade NOT persisted.`);
+      }
+      // DB committed; LOG_FILE is best-effort local audit. Postgres is truth.
+      try {
+        tradeLog.trades.push(entry);
+        writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+      } catch (e) {
+        log.warn("d-5.7.1 dual-write", `manual BUY LOG_FILE write failed (DB committed): ${e.message}`);
+      }
+    } else {
+      writeFileSync(POSITION_FILE, JSON.stringify(newPos, null, 2));
+      tradeLog.trades.push(entry);
+      writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+    }
     return { ok: true, message: `${isPaper ? "Paper" : "Live"} BUY — ${volume} XRP at $${price.toFixed(4)} | SL $${newPos.stopLoss.toFixed(4)} | TP $${newPos.takeProfit.toFixed(4)}`, price, orderId };
   }
 
@@ -1345,12 +1370,25 @@ async function handleTradeCommand(command, params = {}) {
     const pnlPct = ((price - pos.entryPrice) / pos.entryPrice * 100).toFixed(2);
     const pnlUSD = ((price - pos.entryPrice) / pos.entryPrice * pos.tradeSize).toFixed(2);
     const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity: pos.quantity, tradeSize: pos.tradeSize, entryPrice: pos.entryPrice, exitReason: "MANUAL_CLOSE", pct: pnlPct, pnlUSD, paperTrading: isPaper, orderId, conditions: [], allPass: false, orderPlaced: true };
-    log.trades.push(exitEntry);
-    writeFileSync(LOG_FILE, JSON.stringify(log, null, 2));
-    writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
-    // Phase D-5.7.1 — shadow-write manual paper CLOSE to Postgres after
-    // JSON writes have settled. Paper-only gate matches the BUY branch.
-    if (isPaper) shadowRecordManualPaperClose(exitEntry);
+    if (isPaper) {
+      // Phase A.2 — DB-first paper persistence. position.json rehydrates from bot.js next cycle.
+      const r = await shadowRecordManualPaperClose(exitEntry);
+      if (!r.ok) {
+        log.warn("d-5.7.1 dual-write", `manual CLOSE caller: ${r.reason}`);
+        throw new Error(`Manual paper CLOSE not recorded in DB (${r.reason}). Position NOT closed.`);
+      }
+      // DB committed; LOG_FILE is best-effort local audit.
+      try {
+        tradeLog.trades.push(exitEntry);
+        writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+      } catch (e) {
+        log.warn("d-5.7.1 dual-write", `manual CLOSE LOG_FILE write failed (DB committed): ${e.message}`);
+      }
+    } else {
+      tradeLog.trades.push(exitEntry);
+      writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+      writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
+    }
     balanceCache = null;
     return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | ${isPaper ? "Paper" : "Live"} SELL at $${price.toFixed(4)}`, price, orderId, pnlPct, pnlUSD };
   }
