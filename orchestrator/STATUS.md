@@ -4,26 +4,23 @@ Last updated: 2026-05-02
 
 ## Current phase
 
-**O-4 — Orchestrator Automation Layer (in progress this turn)**
+**Phase B.1 — closed (committed `cb7facb`).** Paper close-source cleanup shipped. No active code phase right now. Phase B.2 is the next planned phase but remains deferred behind HARD BLOCKs.
 
 ## Recent commits (most recent first)
 
 | Phase | Commit | Description |
 |---|---|---|
-| Orchestrator docs (initial) | `685a905` | Add Orchestrator blueprint and fix plan |
+| Phase B.1 | `cb7facb` | Phase B.1: paper close-source cleanup (CLOSE_POSITION + SELL_ALL DB-canonical) |
+| Phase O-4 | `f080b24` | Phase O-4: add orchestrator automation layer |
 | Phase A.2 | `959fef7` | Phase A.2: make paper manual trades DB-first |
+| Orchestrator docs (initial) | `685a905` | Add Orchestrator blueprint and fix plan |
 | Phase A.1 | `5bcda59` | Phase A.1: return status from paper shadow helpers |
 
 ## Working tree state (truth)
 
-- `dashboard.js` — **modified, uncommitted.** Contains Phase B.1 implementation (paper close-source cleanup):
-  - `shadowRecordManualPaperClose` hardened: `exit_reason` now sourced from `exitEntry.exitReason ?? "MANUAL_CLOSE"`; `no_open_position` race guard prevents orphan trade_events when `closePosition` returns null.
-  - Paper `CLOSE_POSITION` rewritten to use `loadOpenPosition("paper")` for DB-canonical exit construction.
-  - Paper `SELL_ALL` rewritten to use `loadOpenPosition("paper")`, no longer calls `fetchKrakenBalance()`, records `exit_reason: "MANUAL_SELLALL"`.
-  - Live `CLOSE_POSITION` and live `SELL_ALL` byte-equivalent.
-  - `shadowRecordManualPaperBuy` untouched. `SET_STOP_LOSS` and `SET_TAKE_PROFIT` untouched.
-- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Not for commit.
-- `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, `orchestrator/APPROVAL-GATES.md`, `orchestrator/NEXT-ACTION.md`, `orchestrator/AUTOPILOT-RULES.md`, `orchestrator/prompts/*` — O-4 docs being created in this phase, untracked until committed.
+- `dashboard.js` — **clean (committed in `cb7facb`).**
+- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Not for commit. Excluded.
+- No tracked files modified.
 
 ## Phase status summary
 
@@ -31,18 +28,18 @@ Last updated: 2026-05-02
 |---|---|
 | Phase A.1 | Closed, committed `5bcda59` |
 | Phase A.2 | Closed, committed `959fef7` |
+| Phase O-4 | Closed, committed `f080b24` |
 | Phase B.1 — design | Codex APPROVE (4 review rounds) |
-| Phase B.1 — implementation | **Local / uncommitted, awaiting Codex implementation review** |
-| Phase B.2 | Deferred — blocked by db.js + migrations HARD BLOCKs |
-| Phase O-4 | In progress (this turn) |
+| Phase B.1 — implementation | **Closed, committed `cb7facb` (Codex PASS-WITH-NOTES, no required edits)** |
+| Phase B.2 | Deferred — blocked by `db.js` + `migrations/` HARD BLOCKs |
 
 ## Current allowed next action
 
-After this turn's O-4 docs are committed (separate commit, `orchestrator/` files only), the next safe action is:
+> **Phase B.2 design-only planning/review. No code.**
 
-> **Send Phase B.1 dashboard.js diff to Codex for implementation review.**
+B.2 implementation cannot proceed until all prerequisites listed in `NEXT-ACTION.md` are satisfied (HARD BLOCK lifts, migration design, helper design, Codex design review, operator authorization). Until then, B.2 design discussion is the only B.2-scoped work allowed.
 
-Do **not** commit `dashboard.js` until Codex returns PASS on the implementation diff.
+The operator may also choose to advance an alternative phase (O-5 / O-6 / O-7 / O-8) instead.
 
 ## Blocked actions (require explicit operator approval)
 
@@ -59,6 +56,6 @@ Do **not** commit `dashboard.js` until Codex returns PASS on the implementation 
 
 ## Current risk level
 
-**MEDIUM — uncommitted local code carrying real trading-state behavior.**
+**LOW.** No uncommitted code. All paper open/close paths are DB-canonical. Live behavior unchanged.
 
-`dashboard.js` carries Phase B.1 implementation that has not yet been Codex-implementation-reviewed. If the dashboard process is restarted from this working tree before Codex review, the new code path is what runs. Recommended: complete O-4 commit, then submit B.1 diff to Codex before any dashboard restart.
+The known remaining dual-truth surface is Phase B.2 territory: paper `SET_STOP_LOSS` / `SET_TAKE_PROFIT` still write `position.json` directly without a DB update. Dashboard SL/TP edits in paper mode will be reverted on bot.js's next rehydrate cycle (≤5 min). This is design-known, deferred behind HARD BLOCKs, and tracked in `CHECKLIST.md` as Phase B.2.
