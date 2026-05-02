@@ -351,6 +351,45 @@ export async function updatePositionRiskLevels(mode, orderId, fields) {
   return r.rows[0]?.id ?? null;
 }
 
+// ─── Phase B.2a — transactional variant of updatePositionRiskLevels ────────
+// Same SQL and contract as updatePositionRiskLevels above, but takes a
+// client parameter so callers can wrap the UPDATE inside an inTransaction
+// block alongside an audit insertTradeEvent (manual_sl_update /
+// manual_tp_update events). Existing updatePositionRiskLevels is kept
+// unchanged for its existing callers (bot.js trailing-stop management,
+// scripts/smoke-test-live-writes.js).
+//
+// Returns the updated row id, or null if no row matched (race-friendly:
+// caller maps null to { ok: false, reason: "no_open_position" }).
+export async function updatePositionRiskLevelsTx(client, mode, orderId, fields) {
+  _requireMode("updatePositionRiskLevelsTx", mode);
+  if (!client) throw new Error("updatePositionRiskLevelsTx: client required");
+  if (!orderId) throw new Error("updatePositionRiskLevelsTx: orderId required");
+  if (!fields || typeof fields !== "object") {
+    throw new Error("updatePositionRiskLevelsTx: fields object required");
+  }
+  const sets = [];
+  const params = [mode, orderId];
+  let i = 3;
+  if (fields.stop_loss != null) {
+    sets.push(`stop_loss = $${i++}`);
+    params.push(fields.stop_loss);
+  }
+  if (fields.take_profit != null) {
+    sets.push(`take_profit = $${i++}`);
+    params.push(fields.take_profit);
+  }
+  if (sets.length === 0) return null;
+  sets.push(`updated_at = NOW()`);
+  const r = await client.query(
+    `UPDATE positions SET ${sets.join(", ")}
+     WHERE mode = $1 AND kraken_order_id = $2 AND status = 'open'
+     RETURNING id`,
+    params
+  );
+  return r.rows[0]?.id ?? null;
+}
+
 // ─── Phase D-5.8 — read-side helpers for dashboard flip ────────────────────
 // Read-only domain queries used by dashboard.js's modeScopedSummary,
 // getApiData, getHomeSummary, and buildV2DashboardPayload to surface
