@@ -141,10 +141,23 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
   - [x] D-5.12 sub-phase plan approved: D-5.12b (manual live gating) → D-5.12c (live helper wrappers + emergency_audit_log migration 008) → D-5.12d (live OPEN_LONG persistence) → D-5.12e (live CLOSE_POSITION persistence) → D-5.12f (live SELL_ALL persistence) → D-5.12g (live SL/TP persistence) → D-5.12h (live rehydrate + recovery scripts + smoke harness + rollback plan) → D-5.12i (closeout docs).
   - [x] **No code, no commits, no migrations, no deploys, no edits to dashboard.js / bot.js / db.js / scripts/ / migrations/ during D-5.12a review.** All HARD BLOCK files remained blocked. Working tree clean except untracked `position.json.snap.20260502T020154Z`.
   - [x] 9 LOW operational concerns from Codex v4 carried forward to downstream sub-phase docs (see `STATUS.md` "Codex v4 LOW operational notes" section): canonical event_id precision, retry_history growth/retention, all-handler smoke deploy-velocity, Railway stderr retention finite, process-local lock check/set must avoid async yield, D-5.12h testcontainer infrastructure scope, emergency audit latency budget, deploy warning is documentation-only, emergency rows retention/export format.
+- [x] **Phase D-5.12b — manual live gating implementation in `dashboard.js` — commit `24246d8`**
+  - [x] Scoped `dashboard.js` HARD BLOCK lift authorized by operator
+  - [x] New `MANUAL_LIVE_COMMANDS` Set (`dashboard.js:90-97`) holds the six manual-live action tokens: `BUY_MARKET`, `OPEN_LONG`, `CLOSE_POSITION`, `SELL_ALL`, `SET_STOP_LOSS`, `SET_TAKE_PROFIT`
+  - [x] Layer 1 `MANUAL_LIVE_ARMED` gate at `/api/trade` POST entry (`dashboard.js:12247-12282`): rejects with HTTP 403 when `MANUAL_LIVE_COMMANDS.has(body.command) && ctrlNow.paperTrading === false && process.env.MANUAL_LIVE_ARMED !== "true"`. Paper mode unaffected.
+  - [x] Layer 2 `MANUAL_LIVE_ARMED` gate inside `handleTradeCommand` (`dashboard.js:1449-1464`) after `const isPaper = ctrl.paperTrading !== false;`: throws when `!isPaper && process.env.MANUAL_LIVE_ARMED !== "true"`. Defense-in-depth catches any future code path that reaches `handleTradeCommand` without going through `/api/trade`. Paper mode unaffected.
+  - [x] `/api/control` SET_MODE lock-before-read (`dashboard.js:12124-12137`): `_release = acquireTransitionLock(command)` moved to BEFORE the position.json / control-state preflight reads (was previously after); the lock primitive at `dashboard.js:11380-11385` is synchronous (no async yield between check and set), satisfying Codex v4 note 9.f.
+  - [x] Codex round-1 implementation review = FAIL [MEDIUM] over a stale outer ctrl snapshot consumed by the SET_MODE preflight after lock acquisition; required edit was Codex's own option (b): scoped under-lock re-read of `CONTROL_FILE` inside the SET_MODE branch
+  - [x] Revision applied: scoped `CONTROL_FILE` re-read at `dashboard.js:12142-12157` after lock acquisition; the outer pre-lock `ctrl` snapshot at `dashboard.js:12092-12109` is intentionally retained for non-SET_MODE `requiresConfirm` logic and was NOT moved
+  - [x] Codex round-2 implementation review = **PASS, safe to commit.** All 34 sub-items PASS: required fix verified (outer pre-lock retained, SET_MODE re-reads under lock, ctrl.killed and writeFileSync use locked snapshot); MANUAL_LIVE_COMMANDS exact-set verified; both gates fail-closed; acquireTransitionLock synchronous; no Kraken / fetchKrakenBalance / position.json / DB-write / helper / emergency_audit_log / Migration 008 / SL-TP / breakeven / trailing-stop / `/api/run-bot` lock changes; paper-mode behavior unchanged; only `dashboard.js` changed; snap remained untracked.
+  - [x] `node --check dashboard.js` PASS
+  - [x] D-5.12b committed (`24246d8`) — `dashboard.js` only (76 insertions, 6 deletions); `bot.js`, `db.js`, `migrations/`, and `scripts/` untouched; `position.json.snap.20260502T020154Z` remained untracked
+  - [x] HARD BLOCK on `dashboard.js` reinstated after D-5.12b commit (the lift was scoped to D-5.12b only)
+  - [x] **Out of scope for D-5.12b (deferred to later sub-phases):** DB persistence, helper wrappers (`shadowRecordManualLive*`), `emergency_audit_log` table, Migration 008, Kraken execution path changes, SL/TP/breakeven/trailing-stop logic changes, live rehydrate enable, smoke harness — all D-5.12c through D-5.12h
 
 ## Active phase
 
-- [~] **Phase D-5.12b — manual live gating implementation (deferred — awaiting scoped lift).** No active code work. Implements `MANUAL_LIVE_ARMED` env-var two-layer check at `/api/trade` POST entry AND inside `handleTradeCommand` (Layer 2 at `dashboard.js:1434-1439`). Adds `/api/control` transition-lock (process-local mutex, lock-acquired-before-read). Implementation cannot proceed until: scoped `dashboard.js` HARD BLOCK lift, Codex design review of the D-5.12b implementation diff, and explicit operator authorization.
+- [~] **Phase D-5.12c — live helper wrappers + Migration 008 (`emergency_audit_log`) + `db.js` emergency-audit insert helper (deferred — awaiting scoped lifts).** No active code work. Implements live-mode `shadowRecordManualLive*` wrappers in `dashboard.js`, creates Migration 008 (`emergency_audit_log` table with `event_id UNIQUE` canonical SHA-256 recipe, `mode CHECK ('paper','live')`, `retry_history` jsonb append, four triage indexes), and adds the `db.js` emergency-audit insert helper. Implementation cannot proceed until: scoped `dashboard.js` + `db.js` + `migrations/` HARD BLOCK lifts, Codex design review of the D-5.12c diff, and explicit operator authorization.
 
 ## Full Phase C track — closed
 
@@ -159,10 +172,6 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 
 ## Future phases
 
-- [ ] Phase D-5.12b — Manual live gating (`MANUAL_LIVE_ARMED` two-layer check + `/api/control` transition-lock)
-  - dashboard.js-only. Scoped `dashboard.js` HARD BLOCK lift required.
-  - Codex design review + Codex implementation review + operator authorization required before commit.
-  - Carry-forward LOW concern: process-local lock check/set must be synchronous within Node event loop (Codex v4 note 9.f). Verify no async yield between check and set.
 - [ ] Phase D-5.12c — Live helper wrappers (`shadowRecordManualLive*`) + Migration 008 (`emergency_audit_log`) + `db.js` emergency-audit insert helper
   - dashboard.js + db.js + migrations/. Three scoped lifts.
   - Migration 008 must be applied to production AS PART OF D-5.12c (mirror of B.2a migration 007 cadence).
@@ -203,7 +212,7 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 |---|---|---|
 | `db.js` modifications | Operator approval | Closed (post-C.1; lift was scoped) |
 | `migrations/` modifications | Operator approval | Closed (post-B.2a; lift was scoped) |
-| `dashboard.js` modifications | Operator approval | Closed (post-C.2; lift was scoped) |
+| `dashboard.js` modifications | Operator approval | Closed (post-D-5.12b; lift was scoped) |
 | `bot.js` modifications | Operator approval | Closed (post-B.2c-bot-preserve-TP; lift was scoped) |
 | `scripts/recovery-inspect.js` modifications | Operator approval | Closed (post-C.3; lift was scoped) |
 | `scripts/smoke-test-live-writes.js` modifications | Operator approval | Closed (post-smoke-test-cleanup; lift was scoped) |
