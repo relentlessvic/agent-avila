@@ -1504,14 +1504,20 @@ function manageActiveTrade(position, price) {
 
   if (updated) {
     savePosition(position);
-    // Phase D-5.10.5.3 — dual-write SL/TP changes to Postgres so the DB
-    // stays in lock-step with JSON across container restarts. Fire-and-
-    // forget; failure logs and JSON remains authoritative.
+    // Phase D-5.10.5.3 — dual-write SL changes to Postgres so the DB stays
+    // in lock-step with JSON across container restarts. Fire-and-forget;
+    // failure logs and JSON remains authoritative.
+    //
+    // Phase B.2c-bot-preserve-TP — payload narrowed to stop_loss only.
+    // manageActiveTrade mutates position.stopLoss only (breakeven + trail);
+    // it never modifies position.takeProfit. Writing the in-memory
+    // take_profit back here would clobber a manual dashboard TP edit
+    // landed between this cycle's loadPosition and this dual-write, which
+    // is the race that gates Phase B.2d-dashboard-TP.
     if (dbAvailable() && position.orderId) {
       const mode = _modeFromConfig();
       const p = dbUpdatePositionRiskLevels(mode, position.orderId, {
-        stop_loss:   position.stopLoss,
-        take_profit: position.takeProfit,
+        stop_loss: position.stopLoss,
       }).catch((e) => {
         console.warn(`[d-5.10.5.3 dual-write] manage-update DB write failed: ${e.message}`);
       });
