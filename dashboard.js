@@ -582,13 +582,15 @@ function _dbTradeEventToLegacyShape(r) {
   // event_type → legacy 'type' field that consumers / UI render against
   let type = null;
   switch (r.event_type) {
-    case "buy_filled":     type = "BUY"; break;
-    case "manual_buy":     type = "MANUAL_BUY"; break;
-    case "reentry_buy":    type = "BUY_REENTRY"; break;
+    case "buy_filled":       type = "BUY"; break;
+    case "manual_buy":       type = "MANUAL_BUY"; break;
+    case "reentry_buy":      type = "BUY_REENTRY"; break;
     case "exit_filled":
     case "manual_close":
-    case "reentry_close":  type = "EXIT"; break;
-    default:               type = String(r.event_type).toUpperCase();
+    case "reentry_close":    type = "EXIT"; break;
+    case "manual_sl_update": type = "SL_UPDATE"; break;
+    case "manual_tp_update": type = "TP_UPDATE"; break;
+    default:                 type = String(r.event_type).toUpperCase();
   }
   // exit_reason: derive from event_type + metadata
   let exitReason = null;
@@ -599,6 +601,15 @@ function _dbTradeEventToLegacyShape(r) {
       exitReason = r.metadata.original_exit_reason;
     }
   }
+  // Phase C.2 — explicit metadata-backed fields for the Recent Risk Edits
+  // panel. Populated only on SL_UPDATE / TP_UPDATE rows; null for all
+  // other event types. Existing consumers don't read these fields, so the
+  // shape extension is purely additive.
+  const md = (r.metadata && typeof r.metadata === "object") ? r.metadata : null;
+  const oldStopLoss   = md && md.old_stop_loss   != null ? parseFloat(md.old_stop_loss)   : null;
+  const newStopLoss   = md && md.new_stop_loss   != null ? parseFloat(md.new_stop_loss)   : null;
+  const oldTakeProfit = md && md.old_take_profit != null ? parseFloat(md.old_take_profit) : null;
+  const newTakeProfit = md && md.new_take_profit != null ? parseFloat(md.new_take_profit) : null;
   const ts = r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp);
   return {
     type,
@@ -616,6 +627,10 @@ function _dbTradeEventToLegacyShape(r) {
     signalScore:  r.signal_score,
     decisionLog:  r.decision_log,
     entryPrice:   r.pos_entry_price != null ? parseFloat(r.pos_entry_price) : null,
+    oldStopLoss,
+    newStopLoss,
+    oldTakeProfit,
+    newTakeProfit,
     // metadata flags useful for UI follow-ups (not currently rendered)
     _imported:    !!(r.metadata && r.metadata.imported_from),
   };
@@ -9527,6 +9542,10 @@ function dashboardV2HTML(initial) {
      narrow viewports rather than wrapping. */
   .perf-trades-card { padding:14px 18px; margin-top:14px; }
   .perf-trades-card .card-title { margin-bottom:10px; }
+  /* Phase C.2 — Recent Risk Edits panel. Mirrors perf-trades-card layout
+     so SL/TP audit rows render with the same visual weight as exits. */
+  .perf-risk-edits-card { padding:14px 18px; margin-top:14px; }
+  .perf-risk-edits-card .card-title { margin-bottom:6px; }
   .perf-trades-table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
   .perf-trades-table th {
     text-align:left; padding:8px 8px;
@@ -9849,6 +9868,16 @@ function dashboardV2HTML(initial) {
     <div class="card perf-trades-card">
       <div class="card-title">📜 Recent Trades — bot-recorded P&amp;L</div>
       <div id="pf-trades-body"><div class="card-empty">Loading…</div></div>
+    </div>
+
+    <!-- Phase C.2 — Recent Risk Edits panel. Renders manual_sl_update /
+         manual_tp_update audit rows from /api/paper-summary or
+         /api/live-summary recentTrades (admitted by C.1's expanded
+         loadRecentTradeEvents WHERE clause). Audit-only — no P&L impact. -->
+    <div class="card perf-risk-edits-card">
+      <div class="card-title">🛡️ Recent Risk Edits — manual SL/TP updates</div>
+      <div class="card-sublabel">Operator-driven manual stop-loss / take-profit changes. Audit-only — not P&amp;L. Most recent 30 rows shared with trade history — high-frequency SL/TP edits may reduce visible trade history rows.</div>
+      <div id="pf-risk-edits-body"><div class="card-empty">Loading…</div></div>
     </div>
 
     <!-- Phase D-1-e-3 — Condition Pass Rates + 10-cycle heatmap. Reads
@@ -10500,6 +10529,9 @@ function renderPerformanceLoading() {
   }
   const tbody = document.getElementById("pf-trades-body");
   if (tbody) tbody.innerHTML = '<div class="card-empty">Loading…</div>';
+  // Phase C.2 — Recent Risk Edits panel loading state.
+  const rbody = document.getElementById("pf-risk-edits-body");
+  if (rbody) rbody.innerHTML = '<div class="card-empty">Loading…</div>';
   // Phase D-1-e-3 — only show "Loading…" if we don't already have parseable
   // cycle data cached. The conditions card is mode-blind, so a segment
   // switch shouldn't flicker it back to a loading state.
@@ -10644,6 +10676,51 @@ function renderPerfTrades() {
       '<td class="col-pct ' + pctClass + '">' + pctStr + '</td>' +
       '<td class="col-usd ' + usdClass + '">' + usdStr + '</td>' +
       '<td class="col-reason">' + btEsc(e.exitReason || "—") + '</td>' +
+      '</tr>';
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+// Phase C.2 — Recent Risk Edits panel. Pure render: filters
+// recentTrades (already mode-scoped via /api/paper-summary or
+// /api/live-summary, admitted by C.1's expanded loadRecentTradeEvents
+// WHERE clause) to SL_UPDATE / TP_UPDATE rows and surfaces the
+// metadata-driven Old → New values. Audit-only — does not affect
+// fired counter / win-loss / P&L aggregates (those are allowlist-based
+// and exclude SL/TP audit rows by design). Order ID is operator-input
+// and must be escaped via btEsc().
+function renderPerfRiskEdits() {
+  const body = document.getElementById("pf-risk-edits-body");
+  if (!body) return;
+  const data = _perfCache[_perfMode];
+  if (!data) { body.innerHTML = '<div class="card-empty">Loading…</div>'; return; }
+  const edits = (data.recentTrades || []).filter(t =>
+    t && (t.type === "SL_UPDATE" || t.type === "TP_UPDATE"));
+  if (edits.length === 0) {
+    body.innerHTML = '<div class="card-empty">No recent SL/TP edits yet.</div>';
+    return;
+  }
+  let html = '<table class="perf-trades-table"><thead><tr>' +
+    '<th class="col-time">Time</th>' +
+    '<th>Type</th>' +
+    '<th>Old</th>' +
+    '<th>New</th>' +
+    '<th>Order ID</th>' +
+    '</tr></thead><tbody>';
+  for (const e of edits) {
+    const isSL = e.type === "SL_UPDATE";
+    const oldVal = isSL ? e.oldStopLoss   : e.oldTakeProfit;
+    const newVal = isSL ? e.newStopLoss   : e.newTakeProfit;
+    const oldStr = Number.isFinite(oldVal) ? "$" + oldVal.toFixed(4) : "—";
+    const newStr = Number.isFinite(newVal) ? "$" + newVal.toFixed(4) : "—";
+    const label  = isSL ? "SL update" : "TP update";
+    html += '<tr>' +
+      '<td class="col-time">' + btEsc(timeAgo(e.timestamp)) + '</td>' +
+      '<td>' + label + '</td>' +
+      '<td>' + oldStr + '</td>' +
+      '<td>' + newStr + '</td>' +
+      '<td>' + btEsc(e.orderId || "—") + '</td>' +
       '</tr>';
   }
   html += '</tbody></table>';
@@ -10948,6 +11025,11 @@ function renderPerformance() {
 
   // Phase D-1-e-2 — Recent Trades table for the selected mode.
   renderPerfTrades();
+
+  // Phase C.2 — Recent Risk Edits panel for the selected mode (manual
+  // SL/TP audit rows; segregated from the lifecycle-only Recent Trades
+  // table above).
+  renderPerfRiskEdits();
 
   // Phase D-1-e-3 — Condition Pass Rates card. Mode-blind (cycle-level), so
   // the segment switch redraws the same data — no flicker, no mode mixing.
