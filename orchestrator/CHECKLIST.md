@@ -131,10 +131,20 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
   - [x] Codex implementation review = PASS with notes (four wording sites match the approved design verbatim; three LOW-severity informational notes — none blocking)
   - [x] Committed (`735b10f`) — `scripts/smoke-test-live-writes.js` only; `dashboard.js`, `bot.js`, `db.js`, `migrations/`, `scripts/recovery-inspect.js`, and all other `scripts/` files untouched; `position.json.snap.20260502T020154Z` remained untracked
   - [x] HARD BLOCK on `scripts/smoke-test-live-writes.js` reinstated after commit (the lift was scoped to this phase only)
+- [x] **Phase D-5.12a — design-only live persistence gate lift review (4-iteration design refinement)**
+  - [x] Read-only audit identified the five live `dashboard.js` manual handlers (OPEN_LONG/BUY_MARKET, CLOSE_POSITION, SELL_ALL, SET_STOP_LOSS, SET_TAKE_PROFIT) and their JSON-only persistence; bot.js autonomous live writes are mode-aware via `_modeFromConfig()` and DO write to Postgres; the dual-truth gap is specifically dashboard-driven manual live actions.
+  - [x] v1 design report produced; Codex review = PASS-WITH-EDITS (5 HIGH/MEDIUM concerns: manual gating before DB wiring, P0-L3 `positions_one_open_per_mode_idx` race escalation, fail-loud DB-failure default, SELL_ALL split, helper-strategy decision; plus three hidden risks added: `/api/control` mode-switch race, `execKrakenOrder` retry semantics, recovery-inspect/reconciliation-shadow operator-playbook gaps)
+  - [x] v2 design report produced; Codex review = PASS-WITH-EDITS (4 required: emergency-audit double-fault fallback, MANUAL_LIVE_ARMED two-layer check, /api/control TOCTOU lock-before-read, D-5.12d-to-D-5.12h interim-state policy; plus 2 MEDIUM schema hardenings: event_id UNIQUE + mode CHECK)
+  - [x] v3 design report produced; Codex review = PASS-WITH-EDITS (5 required: canonical event_id recipe, staged-rollout all-handler smoke checklist, triple-fault stderr reconstruction contract, operator decision #8 added, D-5.12h smoke-harness scope clarified; plus 5 minor concerns folded in)
+  - [x] **v4 design report produced; Codex review = PASS WITH NOTES — design ready for operator decision gates.** All v3 required edits incorporated; all 5 minor concerns folded in; 9 LOW operational concerns flagged (none blocking).
+  - [x] Operator accepted all 8 design decision defaults (recorded in `STATUS.md` "Operator decision defaults — accepted for D-5.12" section).
+  - [x] D-5.12 sub-phase plan approved: D-5.12b (manual live gating) → D-5.12c (live helper wrappers + emergency_audit_log migration 008) → D-5.12d (live OPEN_LONG persistence) → D-5.12e (live CLOSE_POSITION persistence) → D-5.12f (live SELL_ALL persistence) → D-5.12g (live SL/TP persistence) → D-5.12h (live rehydrate + recovery scripts + smoke harness + rollback plan) → D-5.12i (closeout docs).
+  - [x] **No code, no commits, no migrations, no deploys, no edits to dashboard.js / bot.js / db.js / scripts/ / migrations/ during D-5.12a review.** All HARD BLOCK files remained blocked. Working tree clean except untracked `position.json.snap.20260502T020154Z`.
+  - [x] 9 LOW operational concerns from Codex v4 carried forward to downstream sub-phase docs (see `STATUS.md` "Codex v4 LOW operational notes" section): canonical event_id precision, retry_history growth/retention, all-handler smoke deploy-velocity, Railway stderr retention finite, process-local lock check/set must avoid async yield, D-5.12h testcontainer infrastructure scope, emergency audit latency budget, deploy warning is documentation-only, emergency rows retention/export format.
 
 ## Active phase
 
-- [~] **Phase D-5.12 — design-only live persistence gate lift review (deferred).** No active code work. D-5.12 is the only remaining write-side dual-truth surface in the system; live `dashboard.js` write paths (`OPEN_LONG` / `CLOSE_POSITION` / `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT`) still write `position.json` directly. D-5.12 design audit must confirm the live-mode wiring template against the B.2 paper-mode track and produce a phase plan (single phase or multi-phase split). Operator-led safety review required.
+- [~] **Phase D-5.12b — manual live gating implementation (deferred — awaiting scoped lift).** No active code work. Implements `MANUAL_LIVE_ARMED` env-var two-layer check at `/api/trade` POST entry AND inside `handleTradeCommand` (Layer 2 at `dashboard.js:1434-1439`). Adds `/api/control` transition-lock (process-local mutex, lock-acquired-before-read). Implementation cannot proceed until: scoped `dashboard.js` HARD BLOCK lift, Codex design review of the D-5.12b implementation diff, and explicit operator authorization.
 
 ## Full Phase C track — closed
 
@@ -149,17 +159,43 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 
 ## Future phases
 
-- [ ] Phase D-5.12 — Live persistence gate lift (live mode JSON → DB-authoritative for `dashboard.js` write paths)
-  - Required before live `OPEN_LONG` / `CLOSE_POSITION` / `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT` can be moved to DB-first
-  - Mirrors B.2 paper-mode track template, but for live mode
-  - Required: Codex design review + operator-led safety review + scoped HARD BLOCK lift(s) per audit findings + operator authorization
-  - May split into multiple sub-phases depending on findings (mirror of B.2 sub-phase split)
+- [ ] Phase D-5.12b — Manual live gating (`MANUAL_LIVE_ARMED` two-layer check + `/api/control` transition-lock)
+  - dashboard.js-only. Scoped `dashboard.js` HARD BLOCK lift required.
+  - Codex design review + Codex implementation review + operator authorization required before commit.
+  - Carry-forward LOW concern: process-local lock check/set must be synchronous within Node event loop (Codex v4 note 9.f). Verify no async yield between check and set.
+- [ ] Phase D-5.12c — Live helper wrappers (`shadowRecordManualLive*`) + Migration 008 (`emergency_audit_log`) + `db.js` emergency-audit insert helper
+  - dashboard.js + db.js + migrations/. Three scoped lifts.
+  - Migration 008 must be applied to production AS PART OF D-5.12c (mirror of B.2a migration 007 cadence).
+  - Carry-forward LOW concerns: canonical event_id precision (UTC ISO bucket math, kraken_order_id-as-string), retry_history growth/retention cap (Codex v4 notes 9.a / 9.b).
+- [ ] Phase D-5.12d — Live OPEN_LONG persistence with P0-L3 unique-violation recovery + P0-L4 fail-loud + P1-L4 retry-aware emergency audit
+  - dashboard.js-only. Scoped `dashboard.js` HARD BLOCK lift.
+  - DB + position.json compatibility write-through (interim-state invariant).
+  - Carry-forward HIGH discipline: every partial deploy must smoke-test ALL FIVE live manual handlers, not just OPEN_LONG.
+- [ ] Phase D-5.12e — Live CLOSE_POSITION persistence (loadOpenPosition("live") DB-first; close P1-L1 stale-source pattern)
+  - dashboard.js-only. Scoped lift. All-handler smoke required at deploy.
+- [ ] Phase D-5.12f — Live SELL_ALL persistence as its own sub-phase (close one known bot position only; abort if Kraken balance > qty; LOG_FILE write added to close P0-L2 audit gap)
+  - dashboard.js-only. Scoped lift. All-handler smoke required.
+  - "Sell all holdings" remains a separately armed future action, not D-5.12f.
+- [ ] Phase D-5.12g — Live SET_STOP_LOSS + SET_TAKE_PROFIT persistence (mirror of B.2b-SL / B.2d; B.2c-bot-preserve-TP fix is mode-agnostic and applies to live)
+  - dashboard.js-only. Scoped lift. All-handler smoke required.
+- [ ] Phase D-5.12h — Live rehydrate enable + recovery scripts + smoke harness + rollback plan
+  - May require bot.js scoped lift if `_rehydratePositionJson` mode guard at `bot.js:1322` is widened to live.
+  - Update `scripts/reconciliation-shadow.js:228-232` to allow live `--persist`.
+  - Update `scripts/recovery-inspect.js` if needed for new emergency_audit_log read.
+  - **NEW deliverable:** `scripts/smoke-test-live-dashboard-flow.js` end-to-end harness covering handleTradeCommand flow, MANUAL_LIVE_ARMED gate, transition-lock, emergency-audit/double-fault/triple-fault paths, DB+JSON cache, LOG_FILE/stderr fallbacks, mocked Kraken responses.
+  - Carry-forward LOW concerns: Railway stderr retention finite (operator playbook), testcontainer infrastructure (D-5.12h scope), emergency audit latency budget (operator playbook) (Codex v4 notes 9.d / 9.g / 9.h).
+- [ ] Phase D-5.12i — Closeout documentation sync (`STATUS.md`, `CHECKLIST.md`, `NEXT-ACTION.md`, `FIX-PLAN.md`, `AUTOPILOT-RULES.md:49`)
+  - Document operator playbook for emergency_audit_log triage; document acceptable emergency-audit-insert latency range; document pre-rollback export format for emergency rows; document deploy-warning enforcement-via-CI as future hardening (D-5.13 candidate).
+- [ ] Phase D-5.13 (post-D-5.12) — DB-backed `MANUAL_LIVE_ARMED` immediate-disarm + CI deploy-warning enforcement
+  - Promote env-var-only MANUAL_LIVE_ARMED to DB-backed for sub-second incident-response disarm (Codex v4 note 9 carryover; operator decision #8 deferred).
+  - Add CI/tooling enforcement of the all-handler smoke checklist (Codex v4 note 9.i carryover).
 - [ ] Phase O-5 — Bug Audit System
 - [ ] Phase O-6 — Security Audit System
 - [ ] Phase O-7 — Drift Forensics resumption (Phase 2.5 reactivation; reconciliation persist now schema-unblocked after migration 006 applied)
 - [ ] Phase O-8 — Performance & Reliability Upgrades
 - [ ] Future reliability item — DB statement timeout via Postgres-side cancellation (`statement_timeout` / `pg_cancel_backend`); not JS-side `Promise.race`
-- [ ] Future reliability item — fix latent CLOSE_POSITION live-side stale-source pattern (deferred to D-5.12 since live is JSON-authoritative)
+- [ ] Future reliability item — fix latent CLOSE_POSITION live-side stale-source pattern (closed by D-5.12e)
+- [ ] Future scaling item — Postgres advisory lock for `/api/control` transition-lock IF Railway dashboard ever scales to multi-replica (Codex v4 note 9 / decision #7 carryover)
 
 ## High-risk approval gates
 
@@ -173,7 +209,12 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 | `scripts/smoke-test-live-writes.js` modifications | Operator approval | Closed (post-smoke-test-cleanup; lift was scoped) |
 | Other `scripts/` modifications | Operator approval | Closed (per-file scoped lift required) |
 | Live mode write-path changes | Operator approval + Phase D-5.12 | Closed |
-| Phase D-5.12 implementation | Codex design review + operator-led safety review + scoped HARD BLOCK lift(s) + operator authorization | Closed |
+| Phase D-5.12a design | Codex 4-iteration design refinement + operator-led safety review + 8 operator decisions accepted | **Closed (v4 PASS WITH NOTES); operator decisions accepted; ready for D-5.12b** |
+| Phase D-5.12b implementation (manual live gating) | Scoped `dashboard.js` lift + Codex implementation review + operator authorization | Closed |
+| Phase D-5.12c implementation (helpers + migration 008) | Scoped `dashboard.js` + `db.js` + `migrations/` lifts + Codex implementation review + operator authorization | Closed |
+| Phase D-5.12d through D-5.12g implementation (per-handler live persistence) | Scoped `dashboard.js` lift per sub-phase + all-five-handler smoke per partial deploy + Codex implementation review + operator authorization | Closed |
+| Phase D-5.12h implementation (rehydrate + harness + rollback) | Scoped `bot.js` (potentially) + `scripts/` lifts + Codex implementation review + operator authorization | Closed |
+| Phase D-5.12i closeout docs | orchestrator/* updates only | Closed |
 | Force push / `git reset --hard` / rebase | Explicit operator command | Closed |
 | Deployment to Railway | Explicit operator command | Closed |
 | Adding new `event_type` values beyond the current 10 | Migration + operator approval | Closed |
