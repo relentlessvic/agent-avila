@@ -26,6 +26,7 @@ import {
   insertTradeEvent,
   upsertPositionOpen,
   closePosition,
+  updatePositionRiskLevelsTx,
   loadRecentTradeEvents,
   loadOpenPosition,
   loadClosedPositions,
@@ -358,6 +359,26 @@ function syncBotControlToDb(ctrl) {
 // persisted" so the operator is informed. No JSON fallback (Railway is
 // ephemeral; per D-5.8 policy at lines ~423–435, silent JSON fallback
 // would lie).
+//
+// Phase B.2b — paper SET_STOP_LOSS DB-first update only. The paper
+// branch routes through shadowRecordManualPaperSLUpdate, which calls
+// updatePositionRiskLevelsTx + insertTradeEvent atomically inside an
+// inTransaction block. Migration 007 must be applied or trade_events
+// CHECK rejects manual_sl_update audit inserts.
+//
+// Bot trailing stop ratchets SL upward from DB-rehydrated paper state
+// (only tightens, never loosens). Manual SL tightening is therefore
+// preserved by the next bot cycle. Manual SL loosening may be reverted
+// by the bot trailing safety floor. Live SL behavior is unchanged
+// until D-5.12.
+//
+// Paper SET_TAKE_PROFIT is deferred to Phase B.2c. Reason: bot.js
+// trailing/breakeven can write stale take_profit back to DB after
+// rehydrate, silently overwriting a manual dashboard TP edit. TP needs
+// a separate conflict-policy design (last-writer-wins vs. manual-
+// overrides-bot vs. mutual-exclusion) and Codex review before paper TP
+// can move to DB-first. Until B.2c lands, the paper SET_TAKE_PROFIT
+// handler keeps its pre-B.2b position.json behavior.
 
 async function shadowRecordManualPaperBuy(entry, newPos) {
   if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
@@ -445,6 +466,50 @@ async function shadowRecordManualPaperClose(exitEntry) {
     return { ok: true };
   } catch (e) {
     log.warn("d-5.7.1 dual-write", `manual CLOSE DB write failed: ${e.message}`);
+    return { ok: false, reason: "db_error", error: e };
+  }
+}
+
+async function shadowRecordManualPaperSLUpdate(dbPos, newSL) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!dbPos || !dbPos.kraken_order_id) return { ok: false, reason: "validation_failed" };
+  let raceDetected = false;
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await updatePositionRiskLevelsTx(client, "paper", dbPos.kraken_order_id, {
+        stop_loss: newSL,
+      });
+      if (!positionId) {
+        // No open row matched — bot.js or another process closed it first.
+        // Skip insertTradeEvent to avoid an orphan manual_sl_update event.
+        raceDetected = true;
+        return;
+      }
+      const seed = `${dbPos.kraken_order_id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+      await insertTradeEvent(client, {
+        event_id: buildEventId(seed, "manual_sl_update"),
+        timestamp: new Date().toISOString(),
+        mode: "paper",
+        event_type: "manual_sl_update",
+        symbol: dbPos.symbol,
+        position_id: positionId,
+        price: null,
+        quantity: null,
+        usd_amount: null,
+        leverage: null,
+        kraken_order_id: dbPos.kraken_order_id,
+        decision_log: null,
+        metadata: {
+          source: "manual_sl_update",
+          old_stop_loss: dbPos.stop_loss != null ? parseFloat(dbPos.stop_loss) : null,
+          new_stop_loss: newSL,
+        },
+      });
+    });
+    if (raceDetected) return { ok: false, reason: "no_open_position" };
+    return { ok: true };
+  } catch (e) {
+    log.warn("d-5.7.1 dual-write", `manual SL DB write failed: ${e.message}`);
     return { ok: false, reason: "db_error", error: e };
   }
 }
@@ -1448,6 +1513,23 @@ async function handleTradeCommand(command, params = {}) {
   }
 
   if (command === "SET_STOP_LOSS") {
+    if (isPaper) {
+      // Phase B.2b — DB-canonical paper SL update. Bot trailing ratchets
+      // SL upward (only tightens); manual tightening is preserved, manual
+      // loosening may be reverted by the bot trailing safety floor.
+      const dbPos = await loadOpenPosition("paper");
+      if (!dbPos) throw new Error("No open paper position to update");
+      const pct = parseFloat(params.pct || 1.25);
+      const entryPrice = parseFloat(dbPos.entry_price);
+      const newSL = entryPrice * (1 - pct / 100);
+      const r = await shadowRecordManualPaperSLUpdate(dbPos, newSL);
+      if (!r.ok) {
+        log.warn("d-5.7.1 dual-write", `manual SL caller: ${r.reason}`);
+        throw new Error(`Manual paper SL update not recorded in DB (${r.reason}). Stop loss NOT updated.`);
+      }
+      return { ok: true, message: `Stop loss updated to $${newSL.toFixed(4)} (-${pct}% from entry $${entryPrice.toFixed(4)})` };
+    }
+    // Live path: byte-identical to today (writes position.json directly).
     if (!pos.open) throw new Error("No open position — open a trade first");
     const pct    = parseFloat(params.pct || 1.25);
     pos.stopLoss = pos.entryPrice * (1 - pct / 100);
