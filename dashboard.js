@@ -1893,9 +1893,149 @@ async function handleTradeCommand(command, params = {}) {
         log.warn("d-5.7.1 dual-write", `manual BUY LOG_FILE write failed (DB committed): ${e.message}`);
       }
     } else {
-      writeFileSync(POSITION_FILE, JSON.stringify(newPos, null, 2));
-      tradeLog.trades.push(entry);
-      writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+      // Phase D-5.12d — DB-first live persistence with fail-loud caller-driven
+      // failure ladder. Kraken has already accepted the order at this point
+      // (execKrakenOrder above resolved with orderId); a DB persist failure
+      // is a "post-Kraken" incident — real money has moved but the row is
+      // missing. Caller decides Layer 2 / 3 / 4 because only the caller
+      // knows Kraken executed. Helper returns { ok, reason, error?,
+      // errorClass?, emergency_context? } and never invokes
+      // _emergencyAuditWrite itself (per accepted v2 design).
+      //
+      // No JSON fallback to position.json at any layer (operator decision
+      // #2). position.json is written ONLY after DB success. On DB failure
+      // it is left untouched — the operator MUST reconstruct manually
+      // from emergency_audit_log (Layer 2) or LOG_FILE (Layer 3) or
+      // stderr triple-fault (Layer 4). LOG_FILE/stderr are local audit
+      // reconstruction surfaces, NOT authoritative state — the no-JSON-
+      // fallback rule applies to position.json only.
+      //
+      // Migration 008 (emergency_audit_log) is a HARD prerequisite for
+      // production deploy. Until applied, _emergencyAuditWrite will fall
+      // through to _loglineFallback automatically.
+      const r = await shadowRecordManualLiveBuy(entry, newPos);
+      if (r.ok) {
+        // DB committed; position.json compatibility cache mirrors the row.
+        writeFileSync(POSITION_FILE, JSON.stringify(newPos, null, 2));
+        // LOG_FILE is best-effort local audit. Postgres is truth.
+        try {
+          tradeLog.trades.push(entry);
+          writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+        } catch (e) {
+          log.warn("d-5.12d live-buy", `LOG_FILE write failed (DB+JSON committed): ${e.message}`);
+        }
+        balanceCache = null;
+      } else {
+        // Layer 1 returned !ok. Kraken executed (we are past
+        // execKrakenOrder), so a DB-error reason routes through the
+        // failure ladder. db_unavailable / validation_failed are
+        // pre-Kraken-impossible here (helper is invoked AFTER Kraken
+        // accepts), but defensively handle by routing the same way:
+        // any non-ok return after Kraken executed is a post-Kraken
+        // incident.
+        const failure_class =
+          r.errorClass === "unique_violation_one_open_per_mode"
+            ? "kraken_post_success_db_unique_violation"
+            : "kraken_post_success_db_other_error";
+        // Codex-required edit: the helper's early returns
+        // (db_unavailable / validation_failed) do NOT populate
+        // emergency_context. In those cases we lose reconstruction
+        // context exactly when audit recovery is most critical, since
+        // Kraken has already executed. Compute a fallback redacted
+        // payload locally from newPos using the same field shape the
+        // helper produces internally — this keeps canonicalization
+        // byte-stable across helper-driven and call-site-driven
+        // failure cases. When the helper DID populate emergency_context
+        // (db_error / unique-violation paths), prefer that.
+        let attempted_payload, attempted_payload_hash;
+        if (r.emergency_context && r.emergency_context.attempted_payload) {
+          attempted_payload = r.emergency_context.attempted_payload;
+          attempted_payload_hash = r.emergency_context.attempted_payload_hash ?? sha256HexCanonical(attempted_payload);
+        } else {
+          attempted_payload = _redactAttemptedPayload({
+            symbol: newPos.symbol,
+            side: newPos.side ?? "long",
+            entry_price: newPos.entryPrice,
+            entry_time: newPos.entryTime,
+            quantity: newPos.quantity,
+            trade_size_usd: newPos.tradeSize,
+            leverage: newPos.leverage ?? 1,
+            effective_size_usd: newPos.effectiveSize ?? null,
+            stop_loss: newPos.stopLoss,
+            take_profit: newPos.takeProfit,
+            kraken_order_id: newPos.orderId,
+          });
+          attempted_payload_hash = sha256HexCanonical(attempted_payload);
+        }
+        const failureContext = {
+          mode: "live",
+          source: "manual_live_buy",
+          kraken_order_id: orderId,
+          failure_class,
+          error_message: r.error?.message ?? r.reason ?? null,
+          attempted_payload,
+        };
+        const auditResult = await _emergencyAuditWrite(failureContext);
+        if (auditResult.ok) {
+          if (failure_class === "kraken_post_success_db_unique_violation") {
+            log.error(
+              "d-5.12d live-buy P0-L3",
+              `Kraken executed (orderId=${orderId}) but positions_one_open_per_mode_idx blocked the DB insert. ` +
+              `Operator must reconcile: which Kraken order is canonical, close the stale one, decide whether to ` +
+              `import via emergency_audit_log.event_id=${auditResult.event_id}.`
+            );
+          } else {
+            log.error(
+              "d-5.12d live-buy",
+              `Kraken executed (orderId=${orderId}) but DB persist FAILED (${r.errorClass ?? "other"}). ` +
+              `Emergency audit row recorded (event_id=${auditResult.event_id}). ` +
+              `Operator: reconstruct position from emergency_audit_log.`
+            );
+          }
+        } else {
+          // Layer 2 also failed → Layer 3 LOG_FILE reconstruction line.
+          // Reuse the redacted attempted_payload + hash computed above
+          // (helper-provided when present, locally-redacted from newPos
+          // otherwise). No raw payload path enters _loglineFallback
+          // (per Codex v2 PASS-with-notes).
+          const line = JSON.stringify({
+            event_id: auditResult.event_id ?? null,
+            mode: "live",
+            source: "manual_live_buy",
+            kraken_order_id: orderId,
+            failure_class,
+            error_message: r.error?.message ?? r.reason ?? null,
+            attempted_payload,
+            attempted_payload_hash,
+            prior_failures: ["db_persistence_failed", "audit_insert_failed"],
+            ts: new Date().toISOString(),
+          });
+          _loglineFallback(line);
+          log.error(
+            "d-5.12d live-buy",
+            `Kraken executed (orderId=${orderId}) but DB persist + emergency audit BOTH failed. ` +
+            `Reconstruction line written to LOG_FILE (or stderr triple-fault).`
+          );
+        }
+        // No position.json write. No LOG_FILE success-row append. No
+        // Kraken cancellation. No auto-retry. Operator-visible pointer-
+        // only error message — does NOT include attempted_payload.
+        const auditPointer = auditResult.ok
+          ? `emergency audit row ${auditResult.event_id}`
+          : `emergency audit DEGRADED — see LOG_FILE`;
+        if (failure_class === "kraken_post_success_db_unique_violation") {
+          throw new Error(
+            `Live BUY: Kraken executed (orderId=${orderId}) but a live position is already open ` +
+            `in the database (positions_one_open_per_mode_idx). Manual operator reconciliation required. ` +
+            `${auditPointer}.`
+          );
+        } else {
+          throw new Error(
+            `Live BUY: Kraken executed (orderId=${orderId}) but DB persistence failed (${r.errorClass ?? r.reason ?? "db_error"}). ` +
+            `${auditPointer}. Position is NOT recorded in DB or position.json. Reconstruct manually.`
+          );
+        }
+      }
     }
     return { ok: true, message: `${isPaper ? "Paper" : "Live"} BUY — ${volume} XRP at $${price.toFixed(4)} | SL $${newPos.stopLoss.toFixed(4)} | TP $${newPos.takeProfit.toFixed(4)}`, price, orderId };
   }
