@@ -4,69 +4,66 @@ Single source of truth for what Claude should do next. Read this before doing an
 
 ## Right now
 
-**Phase C.1 is closed: source committed (`d0c8817`).** `db.js` `loadRecentTradeEvents` WHERE clause expanded from 6 to 8 event types — `manual_sl_update` and `manual_tp_update` are now admitted alongside the existing six lifecycle types. Comment block updated to cite Phase C.1. `db.js`-only; `dashboard.js` / `bot.js` / `migrations/` / `scripts/` untouched. Codex implementation review = PASS with notes (one LOW cosmetic class-name discrepancy in the C.1 design report — deferred to C.2 design verification).
+**Phase C.2 is closed: source committed (`2d10107`).** `dashboard.js` `_dbTradeEventToLegacyShape` switch extended with `manual_sl_update` → `SL_UPDATE` and `manual_tp_update` → `TP_UPDATE` cases plus four metadata-backed legacy-shape fields. New dedicated "Recent Risk Edits" panel added in the Performance tab with operator-friendly Time / Type / Old / New / Order ID columns; Order ID escaped via `btEsc()`; sublabel includes the required LIMIT 30 caveat verbatim. `dashboard.js`-only; `bot.js` / `db.js` / `migrations/` / `scripts/` untouched. Codex implementation review = PASS, all 41 checklist items PASS, no required edits.
 
-**Phase C audit produced a 3-sub-phase split:**
-- **C.1** (db.js read filter) — landed (`d0c8817`).
-- **C.2** (dashboard.js mapper + UI rendering) — design-only next.
-- **C.3** (`scripts/recovery-inspect.js` heuristic refinement) — design-only later.
+**The C.1 rough-rendering / visibility gap is now closed.** `manual_sl_update` and `manual_tp_update` audit rows are admitted by the C.1 read filter (`d0c8817`) and rendered via the C.2 dedicated panel (`2d10107`). The legacy-shape default branch is no longer the rendering path for these event types.
 
-**Intermediate rough-rendering window is now open.** Until C.2 lands, `manual_sl_update` and `manual_tp_update` rows can appear in the dashboard `recentTrades` payload and will render via `_dbTradeEventToLegacyShape`'s default branch — raw uppercase types ("MANUAL_SL_UPDATE" / "MANUAL_TP_UPDATE"), `—` placeholders for null numeric fields, and the latest-decision badge falling into the unknown-type class. Cosmetic only — `fired` counter is allowlist-based and unchanged; P&L aggregates exclude SL/TP audit rows; `loadOpenPosition` is unchanged; LIMIT 30 is preserved.
+**Phase C track status:**
+- **C.1** (db.js read filter) — landed (`d0c8817`, closeout `a967a12`).
+- **C.2** (dashboard.js mapper + UI rendering) — landed (`2d10107`).
+- **C.3** (`scripts/recovery-inspect.js` heuristic refinement) — design-only next.
 
 The next safe action is:
 
-> **Phase C.2 design-only dashboard rendering review. No code.**
+> **Phase C.3 design-only `scripts/recovery-inspect.js` heuristic cleanup. No code.**
 
-C.2 covers `dashboard.js` mapper / UI rendering for the new audit event types. Implementation cannot proceed yet; only design discussion / Codex design review is allowed at this stage.
+C.3 covers a small refinement to the null-FK trade_events heuristic so the operator playbook isn't burdened with false-positive "suspicious — review" tags for `manual_sl_update` / `manual_tp_update`. Implementation cannot proceed yet; only design discussion / Codex design review is allowed at this stage.
 
-## Phase C.2 — scope
+## Phase C.3 — scope
 
-- **`_dbTradeEventToLegacyShape` switch (`dashboard.js:584-591`).** Add cases for `manual_sl_update` / `manual_tp_update` so they map to friendly type labels (e.g., `SL_UPDATE` / `TP_UPDATE`) instead of falling through `default` as raw uppercase.
-- **`renderTradeTable` (`dashboard.js:6342-…`).** Render risk-level edits with appropriate placeholders for null `price` / `quantity` / `total`. Optionally surface the metadata-driven "old → new" values (`metadata.old_stop_loss` / `new_stop_loss` for SL, `metadata.old_take_profit` / `new_take_profit` for TP).
-- **Latest-decision badge logic (`dashboard.js:7299-7304`).** Update the `else if (t)` branch (or add a new branch) so SL/TP updates display with appropriate styling instead of the generic blocked-class fallback.
-- **Class-name verification.** C.2 design must verify the actual class names in use (`mode-paper` / `mode-live` / `mode-blocked` / `dec-buy` / `dec-exit` / `dec-blocked`) before proposing any new label or class. Codex flagged that the C.1 design report mentioned `dec_blocked`, but the real class observed in `dashboard.js` is `mode-blocked`. Do not invent class names; verify against the source first.
-- **Out of scope for C.2:** any change to `db.js` / `bot.js` / `migrations/` / `scripts/`. Any backend trade-event filtering or aggregation logic.
+- **`scripts/recovery-inspect.js:159`** — extend the existing `/_attempt$/` heuristic so `manual_sl_update` and `manual_tp_update` are also recognized as benign event types (audit-only, intentionally produce null FK only when the in-transaction race fires; B.2b-SL / B.2d wrappers skip `insertTradeEvent` on `!positionId`, so the null-FK case is theoretical).
+- **Conservative-safe today.** The current behavior is "flag for review," not "fail." So C.3 is operator-playbook clarity, not correctness.
+- **Out of scope for C.3:** any change to `db.js` / `bot.js` / `migrations/` / `dashboard.js`. Any new heuristics beyond the audit-event recognition. Any change to the SELECT query at `scripts/recovery-inspect.js:146-150`.
 
-## Pre-C.2 acknowledgment — migration 006 side effect
+## Pre-C.3 acknowledgment — migration 006 side effect
 
-This carryover note from B.2 / C.1 still applies for any future reconciliation-related work but does NOT block C.2:
+This carryover note from B.2 / C.1 / C.2 still applies for any future reconciliation-related work but does NOT block C.3:
 
 - Migration 006 (`positions_reconciliation_metadata`) was applied 2026-05-02 as a side effect of running the migration runner for B.2a.
 - The runner applies all unapplied migrations sequentially; 006 had been on disk but unapplied (deliberate gate).
 - 006 is runtime-inert for `bot.js` / `dashboard.js` — no code reads or writes the new columns. Operator-driven `scripts/reconciliation-shadow.js --persist` is now schema-unblocked.
 - **Do not revert 006 without explicit safety review.** Reverting requires DROPping columns (destructive).
 
-## Phase C.2 prerequisites
+## Phase C.3 prerequisites
 
 | Prerequisite | Status |
 |---|---|
 | C.1 read filter landed | **Satisfied** (`d0c8817`, Phase C.1) |
-| C.2 design review with Codex | Not started |
-| Class-name verification against `dashboard.js` source | Not done (LOW carryover from C.1 review) |
-| Decision on friendly type labels (`SL_UPDATE` / `TP_UPDATE` vs alternatives) | Not decided |
-| Decision on whether to render `metadata.old_*` / `new_*` values inline | Not decided |
-| `dashboard.js` HARD BLOCK lift for C.2 (scoped) | Not given |
+| C.2 dashboard rendering landed | **Satisfied** (`2d10107`, Phase C.2) |
+| C.3 design review with Codex | Not started |
+| Decision on heuristic shape (allowlist vs regex extension vs explicit case) | Not decided |
+| `scripts/` HARD BLOCK lift for C.3 (scoped) | Not given |
 | Explicit operator authorization | Not given |
 
-Until **all** remaining prerequisites are satisfied, C.2 implementation cannot begin. C.2 design discussion is allowed and does not write any code.
+Until **all** remaining prerequisites are satisfied, C.3 implementation cannot begin. C.3 design discussion is allowed and does not write any code.
 
-## What C.1 did NOT do (still on the table for C.2)
+## What C.2 did NOT do (still on the table)
 
-- Did not add cases to `_dbTradeEventToLegacyShape` for the new event types (still falls through to `default` as raw uppercase).
-- Did not update `renderTradeTable` placeholders for null numeric fields on risk-level edits.
-- Did not update the latest-decision badge logic for SL/TP audit rows.
-- Did not touch `dashboard.js`, `bot.js`, `migrations/`, or `scripts/`.
+- Did not touch `scripts/recovery-inspect.js` — Phase C.3 territory.
+- Did not touch `scripts/smoke-test-live-writes.js` — separate LOW/cosmetic phase.
+- Did not touch `bot.js`, `db.js`, or `migrations/`.
+- Did not change live trading behavior or Kraken execution.
+- Did not modify the latest-decision badge, `renderTradeTable`, `fired` counter, P&L aggregates, or win-loss aggregates.
 
 ## Deferred follow-ups
 
-- **Phase C.3 — `scripts/recovery-inspect.js` heuristic refinement.** Update the null-FK trade_events heuristic at `scripts/recovery-inspect.js:159` to recognize `manual_sl_update` / `manual_tp_update` as benign event types. Lower priority than C.2; current behavior is conservative-safe (flags for review, doesn't fail).
-- **Smoke-test wording cleanup.** `scripts/smoke-test-live-writes.js:225–239` step label ("active management dual-write") and assertion message ("take_profit unchanged but rewritten") remain stale wording. Test logic still valid. LOW/cosmetic. Best run after the full Phase C track (C.2 + C.3) closes so the wording cleanup can also reflect any Phase C findings.
+- **Smoke-test wording cleanup.** `scripts/smoke-test-live-writes.js:225–239` step label ("active management dual-write") and assertion message ("take_profit unchanged but rewritten") remain stale wording. Test logic still valid. LOW/cosmetic. Best run after C.3 closes so the wording cleanup can reflect the full Phase C state.
 
 ## Alternative phases (operator may choose any)
 
-If C.2 is not the next priority, the operator can advance instead to:
+If C.3 is not the next priority, the operator can advance instead to:
 
-- Phase C.3 — `scripts/recovery-inspect.js` heuristic refinement (described above).
+- Smoke-test wording cleanup (described above).
 - Phase D-5.12 — Live persistence gate lift (the only remaining write-side dual-truth surface in the system; requires its own design audit and operator-led safety review).
 - Phase O-5 — Bug Audit System
 - Phase O-6 — Security Audit System
@@ -77,11 +74,11 @@ If C.2 is not the next priority, the operator can advance instead to:
 
 | Blocked action | Unblock requires |
 |---|---|
-| Phase C.2 implementation (dashboard.js mapper + UI rendering) | All C.2 prerequisites above (design review, class-name verification, label decisions, scoped `dashboard.js` lift, authorization) |
-| Phase C.3 implementation (`scripts/recovery-inspect.js` heuristic refinement) | Its own design review + scoped `scripts/` lift + operator authorization |
+| Phase C.3 implementation (`scripts/recovery-inspect.js` heuristic refinement) | All C.3 prerequisites above (design review, scoped `scripts/` lift, authorization) |
 | Phase D-5.12 implementation (live persistence gate lift) | Its own design review + safety audit + operator authorization |
 | Live mode write-path changes | Phase D-5.12 |
 | Editing `bot.js` / `db.js` / `migrations/` / `dashboard.js` | Explicit operator instruction (all prior scoped lifts expired post-commit) |
+| Editing `scripts/recovery-inspect.js` | Explicit operator instruction (Phase C.3 scoped lift required) |
 | Editing `scripts/smoke-test-live-writes.js` | Explicit operator instruction (deferred LOW/cosmetic phase) |
 | Touching Kraken execution / SL / TP / BE / trailing logic in bot.js | Explicit operator instruction |
 | Deploying or pushing to remote | Explicit operator instruction |
@@ -91,17 +88,17 @@ If C.2 is not the next priority, the operator can advance instead to:
 ## Working tree truth
 
 - All tracked source files clean apart from this closeout's pending doc edits.
-- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Remained untracked across the B.2b-SL (`511f94e`), B.2c-bot-preserve-TP (`cc6bd2e`), B.2d-dashboard-TP (`eca2659`), and C.1 (`d0c8817`) commits; explicitly excluded.
+- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Remained untracked across the B.2b-SL (`511f94e`), B.2c-bot-preserve-TP (`cc6bd2e`), B.2d-dashboard-TP (`eca2659`), C.1 (`d0c8817`), and C.2 (`2d10107`) commits; explicitly excluded.
 
 ## How to proceed
 
-For Phase C.2 design review: use `orchestrator/prompts/CODEX-REVIEW.md` as a template. Structure the review around the C.2 scope above; the design must include the class-name verification step (read the actual `dashboard.js` source for the badge / row CSS classes before proposing any new label or class). Do not write code, edit `dashboard.js`, or touch any HARD BLOCK file until the operator explicitly authorizes.
+For Phase C.3 design review: use `orchestrator/prompts/CODEX-REVIEW.md` as a template. Structure the review around the C.3 scope above; the design audit should confirm whether to extend the regex, add an explicit allowlist, or use a hybrid approach for recognizing `manual_sl_update` / `manual_tp_update` as benign. Do not write code, edit `scripts/`, or touch any HARD BLOCK file until the operator explicitly authorizes.
 
 For other phases: paste `orchestrator/prompts/CONTINUE-NEXT-SAFE-STEP.md` after first updating this file (`NEXT-ACTION.md`) to point at the new active phase.
 
 ## Closeout for this phase
 
-If C.2 advances, update:
+If C.3 advances, update:
 - `orchestrator/STATUS.md`
 - `orchestrator/CHECKLIST.md`
 - `orchestrator/NEXT-ACTION.md`

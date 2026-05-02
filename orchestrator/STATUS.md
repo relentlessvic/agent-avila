@@ -4,9 +4,9 @@ Last updated: 2026-05-02
 
 ## Current phase
 
-**Phase C.1 — closed (source committed `d0c8817`).** `db.js` `loadRecentTradeEvents` WHERE clause expanded to admit `manual_sl_update` and `manual_tp_update` audit rows alongside the existing six lifecycle event types. Comment block updated to cite Phase C.1 lineage. `db.js`-only; `dashboard.js` / `bot.js` / `migrations/` / `scripts/` untouched. Codex implementation review = PASS with notes (one LOW cosmetic note about a class-name reference in the C.1 design report, deferred to C.2 design verification). Phase C audit produced a 3-sub-phase split: **C.1 (db.js read filter, landed), C.2 (dashboard.js mapper + UI rendering, design-only next), C.3 (`scripts/recovery-inspect.js` heuristic refinement, design-only later)**.
+**Phase C.2 — closed (source committed `2d10107`).** `dashboard.js` `_dbTradeEventToLegacyShape` switch extended with `manual_sl_update` → `SL_UPDATE` and `manual_tp_update` → `TP_UPDATE` cases plus four metadata-backed fields (`oldStopLoss` / `newStopLoss` / `oldTakeProfit` / `newTakeProfit`); raw `metadata` not exposed. New dedicated "Recent Risk Edits" panel added in the Performance tab via `renderPerfRiskEdits()` (filtered to SL/TP audit rows; columns Time / Type / Old / New / Order ID; Order ID escaped via `btEsc()`; Time also `btEsc`-wrapped; empty state "No recent SL/TP edits yet."). Sublabel includes the required LIMIT 30 caveat verbatim. `dashboard.js`-only; `bot.js` / `db.js` / `migrations/` / `scripts/` untouched. Codex implementation review = PASS, all 41 checklist items PASS, no required edits.
 
-**Intermediate rough-rendering window is now open.** Until C.2 lands, `manual_sl_update` and `manual_tp_update` rows can appear in the dashboard's `recentTrades` payload and will render via `_dbTradeEventToLegacyShape`'s default branch — raw uppercase types ("MANUAL_SL_UPDATE" / "MANUAL_TP_UPDATE"), `—` placeholders for null numeric fields, and the latest-decision badge falling into the unknown-type class. The `fired` counter is unchanged (allowlist excludes the new types). LIMIT 30 is unchanged — heavy SL/TP-edit sessions could push lifecycle events out of the recent feed temporarily; bounded and reversible by C.2 work.
+**The C.1 rough-rendering / visibility gap is now closed.** SL/TP audit rows reach the dashboard via `loadRecentTradeEvents` (C.1) and now render through a dedicated panel (C.2) instead of falling through the legacy-shape default branch. Implementation reality differed from the C.1 design report's prediction: the main `/dashboard` `renderTradeTable` is CSV-fed (not affected by C.1) and the latest-decision badge is JSON-log-fed (also not affected). C.2 audit confirmed both surfaces did not need touching — the only DB-fed consumer of the expanded payload is the Performance tab, where the new "Recent Risk Edits" panel sits beside the existing P&L Recent Trades table.
 
 **Full B.2 paper-mode dual-truth track is functionally landed.** All paper-mode write paths are DB-canonical:
 - paper BUY DB-first (Phase A.2, `959fef7`)
@@ -21,6 +21,8 @@ Live-mode write paths remain `position.json`-only behind Phase D-5.12.
 
 | Phase | Commit | Description |
 |---|---|---|
+| Phase C.2 | `2d10107` | Phase C.2: render manual SL/TP risk edits in performance dashboard |
+| Phase C.1 closeout | `a967a12` | Phase C.1 closeout: update STATUS, CHECKLIST, NEXT-ACTION |
 | Phase C.1 | `d0c8817` | Phase C.1: include manual SL/TP audit events in recent trades |
 | Phase B.2d-dashboard-TP closeout | `1563310` | Phase B.2d-dashboard-TP closeout: update STATUS, CHECKLIST, NEXT-ACTION |
 | Phase B.2d-dashboard-TP | `eca2659` | Phase B.2d: make paper SET_TAKE_PROFIT DB-first |
@@ -43,7 +45,7 @@ Live-mode write paths remain `position.json`-only behind Phase D-5.12.
 ## Working tree state (truth)
 
 - All tracked source files clean apart from this closeout's pending doc edits.
-- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Remained untracked across the B.2b-SL (`511f94e`), B.2c-bot-preserve-TP (`cc6bd2e`), B.2d-dashboard-TP (`eca2659`), and C.1 (`d0c8817`) commits; explicitly excluded from all commits.
+- `position.json.snap.20260502T020154Z` — pre-existing untracked drift forensics snapshot. Remained untracked across the B.2b-SL (`511f94e`), B.2c-bot-preserve-TP (`cc6bd2e`), B.2d-dashboard-TP (`eca2659`), C.1 (`d0c8817`), and C.2 (`2d10107`) commits; explicitly excluded from all commits.
 - `scripts/smoke-test-live-writes.js:225–239` — wording is still stale ("active management dual-write" / "take_profit unchanged but rewritten") because `bot.js` no longer rewrites `take_profit` from manage-update. Test logic remains valid (it calls the helper directly, which still supports both fields). Cleanup tracked as LOW/cosmetic; best run after Phase C track closes so wording can also reflect any Phase C cleanup.
 
 ## Phase status summary
@@ -66,22 +68,20 @@ Live-mode write paths remain `position.json`-only behind Phase D-5.12.
 | Full B.2 paper-mode dual-truth track | **Functionally landed.** Paper BUY / CLOSE / SELL_ALL / SET_STOP_LOSS / SET_TAKE_PROFIT all DB-canonical. Live mode unchanged behind D-5.12. |
 | Phase C — audit | Codex audit produced 3-sub-phase split: C.1 (db.js read filter), C.2 (dashboard.js mapper + UI rendering), C.3 (`scripts/recovery-inspect.js` heuristic refinement) |
 | Phase C.1 — design | Codex APPROVE (smallest safe wedge — literal-only `WHERE … IN (…)` expansion; two LOW concerns: external monitoring dependencies cannot be fully ruled out from repo search, heavy SL/TP-edit sessions could transiently push lifecycle events past LIMIT 30) |
-| Phase C.1 — implementation | **Closed, committed `d0c8817` (Codex implementation review = PASS with notes; one LOW cosmetic class-name discrepancy in C.1 design report wording, deferred to C.2 design verification)** |
-| Phase C.2 — dashboard.js mapper + UI rendering | Deferred — design-review-only state. Will close the rough-rendering window opened by C.1. |
+| Phase C.1 — implementation | Closed, committed `d0c8817` (Codex implementation review = PASS with notes; one LOW cosmetic class-name discrepancy in C.1 design report wording, deferred to C.2 design verification) — closeout `a967a12` |
+| Phase C.2 — design | Codex APPROVE-WITH-REQUIRED-EDITS (Option B — dedicated "Recent Risk Edits" panel; required edits: MEDIUM "displayed window" caveat for shared LIMIT 30, LOW Order ID escaping via btEsc) |
+| Phase C.2 — implementation | **Closed, committed `2d10107` (Codex implementation review = PASS, all 41 checklist items PASS, no required edits; both required edits from design review confirmed present)** |
 | Phase C.3 — `scripts/recovery-inspect.js` heuristic refinement | Deferred — design-review-only state. Recognize `manual_sl_update` / `manual_tp_update` as benign event types. |
 
 ## Current allowed next action
 
-> **Phase C.2 design-only dashboard rendering review. No code.**
+> **Phase C.3 design-only `scripts/recovery-inspect.js` heuristic cleanup. No code.**
 
-C.2 covers `dashboard.js` mapper / UI rendering for `manual_sl_update` and `manual_tp_update` rows. Scope:
-- Add cases to `_dbTradeEventToLegacyShape` switch (`dashboard.js:584-591`) so the new event types map to a friendly type label instead of falling through the `default` branch as raw uppercase.
-- Update `renderTradeTable` (`dashboard.js:6342-…`) to render risk-level edits with appropriate placeholders for null price/quantity/total.
-- Update the latest-decision badge logic (`dashboard.js:7299-7304`). **C.2 design must verify the actual class names in use** — Codex flagged that the C.1 design report mentioned `dec_blocked`, but the real class observed in `dashboard.js` is `mode-blocked`. Confirm exact class names (`mode-paper` / `mode-live` / `mode-blocked` / `dec-buy` / `dec-exit` / `dec-blocked`) before proposing labels.
+C.3 covers a small refinement to `scripts/recovery-inspect.js:159` so the null-FK trade_events heuristic recognizes `manual_sl_update` / `manual_tp_update` as benign event types instead of tagging them "suspicious — review." Today the heuristic uses a `/_attempt$/` regex, which doesn't match the new event types — but the dashboard wrappers also skip `insertTradeEvent` on `!positionId`, so a null-FK row of these types should never appear in practice. The refinement is conservative-safe (current behavior is "flag for review," not "fail"); the cleanup is for operator-playbook clarity rather than correctness.
 
-C.2 cannot enter implementation until: Codex design review, explicit operator authorization, and a scoped `dashboard.js` HARD BLOCK lift.
+C.3 cannot enter implementation until: Codex design review, explicit operator authorization, and a scoped `scripts/` HARD BLOCK lift.
 
-The operator may also choose to advance C.3 ahead of C.2, advance an alternative phase (O-5 / O-6 / O-7 / O-8), or lift Phase D-5.12 (live persistence gate) — D-5.12 is the only remaining write-side dual-truth surface in the system.
+The operator may also choose to advance an alternative phase (O-5 / O-6 / O-7 / O-8) instead, lift Phase D-5.12 (live persistence gate — only remaining write-side dual-truth surface), or close out the smoke-test wording cleanup as a separate LOW/cosmetic phase.
 
 ## Side effect note — migration 006 applied
 
@@ -107,10 +107,9 @@ When applying migration 007 via `scripts/run-migrations.js`, the runner also app
 - Editing `bot.js` (HARD BLOCK reinstated post-B.2c-bot-preserve-TP; the lift was scoped to that phase only)
 - Editing `db.js` (HARD BLOCK reinstated post-C.1; the C.1 lift was scoped to that phase only)
 - Editing `migrations/` (HARD BLOCK reinstated post-B.2a; same scope)
-- Editing `dashboard.js` (HARD BLOCK reinstated post-B.2d-dashboard-TP; the B.2d lift was scoped to that phase only)
+- Editing `dashboard.js` (HARD BLOCK reinstated post-C.2; the C.2 lift was scoped to that phase only)
 - Editing `scripts/smoke-test-live-writes.js` (smoke-test wording cleanup remains a separate deferred LOW/cosmetic phase)
 - Editing `scripts/recovery-inspect.js` (Phase C.3 heuristic refinement — design-only review pending; lift required)
-- Phase C.2 implementation (design-only review allowed; implementation requires authorization + scoped `dashboard.js` lift)
 - Phase C.3 implementation (design-only review allowed; implementation requires authorization + scoped `scripts/` lift)
 - Touching live trading logic
 - Touching Kraken execution
@@ -121,8 +120,8 @@ When applying migration 007 via `scripts/run-migrations.js`, the runner also app
 
 ## Current risk level
 
-**LOW.** No uncommitted code. Full paper-mode write surface is DB-canonical: paper BUY (`959fef7`), CLOSE/SELL_ALL (`cb7facb`), SET_STOP_LOSS (`511f94e`), SET_TAKE_PROFIT (`eca2659`). Both `manual_sl_update` and `manual_tp_update` are now live event types with active dashboard-driven inserts AND active dashboard reads (C.1, `d0c8817`). `bot.js` `manageActiveTrade` no longer overwrites DB `take_profit` from in-memory state (`cc6bd2e`). Paper dashboard edits cannot be silently overwritten by bot rehydrate.
+**LOW.** No uncommitted code. Full paper-mode write surface is DB-canonical: paper BUY (`959fef7`), CLOSE/SELL_ALL (`cb7facb`), SET_STOP_LOSS (`511f94e`), SET_TAKE_PROFIT (`eca2659`). Both `manual_sl_update` and `manual_tp_update` are now live event types with active dashboard-driven inserts (B.2b-SL / B.2d), active dashboard reads (C.1, `d0c8817`), and active dashboard rendering via the dedicated "Recent Risk Edits" panel (C.2, `2d10107`). `bot.js` `manageActiveTrade` no longer overwrites DB `take_profit` from in-memory state (`cc6bd2e`). Paper dashboard edits cannot be silently overwritten by bot rehydrate.
 
-**Cosmetic-only intermediate state:** between C.1 and C.2, manual SL/TP audit rows render via the dashboard's default branch (raw uppercase types, "—" placeholders for null fields). Does not affect correctness of any audit, count, or P&L surface — `fired` counter is allowlist-based and unchanged; `pnl` aggregates filter to exit event types only and exclude SL/TP audit rows; `loadOpenPosition` is unchanged.
+**Visibility gap closed.** The C.1-to-C.2 rough-rendering window is closed. Manual SL/TP audit rows now display in the Performance tab on `/paper` and `/live` with operator-friendly labels and metadata-driven Old / New values. `fired` counter, P&L aggregates, win-loss aggregates, and `renderTradeTable` are all unchanged (allowlist / exit-only filtering preserves the existing semantics).
 
 **No remaining paper dual-truth surface.** The only remaining write-side dual-truth surface in the system is **live mode**: live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` paths still write `position.json` directly without a DB update. This is intentional and gated behind Phase D-5.12 (Live persistence gate lift). Until D-5.12 lifts, live mode remains JSON-authoritative by design.
