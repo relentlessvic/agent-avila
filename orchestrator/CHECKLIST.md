@@ -43,7 +43,7 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
   - [x] B.2b-SL Codex re-review = PASS, safe to commit
   - [x] B.2b-SL committed (`511f94e`) — `dashboard.js` only; `bot.js`, `db.js`, `migrations/` untouched; `position.json.snap.20260502T020154Z` remained untracked
   - [x] HARD BLOCK on `dashboard.js` reinstated after B.2b-SL commit (the lift was scoped to B.2b-SL only)
-- [x] **Phase B.2c-bot-preserve-TP — bot-side stale-TP overwrite fix in `bot.js` `manageActiveTrade` — commit `cc6bd2e`**
+- [x] **Phase B.2c-bot-preserve-TP — bot-side stale-TP overwrite fix in `bot.js` `manageActiveTrade` — commit `cc6bd2e`** (closeout `689dad4`)
   - [x] Design audit identified Option C (bot preserves DB `take_profit` when only updating SL) as the lowest-blast-radius conflict-resolution policy among five enumerated options (A=last-writer-wins, B=manual_tp_override flag, C=Option C, D=block-while-active, E=optimistic concurrency)
   - [x] B.2c-bot-preserve-TP design Codex-approved (PASS, lowest-complexity policy, `manageActiveTrade` provably never mutates `position.takeProfit`, `db.js` helper already supports partial updates)
   - [x] Implementation: payload at `bot.js:1519-1521` narrowed from `{ stop_loss, take_profit }` to `{ stop_loss }`. Comment block at `bot.js:1507-1516` documents the B.2c-bot-preserve-TP rationale and the B.2d gating relationship.
@@ -55,23 +55,45 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
   - [x] **LOW concern (deferred):** `scripts/smoke-test-live-writes.js:225–239` wording is now stale ("active management dual-write" / "take_profit unchanged but rewritten"). Test logic remains valid because the script calls the `db.js` helper directly with both fields, and the helper still supports both-field calls. Cleanup deferred as cosmetic.
   - [x] B.2c-bot-preserve-TP committed (`cc6bd2e`) — `bot.js` only; `dashboard.js`, `db.js`, `migrations/`, and `scripts/smoke-test-live-writes.js` untouched; `position.json.snap.20260502T020154Z` remained untracked
   - [x] HARD BLOCK on `bot.js` reinstated after B.2c-bot-preserve-TP commit (the lift was scoped to B.2c-bot-preserve-TP only)
+- [x] **Phase B.2d-dashboard-TP — Paper SET_TAKE_PROFIT DB-first caller integration in `dashboard.js` — commit `eca2659`**
+  - [x] B.2d design audit produced a mirror-of-B.2b-SL design: new `shadowRecordManualPaperTPUpdate` wrapper, atomic `manual_tp_update` audit insert, no JSON fallback, throws on `!ok`, idempotency seed using `Date.now()` + `crypto.randomBytes(4)`
+  - [x] B.2d design Codex-approved (PASS — bot-side prerequisite resolved by `cc6bd2e`, mirror fidelity to SL helper checked, residual TP write paths inventoried; one LOW concern about audit-row noise from repeated UI clicks, parity with SL helper)
+  - [x] Implementation: new `shadowRecordManualPaperTPUpdate(dbPos, newTP)` in `dashboard.js` placed immediately after the SL wrapper. Paper `SET_TAKE_PROFIT` handler wrapped with `if (isPaper) { … }` paper-DB-first branch using `loadOpenPosition("paper")` + DB `entry_price` + `shadowRecordManualPaperTPUpdate`. Caller throws on `!ok` with operator-visible "Manual paper TP update not recorded in DB ({reason}). Take profit NOT updated." No `position.json` or `LOG_FILE` write on the paper branch.
+  - [x] Live `SET_TAKE_PROFIT` byte-identical to pre-phase (existing `pos.open` guard, default pct 2.0, `pos.takeProfit` calc, `writeFileSync(POSITION_FILE, …)`, original success message)
+  - [x] Comment block at `dashboard.js:337–385` updated: B.2c TP-deferral wording removed, B.2d active TP behavior documented, `cc6bd2e` cited as the bot-side prerequisite, migration 007 / `manual_tp_update` prerequisite mentioned, D-5.12 live-gate language preserved
+  - [x] `node --check dashboard.js` PASS
+  - [x] B.2d Codex implementation review = PASS, safe to commit, no required edits
+  - [x] B.2d committed (`eca2659`) — `dashboard.js` only; `bot.js`, `db.js`, `migrations/`, and `scripts/` untouched; `position.json.snap.20260502T020154Z` remained untracked
+  - [x] HARD BLOCK on `dashboard.js` reinstated after B.2d commit (the lift was scoped to B.2d only)
+
+## Full B.2 paper-mode dual-truth track — closed
+
+All paper-mode write paths are now DB-canonical:
+
+| Path | DB-canonical since | Commit |
+|---|---|---|
+| Paper BUY (BUY_MARKET / OPEN_LONG) | Phase A.2 | `959fef7` |
+| Paper CLOSE_POSITION | Phase B.1 | `cb7facb` |
+| Paper SELL_ALL | Phase B.1 | `cb7facb` |
+| Paper SET_STOP_LOSS | Phase B.2b-SL | `511f94e` |
+| Paper SET_TAKE_PROFIT | Phase B.2d-dashboard-TP | `eca2659` |
+
+Live-mode write paths remain `position.json`-only by design until **Phase D-5.12** (Live persistence gate lift). The only currently active remaining dual-truth surface in the system is the live-mode write path, which is intentional.
 
 ## Active phase
 
-- [~] **Phase B.2d-dashboard-TP — design-only review (deferred).** No active code work. Bot-side TP overwrite race resolved by `cc6bd2e`; dashboard-side wiring is the next planned step.
+- [~] **Phase C — design-only dashboard truth cleanup / reconciliation review (deferred).** No active code work. To be scoped against any residual dual-truth surfaces in `dashboard.js` and reconciliation pathways, now that the full B.2 paper-mode track has landed.
 
 ## Future phases
 
-- [ ] Phase B.2d-dashboard-TP — Paper SET_TAKE_PROFIT DB-first caller integration in `dashboard.js` (mirror of B.2b-SL)
-  - **Bot-side prerequisite satisfied** by `cc6bd2e` (B.2c-bot-preserve-TP): bot no longer writes `take_profit` from manage-update, so a paper-TP DB-first dashboard handler can no longer be silently overwritten by stale in-memory bot state.
-  - **Required design decisions** (B.2d cannot proceed until each is resolved):
-    - Whether to append a best-effort LOG_FILE history entry on paper TP update (mirror of B.1 close pattern, or skip)
-    - Caller throw wording for `db_unavailable` / `db_error` / `validation_failed` / `no_open_position` cases (precedent: B.2b-SL wording)
-    - Comment block update in `dashboard.js` (lift the B.2c deferral note once TP lands)
-  - Required: `dashboard.js` HARD BLOCK lift for B.2d (scoped, precedent: B.2b-SL)
-  - Required: Codex design review
-  - Required: explicit operator authorization
-- [ ] Smoke-test wording cleanup in `scripts/smoke-test-live-writes.js:225-239` — refresh the step label and the "take_profit unchanged but rewritten" assertion message to reflect that `bot.js` no longer rewrites `take_profit` from manage-update. LOW priority / cosmetic; not a blocker for B.2d. Best run after B.2d closes so the cleanup can also acknowledge the new dashboard-driven TP write path.
+- [ ] Phase C — Dashboard truth cleanup / reconciliation review (design-only at start)
+  - Candidate audit targets (read-only inspection only at this stage):
+    - Residual `position.json` reads in `dashboard.js` outside the live write paths (e.g., the `pos = JSON.parse(readFileSync(POSITION_FILE, ...))` at the top of `handleTradeCommand`) and whether each one now feeds only the live branch after the B.2 paper-mode track landed.
+    - Reconciliation pathways: `scripts/reconciliation-shadow.js` schema-unblock status (migration 006 applied), and whether B.2 closure changes the operator's reconciliation playbook.
+    - Whether bot.js `_rehydratePositionJson` / `_legacyPositionsEqual` semantics still match the new dashboard write surface for paper TP after `eca2659`.
+    - Any UI surface that may need updates to reflect that paper TP edits now produce `manual_tp_update` audit rows (parity with `manual_sl_update`).
+  - Phase C cannot enter implementation until: design review (Codex), explicit operator authorization, and any required scoped HARD BLOCK lift. Phase C may turn out to be split into multiple sub-phases depending on the audit findings.
+- [ ] Smoke-test wording cleanup in `scripts/smoke-test-live-writes.js:225-239` — refresh the step label and the "take_profit unchanged but rewritten" assertion message to reflect that `bot.js` no longer rewrites `take_profit` from manage-update. LOW priority / cosmetic; not a blocker for Phase C. Best run after Phase C closes so the cleanup can also reflect any wording impact from Phase C.
 - [ ] Phase D-5.12 — Live persistence gate lift (live mode JSON → DB-authoritative)
   - Required before live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` can be moved to DB-first
 - [ ] Phase O-5 — Bug Audit System
@@ -87,10 +109,11 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
 |---|---|---|
 | `db.js` modifications | Operator approval | Closed (post-B.2a; lift was scoped) |
 | `migrations/` modifications | Operator approval | Closed (post-B.2a; lift was scoped) |
-| `dashboard.js` modifications | Operator approval | Closed (post-B.2b-SL; lift was scoped) |
+| `dashboard.js` modifications | Operator approval | Closed (post-B.2d-dashboard-TP; lift was scoped) |
 | `bot.js` modifications | Operator approval | Closed (post-B.2c-bot-preserve-TP; lift was scoped) |
+| `scripts/` modifications | Operator approval | Closed (smoke-test wording cleanup remains a separate deferred LOW phase) |
 | Live mode write-path changes | Operator approval + Phase D-5.12 | Closed |
-| Phase B.2d-dashboard-TP implementation | Codex design review + `dashboard.js` scoped lift + operator authorization | Closed |
+| Phase C implementation | Codex design review + scoped HARD BLOCK lift(s) per audit findings + operator authorization | Closed |
 | Force push / `git reset --hard` / rebase | Explicit operator command | Closed |
 | Deployment to Railway | Explicit operator command | Closed |
 | Adding new `event_type` values beyond the current 10 | Migration + operator approval | Closed |
