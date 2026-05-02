@@ -80,7 +80,7 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
   - [x] C.1 committed (`d0c8817`) — `db.js` only; `dashboard.js`, `bot.js`, `migrations/`, and `scripts/` untouched; `position.json.snap.20260502T020154Z` remained untracked
   - [x] HARD BLOCK on `db.js` reinstated after C.1 commit (the lift was scoped to C.1 only)
   - [x] **Rough-rendering window opened by C.1 — now closed by C.2 (`2d10107`):** SL/TP audit rows are admitted by the read filter and rendered via a dedicated panel.
-- [x] **Phase C.2 — `dashboard.js` mapper + dedicated "Recent Risk Edits" panel — commit `2d10107`**
+- [x] **Phase C.2 — `dashboard.js` mapper + dedicated "Recent Risk Edits" panel — commit `2d10107`** (closeout `1372392`)
   - [x] C.2 audit re-scoped the visibility surface: main `/dashboard` `renderTradeTable` is CSV-fed (not affected by C.1), latest-decision badge is JSON-log-fed (not affected by C.1). The only DB-fed consumer of the C.1 payload is `renderPerfTrades` in the Performance tab, which already filters to `type === "EXIT"` and silently drops SL/TP audit rows. C.2 chose Option B (dedicated panel) over Option A (mix into Performance Recent Trades) and Option C (shape-only no UI).
   - [x] C.2 design Codex-approved with required edits (PASS-WITH-EDITS — Option B isolates audit-only rows; two required edits: MEDIUM "displayed window" caveat in the panel sublabel because LIMIT 30 is shared with EXIT rows, LOW Order ID escaping via `btEsc()` in the new renderer)
   - [x] Implementation: `_dbTradeEventToLegacyShape` switch (`dashboard.js:584-594`) extended with `manual_sl_update` → `SL_UPDATE` and `manual_tp_update` → `TP_UPDATE` cases; legacy shape (`dashboard.js:604-635`) extended with four metadata-backed fields `oldStopLoss` / `newStopLoss` / `oldTakeProfit` / `newTakeProfit` (parseFloat-coerced, null-safe; null for unrelated rows); raw `metadata` not exposed.
@@ -94,6 +94,18 @@ End-to-end progression for the Agent Avila dual-truth fix and surrounding orches
   - [x] C.2 Codex implementation review = PASS, all 41 checklist items PASS, no required edits
   - [x] C.2 committed (`2d10107`) — `dashboard.js` only; `bot.js`, `db.js`, `migrations/`, and `scripts/` untouched; `position.json.snap.20260502T020154Z` remained untracked
   - [x] HARD BLOCK on `dashboard.js` reinstated after C.2 commit (the lift was scoped to C.2 only)
+- [x] **Phase C.3 — `scripts/recovery-inspect.js` heuristic refinement — commit `1a16dd8`**
+  - [x] C.3 audit confirmed: dashboard wrappers (`shadowRecordManualPaperSLUpdate` / `shadowRecordManualPaperTPUpdate`) skip `insertTradeEvent` on `!positionId`, so a null-FK `manual_sl_update` / `manual_tp_update` row cannot be produced by current code paths. The current `_attempt$` regex misclassifies these audit-only types as "suspicious — review" if they ever appear; refinement is operator-playbook clarity, not correctness.
+  - [x] C.3 design Codex-approved with required edits (PASS-WITH-EDITS — 3-way classification: `_attempt$` / audit-only / suspicious; one LOW required wording edit: replace "review if non-zero" with "investigate if seen" because the GROUP BY only emits rows that exist, so the "non-zero" framing is tautological)
+  - [x] Implementation: replace the 1-line ternary at `scripts/recovery-inspect.js:159` with a 3-way `if/else if/else` block (`scripts/recovery-inspect.js:165-173`). New function-local `const AUDIT_ONLY_EVENT_TYPES = new Set(["manual_sl_update", "manual_tp_update"])` declared at `scripts/recovery-inspect.js:164`. New 6-line Phase C.3 comment block at `scripts/recovery-inspect.js:158-163` explaining the wrapper-skip rationale and operator-playbook intent.
+  - [x] Required edit present: approved phrase "audit-only — investigate if seen" at `scripts/recovery-inspect.js:170`. Rejected phrase "audit-only — review if non-zero" is absent.
+  - [x] Behavior invariants preserved: SQL query at `scripts/recovery-inspect.js:145-152` (SELECT, WHERE, GROUP BY, ORDER BY, bind params) byte-identical; SAFETY CONTRACT at `scripts/recovery-inspect.js:10-21` unchanged; function signature `async function showNullFkTradeEvents(mode)` unchanged; the empty-rows early-return at `scripts/recovery-inspect.js:154-157` unchanged; per-row `console.log` print pattern unchanged. `_attempt$` label "(expected — failed attempt)" preserved verbatim. Default fallback "(suspicious — review)" preserved verbatim.
+  - [x] No bot/dashboard/runtime/DB-write/Kraken/trading behavior changed (the script remains read-only per its SAFETY CONTRACT; bot.js and dashboard.js do not import this script)
+  - [x] `node --check scripts/recovery-inspect.js` PASS
+  - [x] C.3 Codex implementation review = PASS, all checklist items PASS, no required edits
+  - [x] **Codex non-blocking notes (informational, not required edits):** (a) any in-repo runbooks quoting the old classification wording verbatim should be updated if found; (b) future audit-only event types must be manually added to `AUDIT_ONLY_EVENT_TYPES` (no mechanism enforces this — track at the migration-author level).
+  - [x] C.3 committed (`1a16dd8`) — `scripts/recovery-inspect.js` only; `dashboard.js`, `bot.js`, `db.js`, `migrations/`, `scripts/smoke-test-live-writes.js`, and all other `scripts/` files untouched; `position.json.snap.20260502T020154Z` remained untracked
+  - [x] HARD BLOCK on `scripts/recovery-inspect.js` reinstated after C.3 commit (the lift was scoped to C.3 only)
 
 ## Full B.2 paper-mode dual-truth track — closed
 
@@ -111,17 +123,24 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
 
 ## Active phase
 
-- [~] **Phase C.3 — design-only `scripts/recovery-inspect.js` heuristic refinement review (deferred).** No active code work. Will recognize `manual_sl_update` / `manual_tp_update` as benign event types in the null-FK heuristic at `scripts/recovery-inspect.js:159` so the operator playbook isn't burdened with false-positive "suspicious — review" tags for these audit-only event types.
+- [~] **Smoke-test wording cleanup — design-only review (deferred LOW/cosmetic).** No active code work. The full Phase C track (C.1 + C.2 + C.3) has now closed; the natural next item is the deferred wording cleanup at `scripts/smoke-test-live-writes.js:225-239`.
+
+## Full Phase C track — closed
+
+| Sub-phase | Scope | Commit | Closeout |
+|---|---|---|---|
+| C.1 | `db.js` `loadRecentTradeEvents` admits `manual_sl_update` / `manual_tp_update` | `d0c8817` | `a967a12` |
+| C.2 | `dashboard.js` mapper + dedicated "Recent Risk Edits" panel in Performance tab | `2d10107` | `1372392` |
+| C.3 | `scripts/recovery-inspect.js` 3-way classification (audit-only — investigate if seen) | `1a16dd8` | (this closeout) |
+
+Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (C.2) → operator-playbook classification (C.3).
 
 ## Future phases
 
-- [ ] Phase C.3 — `scripts/recovery-inspect.js` heuristic refinement (`scripts/` only)
-  - Update the null-FK trade_events heuristic at `scripts/recovery-inspect.js:159` to recognize `manual_sl_update` / `manual_tp_update` as benign event types (currently they would be tagged "suspicious — review" if a null-FK row of these types ever appeared, which the B.2b-SL / B.2d helpers prevent by skipping `insertTradeEvent` on `!positionId`).
-  - Required: `scripts/` HARD BLOCK lift for C.3 (scoped).
+- [ ] Smoke-test wording cleanup in `scripts/smoke-test-live-writes.js:225-239` — refresh the step label and the "take_profit unchanged but rewritten" assertion message to reflect that `bot.js` no longer rewrites `take_profit` from manage-update. LOW priority / cosmetic. Test logic still passes today (the script calls the `db.js` helper directly with both fields, and the helper still supports both-field calls); cleanup is purely wording.
+  - Required: `scripts/smoke-test-live-writes.js` HARD BLOCK lift (scoped, mirror of C.3 cadence).
   - Required: Codex design review.
   - Required: explicit operator authorization.
-  - Lower priority than C.2; the current behavior is "flag for review" not "fail," so the heuristic is conservative-safe today.
-- [ ] Smoke-test wording cleanup in `scripts/smoke-test-live-writes.js:225-239` — refresh the step label and the "take_profit unchanged but rewritten" assertion message to reflect that `bot.js` no longer rewrites `take_profit` from manage-update. LOW priority / cosmetic; not a blocker for C.2 or C.3. Best run after the Phase C track closes so the cleanup can also reflect any wording impact from C.2 / C.3.
 - [ ] Phase D-5.12 — Live persistence gate lift (live mode JSON → DB-authoritative)
   - Required before live `SET_STOP_LOSS` / `SET_TAKE_PROFIT` / `SELL_ALL` can be moved to DB-first
 - [ ] Phase O-5 — Bug Audit System
@@ -139,9 +158,11 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
 | `migrations/` modifications | Operator approval | Closed (post-B.2a; lift was scoped) |
 | `dashboard.js` modifications | Operator approval | Closed (post-C.2; lift was scoped) |
 | `bot.js` modifications | Operator approval | Closed (post-B.2c-bot-preserve-TP; lift was scoped) |
-| `scripts/` modifications | Operator approval | Closed (Phase C.3 heuristic refinement and smoke-test wording cleanup remain separate deferred phases) |
+| `scripts/recovery-inspect.js` modifications | Operator approval | Closed (post-C.3; lift was scoped) |
+| `scripts/smoke-test-live-writes.js` modifications | Operator approval | Closed (deferred LOW/cosmetic phase; lift required) |
+| Other `scripts/` modifications | Operator approval | Closed (per-file scoped lift required) |
 | Live mode write-path changes | Operator approval + Phase D-5.12 | Closed |
-| Phase C.3 implementation | Codex design review + `scripts/` scoped lift + operator authorization | Closed |
+| Smoke-test wording cleanup implementation | Codex design review + `scripts/smoke-test-live-writes.js` scoped lift + operator authorization | Closed |
 | Force push / `git reset --hard` / rebase | Explicit operator command | Closed |
 | Deployment to Railway | Explicit operator command | Closed |
 | Adding new `event_type` values beyond the current 10 | Migration + operator approval | Closed |
