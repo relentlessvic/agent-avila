@@ -32,6 +32,10 @@ import {
   loadClosedPositions,
   loadPnLAggregates,
   loadWinLossAggregates,
+  insertEmergencyAuditLog,
+  buildEmergencyEventId,
+  sha256HexCanonical,
+  classifyDbError,
 } from "./db.js";
 
 // Phase LC-3.1 — read-only live-readiness object generator.
@@ -575,6 +579,381 @@ async function shadowRecordManualPaperTPUpdate(dbPos, newTP) {
   } catch (e) {
     log.warn("d-5.7.1 dual-write", `manual TP DB write failed: ${e.message}`);
     return { ok: false, reason: "db_error", error: e };
+  }
+}
+
+// ─── Phase D-5.12c — live helper wrappers + emergency-audit utilities ──────
+// Mirrors of the four paper helpers above with mode hard-coded to "live"
+// and live source tags. Helpers are added in D-5.12c but unused at end
+// of phase: D-5.12d/e/f/g call-sites wire them when live OPEN_LONG /
+// CLOSE_POSITION / SELL_ALL / SET_STOP_LOSS / SET_TAKE_PROFIT first
+// land. Helpers do NOT invoke _emergencyAuditWrite themselves — they
+// CLASSIFY the error, build emergency_context, and return it inside
+// { ok: false } so the call-site (which alone knows whether Kraken
+// already executed) decides whether to trigger Layer 2 / 3 / 4 of the
+// failure ladder.
+//
+// Failure-ladder responsibility (per accepted v2 design):
+//   Layer 1: Live helpers (DB persist).
+//   Layer 2: Call-site invokes _emergencyAuditWrite(emergency_context).
+//   Layer 3: Call-site invokes _loglineFallback(reconstructionLine).
+//   Layer 4: _loglineFallback's internal stderr fallback.
+// No JSON fallback to position.json at any layer (operator decision #2).
+// LOG_FILE and stderr are local audit reconstruction surfaces, NOT
+// authoritative state files — the no-JSON-fallback rule applies to
+// position.json, not to the durability floor.
+
+const _EMERGENCY_REDACTION_PATTERN = /secret|key|token|cookie|auth|signature|password|credential|nonce/i;
+
+// Strip any field whose key matches the redaction pattern. Recurses into
+// nested objects and arrays so a `kraken: { apiKey, signature }` blob
+// inside attempted_payload gets fully sanitized. Acceptable surface
+// (position/order reconstruction fields) passes through unchanged.
+// Idempotent: re-running on an already-redacted object is a no-op.
+function _redactAttemptedPayload(rawObj) {
+  if (rawObj === null || rawObj === undefined) return rawObj;
+  if (Array.isArray(rawObj)) return rawObj.map((v) => _redactAttemptedPayload(v));
+  if (typeof rawObj !== "object") return rawObj;
+  const out = {};
+  for (const k of Object.keys(rawObj)) {
+    if (_EMERGENCY_REDACTION_PATTERN.test(k)) continue;
+    out[k] = _redactAttemptedPayload(rawObj[k]);
+  }
+  return out;
+}
+
+// Triple-fault floor. Append a JSON-stringified single-line payload to
+// LOG_FILE; on append failure, drop to stderr with `triple_fault: true`
+// added. Never throws. The line argument is already JSON-stringified;
+// callers serialize so the fallback path is byte-stable on disk.
+function _loglineFallback(line) {
+  try {
+    appendFileSync(LOG_FILE, line + "\n");
+    return;
+  } catch (e) {
+    try {
+      const obj = JSON.parse(line);
+      console.error(JSON.stringify({ ...obj, triple_fault: true, logfile_error: e.message }));
+    } catch {
+      console.error(line);
+    }
+  }
+}
+
+// Emergency-audit Layer 2. Acquires a fresh inTransaction client (the
+// original DB-persist transaction has already rolled back and released
+// its client by the time this runs) and inserts/upserts into
+// emergency_audit_log. Defensively re-redacts attempted_payload and
+// recomputes attempted_payload_hash so the function is safe to call
+// from any future caller construction without trusting upstream state.
+//
+// Returns { ok: true, event_id } on success or { ok: false, reason,
+// error?, event_id? } on failure. The event_id is surfaced even on
+// failure so the caller's Layer 3 LOG_FILE line carries the same
+// canonical id as the row that didn't get written.
+async function _emergencyAuditWrite(failureContext) {
+  if (!failureContext || typeof failureContext !== "object") {
+    return { ok: false, reason: "validation_failed" };
+  }
+  const { mode, source, kraken_order_id, failure_class, error_message } = failureContext;
+  if (!mode || !source || !failure_class) {
+    return { ok: false, reason: "validation_failed" };
+  }
+  if (!dbAvailable()) {
+    return { ok: false, reason: "db_unavailable" };
+  }
+  const redactedPayload = _redactAttemptedPayload(failureContext.attempted_payload || {});
+  const payloadHash = sha256HexCanonical(redactedPayload);
+  const allowlistedPayload = {
+    mode,
+    source,
+    kraken_order_id: kraken_order_id != null ? String(kraken_order_id) : null,
+    failure_class,
+    attempted_payload_hash: payloadHash,
+    timestamp_bucket: new Date(Math.floor(Date.now() / 1000) * 1000).toISOString(),
+  };
+  const eventId = buildEmergencyEventId(allowlistedPayload);
+  const attemptedPayloadForRow = { ...redactedPayload, attempted_payload_hash: payloadHash };
+  const retryEntry = {
+    retried_at: new Date().toISOString(),
+    failure_class,
+    error_message: error_message ?? null,
+    layer: 1,
+    source,
+  };
+  try {
+    await inTransaction(async (client) => {
+      await insertEmergencyAuditLog(client, {
+        event_id: eventId,
+        mode,
+        source,
+        kraken_order_id: kraken_order_id ?? null,
+        failure_class,
+        error_message: error_message ?? null,
+        attempted_payload: attemptedPayloadForRow,
+        metadata: { retry_history: [retryEntry] },
+      });
+    });
+    return { ok: true, event_id: eventId };
+  } catch (e) {
+    log.warn("d-5.12c emergency-audit", `emergency audit insert failed: ${e.message}`);
+    return { ok: false, reason: "audit_insert_failed", error: e, event_id: eventId };
+  }
+}
+
+async function shadowRecordManualLiveBuy(entry, newPos) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!entry || !newPos || !newPos.orderId) return { ok: false, reason: "validation_failed" };
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await upsertPositionOpen(client, {
+        mode: "live",
+        symbol: newPos.symbol,
+        side: newPos.side ?? "long",
+        entry_price: newPos.entryPrice,
+        entry_time: newPos.entryTime,
+        entry_signal_score: null,                  // manual; no strategy score
+        quantity: newPos.quantity,
+        trade_size_usd: newPos.tradeSize,
+        leverage: newPos.leverage ?? 1,
+        effective_size_usd: newPos.effectiveSize ?? null,
+        stop_loss: newPos.stopLoss,
+        take_profit: newPos.takeProfit,
+        volatility_level: null,
+        kraken_order_id: newPos.orderId,
+        metadata: { from: "dashboard", source: "manual_live_buy" },
+      });
+      await insertTradeEvent(client, {
+        event_id: buildEventId(newPos.orderId, "manual_buy"),
+        timestamp: entry.timestamp,
+        mode: "live",
+        event_type: "manual_buy",
+        symbol: entry.symbol,
+        position_id: positionId,
+        price: entry.price,
+        quantity: newPos.quantity,
+        usd_amount: entry.tradeSize,
+        leverage: entry.leverage,
+        kraken_order_id: newPos.orderId,
+        decision_log: null,
+        metadata: { source: "manual_live_buy" },
+      });
+    });
+    return { ok: true };
+  } catch (e) {
+    const errorClass = classifyDbError(e);
+    const redacted = _redactAttemptedPayload({
+      symbol: newPos.symbol,
+      side: newPos.side ?? "long",
+      entry_price: newPos.entryPrice,
+      entry_time: newPos.entryTime,
+      quantity: newPos.quantity,
+      trade_size_usd: newPos.tradeSize,
+      leverage: newPos.leverage ?? 1,
+      effective_size_usd: newPos.effectiveSize ?? null,
+      stop_loss: newPos.stopLoss,
+      take_profit: newPos.takeProfit,
+      kraken_order_id: newPos.orderId,
+    });
+    log.warn("d-5.12c live-helper", `manual LIVE BUY DB write failed (${errorClass}): ${e.message}`);
+    return {
+      ok: false,
+      reason: "db_error",
+      error: e,
+      errorClass,
+      emergency_context: {
+        source: "manual_live_buy",
+        kraken_order_id: newPos.orderId,
+        attempted_payload: redacted,
+        attempted_payload_hash: sha256HexCanonical(redacted),
+      },
+    };
+  }
+}
+
+async function shadowRecordManualLiveClose(exitEntry) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!exitEntry || !exitEntry.orderId) return { ok: false, reason: "validation_failed" };
+  let raceDetected = false;
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await closePosition(client, "live", {
+        exit_price: exitEntry.price,
+        exit_time: exitEntry.timestamp,
+        exit_reason: exitEntry.exitReason ?? "MANUAL_CLOSE",
+        realized_pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+        realized_pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+        kraken_exit_order_id: exitEntry.orderId,
+      });
+      if (!positionId) {
+        raceDetected = true;
+        return;
+      }
+      await insertTradeEvent(client, {
+        event_id: buildEventId(exitEntry.orderId, "manual_close"),
+        timestamp: exitEntry.timestamp,
+        mode: "live",
+        event_type: "manual_close",
+        symbol: exitEntry.symbol,
+        position_id: positionId,
+        price: exitEntry.price,
+        quantity: exitEntry.quantity,
+        usd_amount: exitEntry.tradeSize,
+        pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+        pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+        kraken_order_id: exitEntry.orderId,
+        decision_log: null,
+        metadata: { source: "manual_live_close" },
+      });
+    });
+    if (raceDetected) return { ok: false, reason: "no_open_position" };
+    return { ok: true };
+  } catch (e) {
+    const errorClass = classifyDbError(e);
+    const redacted = _redactAttemptedPayload({
+      symbol: exitEntry.symbol,
+      exit_price: exitEntry.price,
+      exit_time: exitEntry.timestamp,
+      exit_reason: exitEntry.exitReason ?? "MANUAL_CLOSE",
+      quantity: exitEntry.quantity,
+      trade_size_usd: exitEntry.tradeSize,
+      realized_pnl_usd: exitEntry.pnlUSD != null ? parseFloat(exitEntry.pnlUSD) : null,
+      realized_pnl_pct: exitEntry.pct != null ? parseFloat(exitEntry.pct) : null,
+      kraken_exit_order_id: exitEntry.orderId,
+    });
+    log.warn("d-5.12c live-helper", `manual LIVE CLOSE DB write failed (${errorClass}): ${e.message}`);
+    return {
+      ok: false,
+      reason: "db_error",
+      error: e,
+      errorClass,
+      emergency_context: {
+        source: "manual_live_close",
+        kraken_order_id: exitEntry.orderId,
+        attempted_payload: redacted,
+        attempted_payload_hash: sha256HexCanonical(redacted),
+      },
+    };
+  }
+}
+
+async function shadowRecordManualLiveSLUpdate(dbPos, newSL) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!dbPos || !dbPos.kraken_order_id) return { ok: false, reason: "validation_failed" };
+  let raceDetected = false;
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await updatePositionRiskLevelsTx(client, "live", dbPos.kraken_order_id, {
+        stop_loss: newSL,
+      });
+      if (!positionId) {
+        raceDetected = true;
+        return;
+      }
+      const seed = `${dbPos.kraken_order_id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+      await insertTradeEvent(client, {
+        event_id: buildEventId(seed, "manual_sl_update"),
+        timestamp: new Date().toISOString(),
+        mode: "live",
+        event_type: "manual_sl_update",
+        symbol: dbPos.symbol,
+        position_id: positionId,
+        price: null,
+        quantity: null,
+        usd_amount: null,
+        leverage: null,
+        kraken_order_id: dbPos.kraken_order_id,
+        decision_log: null,
+        metadata: {
+          source: "manual_live_sl_update",
+          old_stop_loss: dbPos.stop_loss != null ? parseFloat(dbPos.stop_loss) : null,
+          new_stop_loss: newSL,
+        },
+      });
+    });
+    if (raceDetected) return { ok: false, reason: "no_open_position" };
+    return { ok: true };
+  } catch (e) {
+    const errorClass = classifyDbError(e);
+    const redacted = _redactAttemptedPayload({
+      symbol: dbPos.symbol,
+      kraken_order_id: dbPos.kraken_order_id,
+      old_stop_loss: dbPos.stop_loss != null ? parseFloat(dbPos.stop_loss) : null,
+      new_stop_loss: newSL,
+    });
+    log.warn("d-5.12c live-helper", `manual LIVE SL DB write failed (${errorClass}): ${e.message}`);
+    return {
+      ok: false,
+      reason: "db_error",
+      error: e,
+      errorClass,
+      emergency_context: {
+        source: "manual_live_sl_update",
+        kraken_order_id: dbPos.kraken_order_id,
+        attempted_payload: redacted,
+        attempted_payload_hash: sha256HexCanonical(redacted),
+      },
+    };
+  }
+}
+
+async function shadowRecordManualLiveTPUpdate(dbPos, newTP) {
+  if (!dbAvailable()) return { ok: false, reason: "db_unavailable" };
+  if (!dbPos || !dbPos.kraken_order_id) return { ok: false, reason: "validation_failed" };
+  let raceDetected = false;
+  try {
+    await inTransaction(async (client) => {
+      const positionId = await updatePositionRiskLevelsTx(client, "live", dbPos.kraken_order_id, {
+        take_profit: newTP,
+      });
+      if (!positionId) {
+        raceDetected = true;
+        return;
+      }
+      const seed = `${dbPos.kraken_order_id}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+      await insertTradeEvent(client, {
+        event_id: buildEventId(seed, "manual_tp_update"),
+        timestamp: new Date().toISOString(),
+        mode: "live",
+        event_type: "manual_tp_update",
+        symbol: dbPos.symbol,
+        position_id: positionId,
+        price: null,
+        quantity: null,
+        usd_amount: null,
+        leverage: null,
+        kraken_order_id: dbPos.kraken_order_id,
+        decision_log: null,
+        metadata: {
+          source: "manual_live_tp_update",
+          old_take_profit: dbPos.take_profit != null ? parseFloat(dbPos.take_profit) : null,
+          new_take_profit: newTP,
+        },
+      });
+    });
+    if (raceDetected) return { ok: false, reason: "no_open_position" };
+    return { ok: true };
+  } catch (e) {
+    const errorClass = classifyDbError(e);
+    const redacted = _redactAttemptedPayload({
+      symbol: dbPos.symbol,
+      kraken_order_id: dbPos.kraken_order_id,
+      old_take_profit: dbPos.take_profit != null ? parseFloat(dbPos.take_profit) : null,
+      new_take_profit: newTP,
+    });
+    log.warn("d-5.12c live-helper", `manual LIVE TP DB write failed (${errorClass}): ${e.message}`);
+    return {
+      ok: false,
+      reason: "db_error",
+      error: e,
+      errorClass,
+      emergency_context: {
+        source: "manual_live_tp_update",
+        kraken_order_id: dbPos.kraken_order_id,
+        attempted_payload: redacted,
+        attempted_payload_hash: sha256HexCanonical(redacted),
+      },
+    };
   }
 }
 

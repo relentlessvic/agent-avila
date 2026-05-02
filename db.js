@@ -390,6 +390,124 @@ export async function updatePositionRiskLevelsTx(client, mode, orderId, fields) 
   return r.rows[0]?.id ?? null;
 }
 
+// ─── Phase D-5.12c — emergency audit log (post-Kraken-success persist fail) ─
+// Durable record of DB persistence failures that occur AFTER Kraken has
+// already accepted a real-money order. Operators reconstruct the lost
+// row from this table. Helpers are added in D-5.12c but unused at end
+// of phase — D-5.12d/e/f/g call-sites wire them when live persistence
+// for OPEN_LONG / CLOSE_POSITION / SELL_ALL / SL / TP first lands.
+//
+// Concurrency primitive: emergency_audit_log.event_id UNIQUE (db-level).
+// Idempotency contract: same canonical allowlisted payload within the
+// same UTC second → same event_id → ON CONFLICT DO UPDATE appends to
+// metadata.retry_history without overwriting attempted_payload or the
+// first populated error_message.
+
+// RFC-8785-style canonicalization (simplified): keys sorted lex at every
+// level, null serialized as null (not omitted), arrays preserved in
+// caller-provided order, numbers via JSON.stringify (no NaN/Infinity).
+function _canonicalJsonSorted(value) {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("canonicalJson: non-finite number");
+    return JSON.stringify(value);
+  }
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (Array.isArray(value)) {
+    return "[" + value.map((v) => _canonicalJsonSorted(v)).join(",") + "]";
+  }
+  if (typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return "{" + keys.map((k) => JSON.stringify(k) + ":" + _canonicalJsonSorted(value[k])).join(",") + "}";
+  }
+  throw new Error(`canonicalJson: unsupported type ${typeof value}`);
+}
+
+// SHA-256 hex of the canonical-JSON serialization. Used for both the
+// emergency event_id allowlisted payload AND the attempted_payload_hash
+// surfaced inside attempted_payload for triage queries.
+export function sha256HexCanonical(obj) {
+  return crypto.createHash("sha256").update(_canonicalJsonSorted(obj)).digest("hex");
+}
+
+// Canonical emergency event_id. The "d512-emergency-" prefix gives a
+// strong visual differentiation from trade_events.event_id (UUID-shaped)
+// in operator queries. The caller MUST construct the allowlistedPayload
+// per the v4 design recipe (mode, source, kraken_order_id-as-string-or-
+// null, failure_class, attempted_payload_hash, timestamp_bucket as UTC
+// ISO8601 truncated to 1 second).
+export function buildEmergencyEventId(allowlistedPayload) {
+  if (!allowlistedPayload || typeof allowlistedPayload !== "object") {
+    throw new Error("buildEmergencyEventId: allowlistedPayload object required");
+  }
+  return "d512-emergency-" + sha256HexCanonical(allowlistedPayload);
+}
+
+// Postgres error classifier. D-5.12d's live OPEN_LONG handler will branch
+// on the partial unique index `positions_one_open_per_mode_idx`; the
+// kraken_order_id conflict branch is already absorbed inside
+// upsertPositionOpen (post-conflict SELECT recovers the existing id).
+// Anything else is generic and routes to db_persistence_failed.
+export function classifyDbError(err) {
+  if (!err || err.code !== "23505") return "other";
+  const constraint = err.constraint ?? "";
+  if (constraint === "positions_one_open_per_mode_idx") return "unique_violation_one_open_per_mode";
+  if (constraint === "positions_kraken_order_unique" || constraint.includes("kraken_order_id")) {
+    return "unique_violation_kraken_order_id";
+  }
+  return "other";
+}
+
+// INSERT with ON CONFLICT (event_id) DO UPDATE. Unlike insertTradeEvent's
+// DO NOTHING, this APPENDS the caller's metadata.retry_history singleton
+// to the existing array via jsonb_set, and backfills error_message only
+// when the first attempt left it null. attempted_payload is INSERT-time-
+// only — never overwritten on conflict. Returns the row id (always
+// populated under DO UPDATE).
+//
+// Caller MUST pass a fresh inTransaction client. By the time this is
+// invoked the original DB-persistence transaction has already rolled
+// back AND released its client (db.js:55-69), so this helper cannot
+// share that transaction.
+export async function insertEmergencyAuditLog(client, event) {
+  if (!client) throw new Error("insertEmergencyAuditLog: client required");
+  if (!event || !event.event_id) throw new Error("insertEmergencyAuditLog: event.event_id required");
+  if (!event.mode || !event.source || !event.failure_class) {
+    throw new Error("insertEmergencyAuditLog: mode, source, failure_class required");
+  }
+  return client.query(
+    `INSERT INTO emergency_audit_log (
+       event_id, timestamp, mode, source, kraken_order_id,
+       failure_class, error_message, attempted_payload, metadata
+     ) VALUES (
+       $1, COALESCE($2, NOW()), $3, $4, $5,
+       $6, $7, $8, $9
+     )
+     ON CONFLICT (event_id) DO UPDATE SET
+       metadata = jsonb_set(
+         COALESCE(emergency_audit_log.metadata, '{}'::jsonb),
+         '{retry_history}',
+         COALESCE(emergency_audit_log.metadata->'retry_history', '[]'::jsonb)
+           || COALESCE(EXCLUDED.metadata->'retry_history', '[]'::jsonb),
+         true
+       ),
+       error_message = COALESCE(emergency_audit_log.error_message, EXCLUDED.error_message)
+     RETURNING id`,
+    [
+      event.event_id,
+      event.timestamp ?? null,
+      event.mode,
+      event.source,
+      event.kraken_order_id ?? null,
+      event.failure_class,
+      event.error_message ?? null,
+      event.attempted_payload ?? {},
+      event.metadata ?? {},
+    ]
+  );
+}
+
 // ─── Phase D-5.8 — read-side helpers for dashboard flip ────────────────────
 // Read-only domain queries used by dashboard.js's modeScopedSummary,
 // getApiData, getHomeSummary, and buildV2DashboardPayload to surface
