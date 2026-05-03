@@ -32,13 +32,14 @@ Safe to edit during normal orchestrator work after Codex docs-only review (or, f
 | `orchestrator/APPROVAL-GATES.md` | Action-level gate canonical source (action-class gating, complement to this file) |
 | `orchestrator/AUTOPILOT-RULES.md` | Supervised-autopilot rule set |
 | `orchestrator/PROTECTED-FILES.md` | This file |
+| `orchestrator/PHASE-MODES.md` | Phase-mode system; safety-policy doc |
 | `orchestrator/prompts/**` | Prompt templates for Codex / operator workflows |
 | Design reports (any `*.md` produced as a design-only deliverable) | Must be design-only; no code touched |
 | Read-only audit reports (`*.md`) | Audit observations, no mutations |
 | Docs-only templates | Skeleton text, no executable changes |
 | `README.md`, root-level docs | Documentation only |
 
-**Rule:** SAFE files may be edited as part of any phase, including orchestrator-only phases (e.g., the Hands-Free ARC track or closeout doc commits). When an orchestrator-only phase changes only ordinary status or report docs, a Codex docs-only safety review is sufficient — no separate operator approval is required beyond the in-session phase context. Changes to safety-policy docs that govern future automation behavior (orchestrator/PROTECTED-FILES.md, orchestrator/APPROVAL-GATES.md, orchestrator/AUTOPILOT-RULES.md, or orchestrator/BLUEPRINT.md) require Codex docs-only review and explicit operator approval before commit.
+**Rule:** SAFE files may be edited as part of any phase, including orchestrator-only phases (e.g., the Hands-Free ARC track or closeout doc commits). When an orchestrator-only phase changes only ordinary status or report docs, a Codex docs-only safety review is sufficient — no separate operator approval is required beyond the in-session phase context. Changes to safety-policy docs that govern future automation behavior (orchestrator/PROTECTED-FILES.md, orchestrator/APPROVAL-GATES.md, orchestrator/AUTOPILOT-RULES.md, orchestrator/BLUEPRINT.md, or orchestrator/PHASE-MODES.md) require Codex docs-only review and explicit operator approval before commit.
 
 ## Level 2 — RESTRICTED
 
@@ -83,7 +84,7 @@ These paths cannot be touched without an explicit, in-session operator instructi
 | Change type | Codex review | Operator approval |
 |---|---|---|
 | Edit to an ordinary SAFE file (orchestrator/* status doc, design report, audit report) | Docs-only review (recommended) | Not required beyond in-session phase context |
-| Edit to a safety-policy SAFE file (orchestrator/PROTECTED-FILES.md, orchestrator/APPROVAL-GATES.md, orchestrator/AUTOPILOT-RULES.md, orchestrator/BLUEPRINT.md) | Docs-only review required | Required: explicit operator approval before commit |
+| Edit to a safety-policy SAFE file (orchestrator/PROTECTED-FILES.md, orchestrator/APPROVAL-GATES.md, orchestrator/AUTOPILOT-RULES.md, orchestrator/BLUEPRINT.md, orchestrator/PHASE-MODES.md) | Docs-only review required | Required: explicit operator approval before commit |
 | Edit to a RESTRICTED file | Design review (non-trivial changes) + implementation review (always) | Required: scoped per-file lift |
 | Edit to a HARD BLOCK file | Design review (always) + implementation review (always) | Required: explicit in-session authorization, scoped to one phase |
 | Migration application to production | Production runner execution is operator-only; the migration application plan / checklist / runbook requires Codex docs-only or design review before operator approval | Required: separate explicit authorization gate, distinct from the commit-time approval |
