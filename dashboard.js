@@ -2067,19 +2067,154 @@ async function handleTradeCommand(command, params = {}) {
       balanceCache = null;
       return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | Paper SELL at $${price.toFixed(4)}`, price, orderId: exitOrderId, pnlPct, pnlUSD };
     }
-    // Live path: byte-identical to today (uses JSON pos, calls Kraken, writes position.json + LOG_FILE).
-    if (!pos.open) throw new Error("No open position to close");
-    const sellVol = pos.quantity.toFixed(8);
+    // Phase D-5.12e — DB-first live CLOSE persistence with fail-loud
+    // caller-driven failure ladder. Mirror of B.1's paper close pattern
+    // (loadOpenPosition canonical source) extended with the post-Kraken
+    // emergency-audit ladder D-5.12d added for live BUY. Kraken sell is
+    // gated on a successful DB read of the open live position; on a
+    // post-Kraken DB-persist failure, Kraken has already moved real
+    // money, so we route through Layer 2 / 3 / 4 emergency audit and
+    // throw an operator-visible pointer-only error. position.json is
+    // written ONLY after DB success; on any post-Kraken DB failure
+    // it is left untouched. balanceCache is invalidated on EVERY
+    // post-Kraken outcome (Codex v2 ruling — option b) because Kraken
+    // has transacted and a cached pre-sell balance would mislead the
+    // operator through /api/balance for up to the cache TTL.
+    //
+    // Migration 008 (emergency_audit_log) is a HARD prerequisite for
+    // production deploy. Until applied, _emergencyAuditWrite will fall
+    // through to _loglineFallback automatically.
+    const dbPos = await loadOpenPosition("live");
+    if (!dbPos) throw new Error("No open live position to close");
+    const sellVol = parseFloat(dbPos.quantity).toFixed(8);
     const order   = await execKrakenOrder("sell", krakenPair, sellVol, 1);
     const orderId = order.orderId;
-    const pnlPct = ((price - pos.entryPrice) / pos.entryPrice * 100).toFixed(2);
-    const pnlUSD = ((price - pos.entryPrice) / pos.entryPrice * pos.tradeSize).toFixed(2);
-    const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity: pos.quantity, tradeSize: pos.tradeSize, entryPrice: pos.entryPrice, exitReason: "MANUAL_CLOSE", pct: pnlPct, pnlUSD, paperTrading: false, orderId, conditions: [], allPass: false, orderPlaced: true };
-    tradeLog.trades.push(exitEntry);
-    writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
-    writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
+    const entryPrice = parseFloat(dbPos.entry_price);
+    const quantity   = parseFloat(dbPos.quantity);
+    const tradeSize  = parseFloat(dbPos.trade_size_usd);
+    const pnlPct = ((price - entryPrice) / entryPrice * 100).toFixed(2);
+    const pnlUSD = ((price - entryPrice) / entryPrice * tradeSize).toFixed(2);
+    const exitEntry = { type: "EXIT", timestamp: new Date().toISOString(), symbol, price, quantity, tradeSize, entryPrice, exitReason: "MANUAL_CLOSE", pct: pnlPct, pnlUSD, paperTrading: false, orderId, conditions: [], allPass: false, orderPlaced: true };
+    const r = await shadowRecordManualLiveClose(exitEntry);
+    if (r.ok) {
+      // DB committed; position.json compatibility cache mirrors the row.
+      writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
+      // LOG_FILE is best-effort local audit. Postgres is truth.
+      try {
+        tradeLog.trades.push(exitEntry);
+        writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+      } catch (e) {
+        log.warn("d-5.12e live-close", `LOG_FILE write failed (DB+JSON committed): ${e.message}`);
+      }
+      balanceCache = null;
+      return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | Live SELL at $${price.toFixed(4)}`, price, orderId, pnlPct, pnlUSD };
+    }
+    // Layer 1 returned !ok. Kraken sold (we are past execKrakenOrder),
+    // so a DB-error reason routes through the failure ladder. Map the
+    // helper's reason to an explicit failure_class. Helper-driven path
+    // (db_error) populates emergency_context; early-return paths
+    // (no_open_position / db_unavailable / validation_failed) do NOT,
+    // and we compute a local fallback from dbPos + exitEntry values.
+    const failure_class =
+      r.reason === "no_open_position"
+        ? "kraken_post_success_db_no_open_position"
+        : "kraken_post_success_db_other_error";
+    let attempted_payload, attempted_payload_hash;
+    if (r.emergency_context && r.emergency_context.attempted_payload) {
+      attempted_payload = r.emergency_context.attempted_payload;
+      attempted_payload_hash = r.emergency_context.attempted_payload_hash ?? sha256HexCanonical(attempted_payload);
+    } else {
+      attempted_payload = _redactAttemptedPayload({
+        symbol: exitEntry.symbol,
+        exit_price: price,
+        exit_time: exitEntry.timestamp,
+        exit_reason: "MANUAL_CLOSE",
+        quantity,
+        trade_size_usd: tradeSize,
+        realized_pnl_usd: parseFloat(pnlUSD),
+        realized_pnl_pct: parseFloat(pnlPct),
+        kraken_exit_order_id: orderId,
+      });
+      attempted_payload_hash = sha256HexCanonical(attempted_payload);
+      attempted_payload.attempted_payload_hash = attempted_payload_hash;
+    }
+    const failureContext = {
+      mode: "live",
+      source: "manual_live_close",
+      kraken_order_id: orderId,
+      failure_class,
+      error_message: r.error?.message ?? r.reason ?? null,
+      attempted_payload,
+    };
+    const auditResult = await _emergencyAuditWrite(failureContext);
+    if (auditResult.ok) {
+      if (failure_class === "kraken_post_success_db_no_open_position") {
+        log.error(
+          "d-5.12e live-close",
+          `Kraken sold (orderId=${orderId}) but no open live position exists in DB ` +
+          `(race or pre-existing drift). Emergency audit row recorded ` +
+          `(event_id=${auditResult.event_id}). Operator: reconcile DB / Kraken state.`
+        );
+      } else {
+        log.error(
+          "d-5.12e live-close",
+          `Kraken sold (orderId=${orderId}) but DB persist FAILED (${r.errorClass ?? r.reason ?? "db_error"}). ` +
+          `Emergency audit row recorded (event_id=${auditResult.event_id}). ` +
+          `Operator: reconstruct close from emergency_audit_log.`
+        );
+      }
+    } else {
+      // Layer 2 also failed → Layer 3 LOG_FILE reconstruction line.
+      // Reuse the redacted attempted_payload + hash computed above
+      // (helper-provided when present, locally-redacted from dbPos
+      // otherwise). No raw payload path enters _loglineFallback
+      // (per Codex v2 PASS-with-notes carried forward from D-5.12d).
+      const line = JSON.stringify({
+        event_id: auditResult.event_id ?? null,
+        mode: "live",
+        source: "manual_live_close",
+        kraken_order_id: orderId,
+        failure_class,
+        error_message: r.error?.message ?? r.reason ?? null,
+        attempted_payload,
+        attempted_payload_hash,
+        prior_failures: ["db_persistence_failed", "audit_insert_failed"],
+        ts: new Date().toISOString(),
+      });
+      _loglineFallback(line);
+      log.error(
+        "d-5.12e live-close",
+        `Kraken sold (orderId=${orderId}) but DB persist + emergency audit BOTH failed. ` +
+        `Reconstruction line written to LOG_FILE (or stderr triple-fault).`
+      );
+    }
+    // Codex v2 ruling — option (b): invalidate balanceCache on EVERY
+    // post-Kraken outcome, including DB persistence failure. Kraken has
+    // transacted; serving a stale pre-sell balance via /api/balance for
+    // up to the cache TTL would mislead the operator. Placed BEFORE the
+    // throw so the operator-visible error doesn't short-circuit the
+    // invalidation, and OUTSIDE the auditResult.ok branch above so it
+    // runs regardless of which logging surface fired.
     balanceCache = null;
-    return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | Live SELL at $${price.toFixed(4)}`, price, orderId, pnlPct, pnlUSD };
+    // No position.json write. No LOG_FILE success-row append. No
+    // Kraken cancellation. No auto-retry. Operator-visible pointer-
+    // only error message — does NOT include attempted_payload.
+    const auditPointer = auditResult.ok
+      ? `emergency audit row ${auditResult.event_id}`
+      : `emergency audit DEGRADED — see LOG_FILE`;
+    if (failure_class === "kraken_post_success_db_no_open_position") {
+      throw new Error(
+        `Live CLOSE: Kraken sold (orderId=${orderId}) but no open live position ` +
+        `exists in the database (race or pre-existing drift). Manual operator ` +
+        `reconciliation required. ${auditPointer}.`
+      );
+    } else {
+      throw new Error(
+        `Live CLOSE: Kraken sold (orderId=${orderId}) but DB persistence failed ` +
+        `(${r.errorClass ?? r.reason ?? "db_error"}). ${auditPointer}. Position ` +
+        `close is NOT recorded in DB or position.json. Reconstruct manually.`
+      );
+    }
   }
 
   if (command === "SELL_ALL") {
