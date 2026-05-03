@@ -9,7 +9,7 @@
 Phase: N-2b — DOCS-ONLY runbook artifact
 Last updated: 2026-05-03
 Author: Claude (Lead Engineer / Builder)
-Status: Draft, pending Codex docs-only review and explicit operator approval before commit
+Status: Committed at `e6c9189` (N-2b); N-2c HEAD-preflight correction in progress; N-3 remains blocked pending Codex N-3 preflight PASS on the corrected runbook, explicit Victor in-session production-action approval naming the exact current HEAD hash, all pre-flight checks passing at execution time, and target Railway service / production `DATABASE_URL` confirmation without exposing secrets.
 
 ## 1. Phase and scope
 
@@ -44,7 +44,7 @@ Status: Draft, pending Codex docs-only review and explicit operator approval bef
 
 > **Immediately before N-3 execution, verify all of the following in sequence; HALT on any failure:**
 >
-> (i) `git rev-parse HEAD` equals `8266db2c714b65864cdeb5bbfb390e6df267b9ff`;
+> (i) `git rev-parse HEAD` equals the exact commit hash named in Victor's explicit N-3 in-session production-action approval; that named hash must correspond to the latest committed runbook state (i.e., the HEAD that exists at approval time, after any N-2b/N-2c closeout commits). The runbook intentionally does not pin a hardcoded hash here, because committing a runbook that pins itself to its own pre-commit HEAD always produces a stale value the moment the commit lands. The approval-time exact-HEAD-naming rule (see §5) is the canonical source of the expected hash;
 > (ii) `git branch --show-current` equals `main`;
 > (iii) `git diff --name-status HEAD` is empty;
 > (iv) `git status --short --untracked-files=all migrations/` is empty (no untracked migration files on disk);
@@ -64,6 +64,8 @@ Status: Draft, pending Codex docs-only review and explicit operator approval bef
 > **This approval does not authorize commits, deploys, Migration 009 or later, live exercises, Kraken actions, `MANUAL_LIVE_ARMED` reads/writes, env/secret changes, rollback, or any other production action.**
 >
 > **This approval expires when the single N-3 application-and-verification action ends.**
+
+**Exact-HEAD-naming requirement (N-2c addition).** The N-3 approval must include the exact commit hash returned by `git rev-parse HEAD` immediately before the operator types the approval. The named hash binds the approval to a specific runbook state and is the canonical input for pre-flight check (i). If HEAD changes after the approval is given (a new commit lands, a rebase, a fast-forward pull, etc.) the approval expires and N-3 must HALT pending fresh Codex review and a fresh Victor approval that names the new HEAD. This avoids the self-staling commit loop that occurs when a runbook tries to pin itself to its own pre-commit HEAD.
 
 The above is the **shape** of an approval. It is NOT itself an approval — Victor's actual in-session instruction (typed in the chat) is the approval. Per `orchestrator/APPROVAL-GATES.md` "What is NOT operator approval", a runbook field cannot substitute.
 
@@ -110,7 +112,7 @@ If any of these occur during N-3, **STOP immediately, surface the situation to t
 |---|---|---|
 | **P0** | Runner applies an unintended migration (e.g., a tracked 009+ that lands later) | Pre-flight (v): `git ls-files migrations/` shows exactly 001..008. |
 | **P0** | **Untracked or dirty `migrations/009+` file on disk at execution time** (filesystem-level, not git-level — runner reads filesystem at lines 49–51) | **Pre-flight (iv): `git status --short --untracked-files=all migrations/` is empty.** *(Codex Edit 5 addition.)* |
-| **P0** | **Operator running from a non-`main` branch or wrong HEAD** where additional migrations exist | **Pre-flight (i, ii): `git rev-parse HEAD` equals `8266db2…`; `git branch --show-current` equals `main`.** *(Codex Edit 5 addition.)* |
+| **P0** | **Operator running from a non-`main` branch or wrong HEAD** where additional migrations exist, OR HEAD changes after Victor's approval (new commit, rebase, fast-forward pull) and approval becomes stale | **Pre-flight (i, ii): `git rev-parse HEAD` equals the exact hash named in Victor's N-3 approval (per §5 exact-HEAD-naming requirement); `git branch --show-current` equals `main`. If HEAD changes after approval, HALT pending fresh Codex review and fresh Victor approval naming the new HEAD.** *(Codex Edit 5 addition; reformulated in N-2c to avoid self-staling commit loop.)* |
 | **P0** | Wrong production DB target (Railway points at staging, or `DATABASE_URL` is dev/staging) | Pre-flight (vi): operator verbally confirms target service / DB without revealing secret value. |
 | **P0** | Network partition mid-application leaves partial schema | Per-migration `BEGIN`/`COMMIT`/`ROLLBACK`. Partial state cannot exist. |
 | **P0** | Concurrent migration runner invocation | Pre-flight: operator confirms no concurrent invocation; Postgres also serializes via row-level locks on `schema_migrations`. |
@@ -182,4 +184,5 @@ Until all four conditions are satisfied simultaneously, **no migration runner is
 
 ## 14. Change history
 
-- **N-2b (2026-05-03):** Initial runbook artifact derived from the N-2 conversation-only design report. Codex's five required tightening edits applied verbatim: (1) pre-flight expanded with branch / HEAD / untracked-files / dirty-tree checks; (2) operator-approval wording stabilized; (3) verification expanded to six indexes + full `schema_migrations` sequence + 13-column check; (4) emergency stop conditions extended with applying-log-line check; (5) risk table extended with two new P0 risks (untracked/dirty 009+; wrong branch/HEAD) and two new P1 risks (mistaking Codex PASS / clean tree as approval; approval wording leaking secrets). Pending Codex docs-only review and explicit operator approval before commit.
+- **N-2b (2026-05-03):** Initial runbook artifact derived from the N-2 conversation-only design report. Codex's five required tightening edits applied verbatim: (1) pre-flight expanded with branch / HEAD / untracked-files / dirty-tree checks; (2) operator-approval wording stabilized; (3) verification expanded to six indexes + full `schema_migrations` sequence + 13-column check; (4) emergency stop conditions extended with applying-log-line check; (5) risk table extended with two new P0 risks (untracked/dirty 009+; wrong branch/HEAD) and two new P1 risks (mistaking Codex PASS / clean tree as approval; approval wording leaking secrets). Three follow-up rounds of cleanup applied to remove literal production runner commands and reach full prose-only HANDOFF-RULES.md compliance. Committed at `e6c9189`.
+- **N-2c (2026-05-03):** HEAD-preflight correction. Codex N-3 preflight review caught that pre-flight check (i) at line 47 still pinned HEAD to `8266db2…` (the pre-N-2b commit), while the runbook is now committed at `e6c9189`. Naively updating the pinned hash to `e6c9189…` would produce the same staleness the moment N-2c itself commits — a self-staling commit loop. N-2c instead replaces the in-runbook hardcoded pin with an approval-time exact-HEAD-naming rule: pre-flight check (i) now requires HEAD to equal the exact hash named in Victor's N-3 approval; §5 adds an "exact-HEAD-naming requirement" that binds Victor's approval to a specific HEAD and expires the approval if HEAD changes; the risk table is reformulated for the same. N-3 remains blocked pending fresh Codex N-3 preflight PASS on the corrected runbook + Victor explicit in-session production-action approval naming the exact current HEAD + execution-time pre-flight pass + target Railway service / production `DATABASE_URL` confirmation without exposing secrets. Pending Codex docs-only review and explicit operator approval before commit.
