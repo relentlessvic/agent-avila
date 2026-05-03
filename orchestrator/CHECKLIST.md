@@ -213,6 +213,17 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
 
 ## Active phase
 
+- [~] **Hands-Free ARC track — ARC-0 PASS, ARC-1 in progress (docs-only).**
+  - [x] **ARC-0 — Current State Verification (read-only) — PASS (2026-05-02).** HEAD on `c13789f`; only untracked `position.json.snap.20260502T020154Z`; no protected file modifications; D-5.12e closeout commit current; Migration 008 file present on disk and documented as NOT applied to production. No edits, no commits, no migrations, no deploys.
+  - [~] **ARC-1 — Orchestrator Protection Matrix (docs-only) — IN PROGRESS.**
+    - [x] New `orchestrator/PROTECTED-FILES.md` drafted with per-path classification (SAFE / RESTRICTED / HARD BLOCK), Codex review and operator approval requirements, stop conditions, must-never-be-automated list, and explicit Ruflo / future-automation auto-approve prohibition.
+    - [x] `orchestrator/APPROVAL-GATES.md` left unchanged (already canonical for action-class gating; cross-referenced from the new matrix).
+    - [x] Minimal ARC-1 status entries added to `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, `orchestrator/NEXT-ACTION.md`.
+    - [x] No edits to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, or `position.json`.
+    - [x] No migrations applied. No deploys. No live Kraken actions.
+    - [ ] Codex docs-only review of `PROTECTED-FILES.md` and the three minimal status edits.
+    - [ ] Operator approval to commit ARC-1 docs.
+    - [ ] Commit ARC-1 docs (orchestrator/* only) after Codex PASS + operator approval.
 - [~] **Phase D-5.12e closeout docs committed — HOLD for operator-chosen next gated phase.** No coding should happen until the operator chooses the next gated phase. Two natural candidates: **(a) Phase D-5.12f design-only review** for live `SELL_ALL` persistence (mirror of B.1 close-source cleanup for the SELL_ALL surface, with the same DB-first failure-ladder integration D-5.12d/e added) — requires its own design-only Codex review, scoped `dashboard.js` HARD BLOCK lift, Codex implementation review, and explicit operator authorization; **(b) Migration 008 production-application planning** — gated separately; per accepted v2 D-5.12d design, application is a HARD prerequisite before any D-5.12d/e production deployment. The migration runner must NOT be invoked without explicit operator authorization. **No deploy is authorized. No D-5.12f code work is authorized.**
 
 ## Full Phase C track — closed
