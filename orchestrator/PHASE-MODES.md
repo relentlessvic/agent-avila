@@ -78,7 +78,7 @@ Last updated: 2026-05-02 (ARC-3 — docs-only; pending Codex docs-only review an
 **Definition.** Edits to approved documentation files only. No runtime or source file is touched.
 
 **Allowed actions.**
-- Editing approved `orchestrator/*` files (`STATUS.md`, `CHECKLIST.md`, `NEXT-ACTION.md`, `BLUEPRINT.md`, `FIX-PLAN.md`, `APPROVAL-GATES.md`, `AUTOPILOT-RULES.md`, `PROTECTED-FILES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `prompts/**`).
+- Editing approved `orchestrator/*` files (`STATUS.md`, `CHECKLIST.md`, `NEXT-ACTION.md`, `BLUEPRINT.md`, `FIX-PLAN.md`, `APPROVAL-GATES.md`, `AUTOPILOT-RULES.md`, `PROTECTED-FILES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `prompts/**`).
 - Editing other documentation files (root-level docs, design reports, audit reports, READMEs).
 - Staging by explicit filename and committing those edits after the appropriate review.
 - All actions allowed in DESIGN-ONLY and READ-ONLY AUDIT.
@@ -91,7 +91,7 @@ Last updated: 2026-05-02 (ARC-3 — docs-only; pending Codex docs-only review an
 
 **Required reviews.**
 - Ordinary status / report docs: Codex docs-only review recommended.
-- **Safety-policy docs** (`orchestrator/PROTECTED-FILES.md`, `orchestrator/APPROVAL-GATES.md`, `orchestrator/AUTOPILOT-RULES.md`, `orchestrator/BLUEPRINT.md`, `orchestrator/PHASE-MODES.md`, `orchestrator/NEXT-ACTION-SELECTOR.md`): Codex docs-only review **required** before commit.
+- **Safety-policy docs** (`orchestrator/PROTECTED-FILES.md`, `orchestrator/APPROVAL-GATES.md`, `orchestrator/AUTOPILOT-RULES.md`, `orchestrator/BLUEPRINT.md`, `orchestrator/PHASE-MODES.md`, `orchestrator/NEXT-ACTION-SELECTOR.md`, `orchestrator/ROLE-HIERARCHY.md`): Codex docs-only review **required** before commit.
 
 **Required approvals.**
 - Ordinary status / report docs: not required beyond in-session phase context.
