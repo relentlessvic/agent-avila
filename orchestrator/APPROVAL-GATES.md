@@ -17,7 +17,7 @@ These actions can proceed without re-asking the operator, **provided Codex has r
 - Diff review (`git diff`, `git status`, `git diff --cached`)
 - Commits **for the specific files Codex reviewed and approved** (stage by name, never `git add -A`)
 
-Note: edits to safety-policy docs (`orchestrator/PROTECTED-FILES.md`, `orchestrator/APPROVAL-GATES.md`, `orchestrator/AUTOPILOT-RULES.md`, `orchestrator/BLUEPRINT.md`, `orchestrator/PHASE-MODES.md`, `orchestrator/NEXT-ACTION-SELECTOR.md`, `orchestrator/ROLE-HIERARCHY.md`) require Codex docs-only review **and** explicit operator approval before commit, per `orchestrator/PROTECTED-FILES.md`. They are not auto-allowed.
+Note: edits to safety-policy docs (`orchestrator/PROTECTED-FILES.md`, `orchestrator/APPROVAL-GATES.md`, `orchestrator/AUTOPILOT-RULES.md`, `orchestrator/BLUEPRINT.md`, `orchestrator/PHASE-MODES.md`, `orchestrator/NEXT-ACTION-SELECTOR.md`, `orchestrator/ROLE-HIERARCHY.md`, `orchestrator/AUTOMATION-PERMISSIONS.md`) require Codex docs-only review **and** explicit operator approval before commit, per `orchestrator/PROTECTED-FILES.md`. They are not auto-allowed.
 
 ## Requires explicit operator approval (HARD BLOCK list)
 
@@ -81,7 +81,7 @@ The operator should not be asked to approve these without a prior Codex review o
 - Deployment plans (Codex docs-only or design review of the deploy plan and rollback plan)
 - Live-exercise plans (Codex docs-only or design review of the live-exercise plan and rollback plan)
 - High-risk implementation plans (Codex design review for any RESTRICTED or HARD BLOCK file edit)
-- Approval-gate, phase-mode, next-action-selector, or role-hierarchy changes (Codex docs-only review of any change to this file, `PROTECTED-FILES.md`, `AUTOPILOT-RULES.md`, `BLUEPRINT.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, or `ROLE-HIERARCHY.md`)
+- Approval-gate, phase-mode, next-action-selector, role-hierarchy, or automation-permissions changes (Codex docs-only review of any change to this file, `PROTECTED-FILES.md`, `AUTOPILOT-RULES.md`, `BLUEPRINT.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, or `AUTOMATION-PERMISSIONS.md`)
 - Automation permission changes (Codex docs-only review of any change to Claude Code settings, MCP server install/upgrade, hook install, or slash-command install that affects automation authority)
 
 A Codex PASS on the plan is necessary but not sufficient: the operator must still grant explicit approval before any production action runs.
