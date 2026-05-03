@@ -187,10 +187,33 @@ Live-mode write paths remain `position.json`-only by design until **Phase D-5.12
   - [x] HARD BLOCK on `dashboard.js` reinstated after D-5.12d commit (the lift was scoped to D-5.12d only)
   - [x] **Migration 008 NOT APPLIED to production.** Per accepted v2 D-5.12d design: HARD prerequisite before any D-5.12d production deploy or live production exercise. Verification step required: `SELECT 1 FROM emergency_audit_log LIMIT 1;` returns successfully.
   - [x] **Out of scope for D-5.12d (deferred to later sub-phases):** wiring the four live wrappers into live `CLOSE_POSITION` / `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT` handlers (D-5.12e/f/g); live rehydrate (D-5.12h); smoke harness (D-5.12h); recovery-script updates (D-5.12h); operator playbook (D-5.12i); Migration 008 production application (separate authorization gate); D-5.12d production deployment (separate authorization gate); first live BUY exercise (separate authorization gate, requires `MANUAL_LIVE_ARMED="true"`).
+- [x] **Phase D-5.12e — live CLOSE_POSITION persistence wired through the failure ladder — commit `95f39f2`**
+  - [x] D-5.12e design v1 = Codex PASS-WITH-REQUIRED-EDITS (1 MEDIUM: `balanceCache` invalidation must lock to option (b) — every post-Kraken outcome including DB persistence failure)
+  - [x] D-5.12e design v2 = **Codex PASS, design ready for scoped `dashboard.js` implementation** (`balanceCache = null` locked to fire on success path AND every DB-failure class, placed BEFORE the operator-visible throw and OUTSIDE the `auditResult.ok` if/else logging branch)
+  - [x] Scoped `dashboard.js` HARD BLOCK lift authorized by operator
+  - [x] Live CLOSE_POSITION branch (`dashboard.js:2087-2218`): replaces the pre-existing JSON-only live CLOSE path (which used stale `pos` from `position.json`, called Kraken sell against `pos.quantity`, then unconditionally wrote LOG_FILE + `position.json {open: false}`) with a DB-first failure-ladder block.
+  - [x] Pre-Kraken `loadOpenPosition("live")` is the canonical source. Throws "No open live position to close" (BEFORE Kraken executes) if null.
+  - [x] Sell volume = `parseFloat(dbPos.quantity).toFixed(8)` (DB-canonical). No Kraken balance check added.
+  - [x] PnL computed from DB `entry_price` and `trade_size_usd`. `exitEntry` built with `paperTrading: false` and `orderId` from Kraken response.
+  - [x] After Kraken success, calls `shadowRecordManualLiveClose(exitEntry)`.
+  - [x] On helper `{ ok: true }`: `writeFileSync(POSITION_FILE, { open: false })` after DB success; best-effort try/catch LOG_FILE append; `balanceCache = null` invalidation; existing return shape preserved.
+  - [x] On helper `{ ok: false }`: maps `r.reason === "no_open_position"` → `failure_class: "kraken_post_success_db_no_open_position"`; otherwise → `"kraken_post_success_db_other_error"`. No `position.json` write. No LOG_FILE success-row append. No Kraken cancellation. No auto-retry.
+  - [x] Calls `_emergencyAuditWrite(failureContext)` (Layer 2). On audit success: structured `log.error` with `no_open_position` distinction or generic. On audit failure: builds JSON reconstruction line with `auditResult.event_id ?? null`, `attempted_payload`, `attempted_payload_hash`, `prior_failures`, timestamp; calls `_loglineFallback(line)` (Layer 3 → LOG_FILE; Layer 4 stderr triple-fault floor).
+  - [x] Helper-provided `r.emergency_context` preferred when present. Otherwise call-site computes fallback `attempted_payload` from `dbPos` + `exitEntry` values via `_redactAttemptedPayload(...)` with the helper-matching field shape (9 fields: `symbol: exitEntry.symbol`, `exit_price`, `exit_time`, `exit_reason`, `quantity`, `trade_size_usd`, `realized_pnl_usd`, `realized_pnl_pct`, `kraken_exit_order_id`), `attempted_payload_hash = sha256HexCanonical(attempted_payload)`, hash injected post-canonicalization.
+  - [x] **Per Codex v2 design ruling option (b):** `balanceCache = null` runs on EVERY post-Kraken outcome — success path AND every DB-failure class — placed AFTER audit/log work and BEFORE the conditional throws (OUTSIDE the `auditResult.ok` if/else logging branch).
+  - [x] Operator-visible error thrown — pointer-only message, does NOT include `attempted_payload`. Distinct messages for `no_open_position` (race / drift) and generic-DB-error cases.
+  - [x] D-5.12e implementation review round 1 = FAIL [HIGH] over `symbol: dbPos.symbol` in the call-site fallback. Helper-internal uses `exitEntry.symbol`; if `CONFIG.symbol` ever drifted from `"XRPUSDT"`, hashes would diverge across helper-driven and call-site-driven failure paths.
+  - [x] Revision applied: targeted one-line swap `dbPos.symbol` → `exitEntry.symbol` in the fallback `attempted_payload` block. No other behavior changed.
+  - [x] D-5.12e implementation review round 2 = **Codex PASS, safe to commit** (all 6 sub-items PASS post-revision; helper-driven and call-site-driven paths verified byte-stable; HIGH symbol-mismatch finding fully resolved)
+  - [x] `node --check dashboard.js` PASS
+  - [x] D-5.12e committed (`95f39f2`) — `dashboard.js` only (145 insertions, 10 deletions); `bot.js`, `db.js`, `migrations/`, `scripts/`, `orchestrator/` untouched; `position.json.snap.20260502T020154Z` remained untracked
+  - [x] HARD BLOCK on `dashboard.js` reinstated after D-5.12e commit (the lift was scoped to D-5.12e only)
+  - [x] **Migration 008 NOT APPLIED to production.** Per accepted v2 D-5.12d design: HARD prerequisite before any D-5.12d/e production deploy or live exercise. Verification step required: `SELECT 1 FROM emergency_audit_log LIMIT 1;` returns successfully.
+  - [x] **Out of scope for D-5.12e (deferred to later sub-phases):** wiring the live wrappers into `SELL_ALL` / `SET_STOP_LOSS` / `SET_TAKE_PROFIT` handlers (D-5.12f/g); live rehydrate (D-5.12h); smoke harness (D-5.12h); recovery-script updates (D-5.12h); operator playbook (D-5.12i); Migration 008 production application (separate authorization gate); D-5.12d/e production deployment (separate authorization gate); first live BUY / live CLOSE exercise (separate authorization gate, requires `MANUAL_LIVE_ARMED="true"`).
 
 ## Active phase
 
-- [~] **Phase D-5.12d closeout docs committed — HOLD for operator-chosen next gated phase.** No coding should happen until the operator chooses the next gated phase. Two natural candidates: **(a) Phase D-5.12e design-only review** for live `CLOSE_POSITION` persistence (mirror of B.1 paper close-source cleanup, but for live mode with the same DB-first failure-ladder integration D-5.12d added for OPEN_LONG / BUY_MARKET) — requires its own design-only Codex review, scoped `dashboard.js` HARD BLOCK lift, Codex implementation review, and explicit operator authorization; **(b) Migration 008 production-application planning** — gated separately; per accepted v2 D-5.12d design, application is a HARD prerequisite before any D-5.12d production deployment. The migration runner must NOT be invoked without explicit operator authorization. **No deploy is authorized. No D-5.12e code work is authorized.**
+- [~] **Phase D-5.12e closeout docs committed — HOLD for operator-chosen next gated phase.** No coding should happen until the operator chooses the next gated phase. Two natural candidates: **(a) Phase D-5.12f design-only review** for live `SELL_ALL` persistence (mirror of B.1 close-source cleanup for the SELL_ALL surface, with the same DB-first failure-ladder integration D-5.12d/e added) — requires its own design-only Codex review, scoped `dashboard.js` HARD BLOCK lift, Codex implementation review, and explicit operator authorization; **(b) Migration 008 production-application planning** — gated separately; per accepted v2 D-5.12d design, application is a HARD prerequisite before any D-5.12d/e production deployment. The migration runner must NOT be invoked without explicit operator authorization. **No deploy is authorized. No D-5.12f code work is authorized.**
 
 ## Full Phase C track — closed
 
@@ -205,8 +228,6 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 
 ## Future phases
 
-- [ ] Phase D-5.12e — Live CLOSE_POSITION persistence (loadOpenPosition("live") DB-first; close P1-L1 stale-source pattern)
-  - dashboard.js-only. Scoped lift. All-handler smoke required at deploy.
 - [ ] Phase D-5.12f — Live SELL_ALL persistence as its own sub-phase (close one known bot position only; abort if Kraken balance > qty; LOG_FILE write added to close P0-L2 audit gap)
   - dashboard.js-only. Scoped lift. All-handler smoke required.
   - "Sell all holdings" remains a separately armed future action, not D-5.12f.
@@ -237,7 +258,7 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 |---|---|---|
 | `db.js` modifications | Operator approval | Closed (post-D-5.12c; lift was scoped) |
 | `migrations/` modifications | Operator approval | Closed (post-D-5.12c; lift was scoped) |
-| `dashboard.js` modifications | Operator approval | Closed (post-D-5.12d; lift was scoped) |
+| `dashboard.js` modifications | Operator approval | Closed (post-D-5.12e; lift was scoped) |
 | `bot.js` modifications | Operator approval | Closed (post-B.2c-bot-preserve-TP; lift was scoped) |
 | `scripts/recovery-inspect.js` modifications | Operator approval | Closed (post-C.3; lift was scoped) |
 | `scripts/smoke-test-live-writes.js` modifications | Operator approval | Closed (post-smoke-test-cleanup; lift was scoped) |
@@ -248,9 +269,10 @@ Manual SL/TP audit visibility is now complete from DB read (C.1) → UI render (
 | Phase D-5.12c implementation (helpers + migration 008) | Scoped `dashboard.js` + `db.js` + `migrations/` lifts + Codex implementation review + operator authorization | **Closed, committed `4ae3689` (Codex round-2 PASS, all 22 sub-items)** |
 | Phase D-5.12c Migration 008 application to production | Separate explicit operator authorization + verify no other unapplied migrations on disk + verify `emergency_audit_log` queryable post-application | **Not given (file present, not applied)** — HARD prerequisite for D-5.12d production deploy per accepted v2 D-5.12d design |
 | Phase D-5.12d implementation (live OPEN_LONG / BUY_MARKET persistence) | Scoped `dashboard.js` lift + Codex design review + Codex implementation review + operator authorization | **Closed, committed `1c20177` (Codex round-2 PASS, all 21 sub-items)** |
-| Phase D-5.12d production deployment to Railway | Migration 008 applied + verified + explicit operator authorization | **Not given** |
-| First production live BUY exercise | D-5.12d deployed + `MANUAL_LIVE_ARMED="true"` + explicit operator authorization | **Not given** |
-| Phase D-5.12e through D-5.12g implementation (per-handler live persistence) | Scoped `dashboard.js` lift per sub-phase + all-five-handler smoke per partial deploy + Codex implementation review + operator authorization | **Not authorized / not started** |
+| Phase D-5.12e implementation (live CLOSE_POSITION persistence) | Scoped `dashboard.js` lift + Codex design review + Codex implementation review + operator authorization | **Closed, committed `95f39f2` (Codex round-2 PASS, all 6 sub-items)** |
+| Phase D-5.12d/e production deployment to Railway | Migration 008 applied + verified + explicit operator authorization | **Not given** |
+| First production live BUY / live CLOSE exercise | D-5.12d/e deployed + `MANUAL_LIVE_ARMED="true"` + explicit operator authorization | **Not given** |
+| Phase D-5.12f through D-5.12g implementation (per-handler live persistence) | Scoped `dashboard.js` lift per sub-phase + all-five-handler smoke per partial deploy + Codex implementation review + operator authorization | **Not authorized / not started** |
 | Phase D-5.12h implementation (rehydrate + harness + rollback) | Scoped `bot.js` (potentially) + `scripts/` lifts + Codex implementation review + operator authorization | **Not authorized / not started** |
 | Phase D-5.12i closeout docs | orchestrator/* updates only | **Not authorized / not started** |
 | Force push / `git reset --hard` / rebase | Explicit operator command | Closed |
