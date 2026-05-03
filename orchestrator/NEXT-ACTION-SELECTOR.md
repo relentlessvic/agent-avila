@@ -49,17 +49,18 @@ The selector evaluates the current state and produces this ordered roadmap. Phas
 
 | # | Phase | Mode | Gating |
 |---|---|---|---|
-| 1 | **ARC-4 — Next-Action Selector** (this phase, in progress) | DOCS-ONLY | New safety-policy doc; Codex docs-only review + explicit operator approval |
+| 1 | **ARC-4 — Next-Action Selector** | DOCS-ONLY | New safety-policy doc; Codex docs-only review + explicit operator approval |
 | 2 | **ARC-5 — Claude / Codex / operator prompt templates** | DOCS-ONLY | Prompt-template doc; Codex docs-only review + explicit operator approval |
 | 3 | **ARC-6 — Automation permission rules** | DOCS-ONLY | Automation-permission policy doc; Codex docs-only review + explicit operator approval |
 | 4 | **N-1 — Repo confirmation** | READ-ONLY AUDIT | No edits; verifies state of repo, migrations, JSON cache, and orchestrator docs |
-| 5 | **N-2 — Migration 008 production-application planning** | DESIGN-ONLY | Plan / checklist / runbook drafted as a design report; Codex docs-only or design review required before operator approval (per `PHASE-MODES.md` PRODUCTION ACTION precondition) |
-| 6 | **N-3 — Migration 008 production application** | PRODUCTION ACTION | Runs only after N-2 has Codex-reviewed plan + explicit operator authorization for the application; commit-time approval is NOT sufficient (per `APPROVAL-GATES.md` gate 4) |
-| 7 | **N-4 — D-5.12f live SELL_ALL design-only review** | DESIGN-ONLY | Mirror of B.1 close-source cleanup for the SELL_ALL surface; Codex design review required before any code phase |
+| 5 | **ARC-7 — Handoff Packet Templates** (this phase, in progress) | DOCS-ONLY | New safety-policy doc `orchestrator/HANDOFF-RULES.md` plus packet templates under `orchestrator/handoffs/`; Codex docs-only review + explicit operator approval. **Inserted between N-1 and N-2 by explicit operator master-order change on 2026-05-03 (N-1.5 design review PASS).** |
+| 6 | **N-2 — Migration 008 production-application planning** | DESIGN-ONLY | Plan / checklist / runbook drafted as a design report; Codex docs-only or design review required before operator approval (per `PHASE-MODES.md` PRODUCTION ACTION precondition) |
+| 7 | **N-3 — Migration 008 production application** | PRODUCTION ACTION | Runs only after N-2 has Codex-reviewed plan + explicit operator authorization for the application; commit-time approval is NOT sufficient (per `APPROVAL-GATES.md` gate 4) |
+| 8 | **N-4 — D-5.12f live SELL_ALL design-only review** | DESIGN-ONLY | Mirror of B.1 close-source cleanup for the SELL_ALL surface; Codex design review required before any code phase |
 
 ## Hard ordering rule — no jumping to D-5.12f
 
-D-5.12f (live SELL_ALL) is a HIGH-RISK IMPLEMENTATION phase that touches live trading behavior. It cannot start until **ARC-4, ARC-5, and ARC-6 are all closed**, the orchestrator's safety-control surface is fully landed, and the gated N-1 / N-2 / N-3 production-application track is at least scoped (N-2 + N-3 may run in parallel with later D-5.12* sub-phases per the operator's choice, but D-5.12f code work cannot precede the ARC-4 → ARC-6 closure).
+D-5.12f (live SELL_ALL) is a HIGH-RISK IMPLEMENTATION phase that touches live trading behavior. It cannot start until **ARC-4, ARC-5, ARC-6, and ARC-7 are all closed**, the orchestrator's safety-control surface is fully landed, and the gated N-1 / N-2 / N-3 production-application track is at least scoped (N-2 + N-3 may run in parallel with later D-5.12* sub-phases per the operator's choice, but D-5.12f code work cannot precede the ARC-4 → ARC-7 closure).
 
 The operator may explicitly change the master order at any time by issuing an in-session instruction. Without such an instruction, the order above is binding.
 
