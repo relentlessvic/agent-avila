@@ -1,12 +1,12 @@
 # Orchestrator Status
 
-Last updated: 2026-05-04 (N-2t closeout); ARC-GO-LIVE governance activation drafted 2026-05-03 (DOCS-ONLY; pending Codex docs-only review and explicit Victor / CEO approval before commit).
+Last updated: 2026-05-04 (ARC-GO-LIVE closeout). ARC-GO-LIVE governance activation is committed and pushed at `de91d325b8160fb8183cc26172e50f3f35831796` and is the active orchestrator governance control layer (DOCS-ONLY; governance only).
 
 ## ARC Governance Activation (ARC-GO-LIVE)
 
-**Mode:** DOCS-ONLY. Pending Codex docs-only review and explicit Victor / CEO approval before commit.
+**Mode:** DOCS-ONLY. Committed and pushed at `de91d325b8160fb8183cc26172e50f3f35831796`; ARC-1 through ARC-7 are the active orchestrator governance control layer.
 
-ARC-GO-LIVE is the orchestrator-governance activation checkpoint. It officially activates ARC-1 through ARC-7 as the active control layer for Agent Avila and confirms the governance framework binds all subsequent work. **ARC-GO-LIVE does not equal live trading. It does not authorize any production mutation, migration application, deploy, Railway command, live Kraken action, env / secret read or write, `MANUAL_LIVE_ARMED` change, package / lockfile edit, runtime edit, `position.json` change, or commit.**
+ARC-GO-LIVE is the orchestrator-governance activation checkpoint. It officially activates ARC-1 through ARC-7 as the active control layer for Agent Avila and confirms the governance framework binds all subsequent work. **ARC-GO-LIVE does not equal live trading. It does not authorize any production mutation, migration application, deploy, Railway command, live Kraken action, env / secret read or write, `MANUAL_LIVE_ARMED` change, package / lockfile edit, runtime edit, or `position.json` change.**
 
 Active governance controls:
 
@@ -30,7 +30,7 @@ Active governance controls:
 6. **Prior production-action approvals remain CONSUMED and cannot be reused.** The approval naming `9ae139d` (consumed by N-3 attempt 1, halted before SQL execution) and the approval naming `3138e7f` (consumed by N-3 attempt 2, halted before SQL execution) cannot be applied to any future N-3 attempt. A fresh Victor in-session production-action approval naming the exact full latest committed HEAD from `git rev-parse HEAD` is required for any future N-3 attempt, after the post-commit deploy-and-verify cycle is complete.
 7. **Future work obeys ARC-1 through ARC-7 without exception.** Every subsequent phase must (a) be labeled with exactly one mode per `PHASE-MODES.md` before any state-mutating tool call, (b) respect the per-path matrix in `PROTECTED-FILES.md` (SAFE / RESTRICTED / HARD BLOCK), (c) clear the relevant gates in the `APPROVAL-GATES.md` 16-gate matrix, (d) follow the strict ordering in `NEXT-ACTION-SELECTOR.md`'s ten selector rules, (e) respect the role hierarchy in `ROLE-HIERARCHY.md` (CEO is sole approver; brains recommend / review / block but do not approve), (f) operate within the GREEN / YELLOW / RED tiers in `AUTOMATION-PERMISSIONS.md`, and (g) honor the packet rules in `HANDOFF-RULES.md` (packets are not approval channels, not transports, not trading interfaces, and never override the canonical sources).
 
-**ARC-GO-LIVE explicitly does not authorize:** committing any file, deploying, running migrations, running Railway commands, modifying runtime files (`bot.js`, `dashboard.js`, `db.js`, `migrations/**`, `scripts/**`, `position.json`, `package.json`, lockfiles, `.env` files, deploy config), reading or writing env / secrets, changing `MANUAL_LIVE_ARMED`, touching live Kraken paths, executing the N-3 migration application, deploying the latest committed HEAD, or any other RED-tier action. The activation itself is a draft pending Codex docs-only review and explicit Victor / CEO approval; until both arrive, the activation is not committed.
+**ARC-GO-LIVE explicitly does not authorize:** deploying, running migrations, running Railway commands, modifying runtime files (`bot.js`, `dashboard.js`, `db.js`, `migrations/**`, `scripts/**`, `position.json`, `package.json`, lockfiles, `.env` files, deploy config), reading or writing env / secrets, changing `MANUAL_LIVE_ARMED`, touching live Kraken paths, executing the N-3 migration application, deploying the latest committed HEAD, or any other RED-tier action. The activation is committed and pushed at `de91d325b8160fb8183cc26172e50f3f35831796`; subsequent RED-tier actions still require their own per-action explicit Victor / CEO approval per `APPROVAL-GATES.md` and `AUTOMATION-PERMISSIONS.md`.
 
 ## Current Phase State
 
