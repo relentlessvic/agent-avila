@@ -22,7 +22,7 @@ ARC-GO-LIVE is a DOCS-ONLY governance activation step. It is committed and pushe
 
 ## N-2x Migration 008 Runbook Track
 
-All N-2x phases through N-2t are CLOSED (or, for N-2r, design-only PASS); N-2u is IN PROGRESS (DOCS-ONLY). The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.
+All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v is IN PROGRESS (DOCS-ONLY). The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.
 
 | Item | Status |
 |---|---|
@@ -46,7 +46,8 @@ All N-2x phases through N-2t are CLOSED (or, for N-2r, design-only PASS); N-2u i
 | N-2r Check D Node exact-pin gap (design-only) | PASS at second design review (no commit) |
 | N-2s Check D Option A `.nvmrc=24.10.0` | CLOSED at `6c3a1e5` (now superseded by GitHub-tracked deploy at `49650f0…`) |
 | N-2t deploy-method source-identity gating | CLOSED at `49650f077509d83dcbf3e9771dc9ca30f351e55b` |
-| N-2u Codex Q10 freshness-invalidation runbook fix | IN PROGRESS — DOCS-ONLY |
+| N-2u Codex Q10 freshness-invalidation runbook fix | CLOSED at `0a6974884849dd1eb6bdf4f88cb5d41085044612` |
+| N-2v post-N-2u stale-tail repair + Check D re-verification record | IN PROGRESS — DOCS-ONLY |
 
 ## N-3 State
 
@@ -54,10 +55,15 @@ All N-2x phases through N-2t are CLOSED (or, for N-2r, design-only PASS); N-2u i
 - [x] N-3 attempt 2 at `3138e7f` halted before SQL execution.
 - [x] Victor approval naming `9ae139d` is CONSUMED and cannot be reused.
 - [x] Victor approval naming `3138e7f` is CONSUMED and cannot be reused.
+- [x] Both prior Victor production-action approvals (`9ae139d`, `3138e7f`) remain CONSUMED and cannot be reused for N-3.
 - [x] Migration 008 remains NOT applied to production.
 - [x] N-3 remains halted/blocked behind the runbook §11 gate.
 - [x] Next N-3 review must be a fresh Codex N-3 preflight on the runbook at the latest committed HEAD, using `git rev-parse HEAD` to identify that HEAD and `git log` for commit truth.
 - [x] Fresh Codex N-3 preflight at HEAD `49650f077509d83dcbf3e9771dc9ca30f351e55b` completed on 2026-05-04 = **FAIL (Q10 freshness-invalidation gap)**. N-2u applies Codex's exact required wording to runbook §4(x)(b); N-3 remains blocked until Codex re-review PASS on the N-2u runbook plus deploy-and-verify cycle at the new post-N-2u HEAD plus a fresh Victor in-session production-action approval naming that new HEAD.
+- [x] N-2u runbook re-review = **PASS** at HEAD `0a6974884849dd1eb6bdf4f88cb5d41085044612` (after three Codex-required corrections: apostrophe fix in §4(x)(b), §1 stale-clause repair, three CHECKLIST.md stale-tail repairs). N-2u committed and pushed to `origin/main`; GitHub-push-tracked Railway redeploy successful at deployment ID `3355d5ee`, status Active.
+- [x] Fresh Codex N-3 preflight at HEAD `0a6974884849dd1eb6bdf4f88cb5d41085044612` completed on 2026-05-04 = **FAIL on Q3 (post-deploy state not yet recorded in status docs) and Q12 (Check D re-verification at that HEAD an open operator action per the freshness rule)**. N-2v applies the two Codex-required docs-only edits to STATUS.md and NEXT-ACTION.md, updates the phase tables, and records the operator's Check D re-verification.
+- [x] **Operator Check D re-verification at HEAD `0a6974884849dd1eb6bdf4f88cb5d41085044612` = PASS** via `railway ssh` in-container `node --version` = `v24.10.0` (normalized `24.10.0`, byte-for-byte equal to `.nvmrc`). Container `root@ee8605893ce8:/app`; `pwd` = `/app`; `.nvmrc` present in `/app` (`-rw-r--r-- 1 root root 8 May 3 23:26 .nvmrc`). Per the §4(x)(b) freshness rule, this re-verification will be invalidated by the next intervening deploy.
+- [ ] Post-N-2v: a fresh Check D re-verification at the post-N-2v deployed HEAD (per `git rev-parse HEAD` after commit and push), a fresh Codex N-3 preflight at that same HEAD, and a fresh Victor in-session production-action approval naming that exact full HEAD are all required before any N-3 attempt.
 
 ## Carry-Forward Execution Checks
 
