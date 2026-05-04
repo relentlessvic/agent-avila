@@ -22,7 +22,7 @@ ARC-GO-LIVE is a DOCS-ONLY governance activation step. It is committed and pushe
 
 ## N-2x Migration 008 Runbook Track
 
-All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v is IN PROGRESS (DOCS-ONLY). The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.
+All N-2x phases through N-2w are CLOSED (or, for N-2r, design-only PASS); N-2x is IN PROGRESS (DOCS-ONLY). The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.
 
 | Item | Status |
 |---|---|
@@ -47,7 +47,9 @@ All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v i
 | N-2s Check D Option A `.nvmrc=24.10.0` | CLOSED at `6c3a1e5` (now superseded by GitHub-tracked deploy at `49650f0…`) |
 | N-2t deploy-method source-identity gating | CLOSED at `49650f077509d83dcbf3e9771dc9ca30f351e55b` |
 | N-2u Codex Q10 freshness-invalidation runbook fix | CLOSED at `0a6974884849dd1eb6bdf4f88cb5d41085044612` |
-| N-2v post-N-2u stale-tail repair + Check D re-verification record | IN PROGRESS — DOCS-ONLY |
+| N-2v post-N-2u stale-tail repair + Check D re-verification record | CLOSED at `3c4777224dafd6c09c47004631c7c8ba538a2b3b` |
+| N-2w single-line stale-tail repair on NEXT-ACTION.md:34 | CLOSED at `e7bce599df678222ab0a58f0a4f3cc9f562f509a` |
+| N-2x operator-side preflight checker module-resolution rule + host/container command-boundary rule + N-3 attempt history back-fill (Attempts 3, 4) + §14 back-fill (N-2v, N-2w) | IN PROGRESS — DOCS-ONLY |
 
 ## N-3 State
 
@@ -55,7 +57,7 @@ All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v i
 - [x] N-3 attempt 2 at `3138e7f` halted before SQL execution.
 - [x] Victor approval naming `9ae139d` is CONSUMED and cannot be reused.
 - [x] Victor approval naming `3138e7f` is CONSUMED and cannot be reused.
-- [x] Both prior Victor production-action approvals (`9ae139d`, `3138e7f`) remain CONSUMED and cannot be reused for N-3.
+- [x] All four prior Victor production-action approvals (`9ae139d`, `3138e7f`, `e7bce599df678222ab0a58f0a4f3cc9f562f509a` Attempt 3, `e7bce599df678222ab0a58f0a4f3cc9f562f509a` Attempt 4) remain CONSUMED and cannot be reused for N-3.
 - [x] Migration 008 remains NOT applied to production.
 - [x] N-3 remains halted/blocked behind the runbook §11 gate.
 - [x] Next N-3 review must be a fresh Codex N-3 preflight on the runbook at the latest committed HEAD, using `git rev-parse HEAD` to identify that HEAD and `git log` for commit truth.
@@ -63,7 +65,14 @@ All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v i
 - [x] N-2u runbook re-review = **PASS** at HEAD `0a6974884849dd1eb6bdf4f88cb5d41085044612` (after three Codex-required corrections: apostrophe fix in §4(x)(b), §1 stale-clause repair, three CHECKLIST.md stale-tail repairs). N-2u committed and pushed to `origin/main`; GitHub-push-tracked Railway redeploy successful at deployment ID `3355d5ee`, status Active.
 - [x] Fresh Codex N-3 preflight at HEAD `0a6974884849dd1eb6bdf4f88cb5d41085044612` completed on 2026-05-04 = **FAIL on Q3 (post-deploy state not yet recorded in status docs) and Q12 (Check D re-verification at that HEAD an open operator action per the freshness rule)**. N-2v applies the two Codex-required docs-only edits to STATUS.md and NEXT-ACTION.md, updates the phase tables, and records the operator's Check D re-verification.
 - [x] **Operator Check D re-verification at HEAD `0a6974884849dd1eb6bdf4f88cb5d41085044612` = PASS** via `railway ssh` in-container `node --version` = `v24.10.0` (normalized `24.10.0`, byte-for-byte equal to `.nvmrc`). Container `root@ee8605893ce8:/app`; `pwd` = `/app`; `.nvmrc` present in `/app` (`-rw-r--r-- 1 root root 8 May 3 23:26 .nvmrc`). Per the §4(x)(b) freshness rule, this re-verification will be invalidated by the next intervening deploy.
-- [ ] Post-N-2v: a fresh Check D re-verification at the post-N-2v deployed HEAD (per `git rev-parse HEAD` after commit and push), a fresh Codex N-3 preflight at that same HEAD, and a fresh Victor in-session production-action approval naming that exact full HEAD are all required before any N-3 attempt.
+- [x] Post-N-2v Check D re-verification at HEAD `3c4777224dafd6c09c47004631c7c8ba538a2b3b` = PASS via `railway ssh` (in-container `node --version` = `v24.10.0` byte-for-byte = `.nvmrc`).
+- [x] Post-N-2v fresh Codex N-3 preflight at HEAD `3c47772...` = PASS WITH REQUIRED EDITS (NEXT-ACTION.md:34 stale line); N-2w fixed it.
+- [x] Post-N-2w fresh Codex N-3 preflight at HEAD `e7bce59...` = clean PASS. Victor approval naming HEAD `e7bce59...` granted for Attempt 3.
+- [x] **Attempt 3 HALTED before SQL.** Halt class: pre-SQL operator-side preflight tooling failure (Claude-supplied checker at `/tmp` could not resolve `/app/node_modules/pg`). Runner never invoked; no DB write; approval CONSUMED.
+- [x] Post-attempt-3 fresh Codex N-3 preflight at HEAD `e7bce59...` = PASS Path A (operator-side discipline sufficient); Victor approval naming HEAD `e7bce59...` granted for Attempt 4.
+- [x] **Attempt 4 HALTED before SQL.** Halt class: pre-SQL operator-side preflight tooling failure RECURRENCE (same `/tmp` module-resolution issue) + host-vs-container command confusion. Runner never invoked; no DB write; approval CONSUMED.
+- [x] Post-attempt-4 fresh Codex N-3 preflight at HEAD `e7bce59...` = PASS WITH REQUIRED EDITS — Path B selected — N-2x runbook tightening required to codify the `/app` module-resolution rule and host/container command-boundary distinction as runbook substance.
+- [ ] Post-N-2x: a fresh Check D re-verification at the post-N-2x deployed HEAD (per `git rev-parse HEAD` after commit and push), a fresh Codex N-3 preflight at that same HEAD, and a fresh Victor in-session production-action approval naming that exact full HEAD are all required before Attempt 5.
 
 ## Carry-Forward Execution Checks
 
@@ -84,8 +93,8 @@ All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v i
 - [x] Status docs reference the latest committed HEAD via `git rev-parse HEAD` rather than embedding stale "current HEAD" claims (per N-2q stale-proof pattern).
 - [x] Active stale wording about open-work state or incomplete closeout items is absent.
 - [x] Next-action language is stale-proof: it points to a fresh Codex N-3 preflight on the latest committed HEAD, canonical runbook §11, `git log`, and `git rev-parse HEAD`.
-- [x] No new open-phase or unlanded-closeout tail is introduced for N-2u.
-- [x] The runbook `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` IS part of this N-2u commit (Codex Q10 freshness-invalidation paragraph appended in §4(x)(b), §1 / §9 / §11 / §14 phase-discipline updates). The runbook's §4(x)(b) `.nvmrc` source-priority list, canonical-source rule, parsing-hygiene rule, and HALT-on-disagreement rule remain unchanged; §4(x)(b) is extended (not weakened) by the freshness-invalidation paragraph.
+- [x] No new open-phase or unlanded-closeout tail is introduced for N-2x.
+- [x] The runbook `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` IS part of this N-2x commit (Codex Q12 Path B operator-side preflight checker module-resolution rule + host/container command-boundary rule appended in §4(vii); §1.1 N-3 attempt history back-fill for Attempts 3 and 4; §14 history back-fill for N-2v / N-2w / N-2x; §1 / §9 / §11 phase-label updates). The runbook's §4(vii) connectivity-preflight base content, §4(x)(b) `.nvmrc` source-priority list / canonical-source rule / parsing-hygiene rule / freshness-invalidation rule (codified in N-2u), and HALT-on-disagreement rules remain unchanged; §4(vii) is extended (not weakened) by the N-2x preflight-checker-script rule.
 
 ## P2 Informational (post-N-2q findings)
 
@@ -97,7 +106,7 @@ All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v i
 
 - **`railway up` deploys do NOT record a commit SHA on Railway's non-secret surfaces.** The currently-running production deploy of `agent-avila-dashboard` was triggered by `railway up` (per the project's documented deploy command at `package.json:14`). The Railway dashboard exposes deployment ID, image digest, build provenance, timestamp, and start command — but no commit SHA. Both Cases of §4(x)(a) GAP-D fail for the current deploy: Case 1 (in-container `git rev-parse HEAD`) returned `fatal: not a git repository` because the deployed NIXPACKS container lacks `.git/` metadata (binary `/bin/git` exists; metadata does not); Case 2 (Railway deploy-metadata fallback) returned no commit SHA.
 - **N-2t codifies the rule:** deploys lacking a verifiable full 40-character commit SHA on a non-secret Railway deploy-metadata surface are REJECTED as a valid §4(x)(a) source-identity surface for N-3 (mirrors N-2n / N-2o rejection patterns for local-injection surfaces). Approved N-3 deploy path is GitHub-push-tracked deploys (or equivalent commit-SHA-recording deploys).
-- **Approved next-step sequence (after N-2u commit):** Codex re-review PASS on the N-2u four-file docs diff → operator approves N-2u commit → commit lands at a new HEAD → push to GitHub `origin/main` (GitHub-push-tracked deploy method per N-2t) → allow Railway auto-deploy (or scoped manual deploy approval) for the GitHub-tracked deploy → verify deployed commit SHA + in-container `node --version` matches `.nvmrc` + service health (per the N-2u-codified §4(x)(b) freshness rule) → fresh Codex N-3 preflight at the new HEAD → fresh Victor in-session production-action approval naming the new HEAD → N-3 attempt from a fresh `railway ssh` session per the N-2m same-session rule.
+- **Approved next-step sequence (after N-2x commit):** Codex re-review PASS on the N-2x four-file docs diff → operator approves N-2x commit → commit lands at a new HEAD → push to GitHub `origin/main` (GitHub-push-tracked deploy method per N-2t) → allow Railway auto-deploy (or scoped manual deploy approval) for the GitHub-tracked deploy → verify deployed commit SHA + in-container `node --version` matches `.nvmrc` + service health (per the N-2u-codified §4(x)(b) freshness rule) → fresh Codex N-3 preflight at the new HEAD → fresh Victor in-session production-action approval naming the new HEAD → Attempt 5 from a fresh `railway ssh` session per the N-2m same-session rule, with corrected operator-side preflight tooling discipline per the N-2x §4(vii) rule (checker scripts under `/app`, not `/tmp`; host-side commands not pasted into the railway ssh container shell).
 
 ## Blocked Actions
 
