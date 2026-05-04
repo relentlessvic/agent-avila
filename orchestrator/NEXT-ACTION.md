@@ -31,7 +31,7 @@ The next-action selector returns to the N-track below via the normal ARC-4 selec
 
 **N-3 remains halted/blocked. Migration 008 remains NOT applied to production.**
 
-All N-2x phases through N-2t are CLOSED (or, for N-2r, design-only PASS); N-2u is IN PROGRESS (DOCS-ONLY):
+All N-2x phases through N-2u are CLOSED (or, for N-2r, design-only PASS); N-2v is IN PROGRESS (DOCS-ONLY):
 
 `N-2b e6c9189` -> `N-2c 9ae139d` -> `N-2d 3732721` -> `N-2e afe94d1` -> `N-2f 3af1e44` -> `N-2g 926eb7f` -> `N-2h ea7774d` -> `N-2i 5ee1dcb` -> `N-2j 548383b` -> `N-2k b2d187d` -> `N-2l 3138e7f` -> `N-2m 6b9be1d` -> `N-2n 8fc53b9` -> `N-2o f925ac5` -> `N-2p ddca950` -> `N-2q 29ac7d7` -> `N-2r (design-only PASS, no commit)` -> `N-2s 6c3a1e5 (superseded by GitHub-tracked deploy at 49650f0…)` -> `N-2t 49650f077509d83dcbf3e9771dc9ca30f351e55b (CLOSED — deploy-method source-identity gating)` -> `N-2u 0a6974884849dd1eb6bdf4f88cb5d41085044612 (CLOSED — Codex Q10 freshness-invalidation runbook fix; pushed to origin/main; Railway redeploy successful at deployment ID 3355d5ee)` -> `N-2v (current — DOCS-ONLY post-N-2u stale-tail repair + Check D re-verification record)`.
 
