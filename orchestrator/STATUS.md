@@ -1,12 +1,12 @@
 # Orchestrator Status
 
-Last updated: 2026-05-03
+Last updated: 2026-05-04
 
 ## Current Phase State
 
 **N-3 remains halted/blocked. Migration 008 remains NOT applied to production.**
 
-All N-2x phases through N-2q are CLOSED at the following commits:
+All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS):
 
 | Phase | Status |
 |---|---|
@@ -27,6 +27,8 @@ All N-2x phases through N-2q are CLOSED at the following commits:
 | N-2o | CLOSED at `f925ac5` |
 | N-2p | CLOSED at `ddca950` |
 | N-2q | CLOSED at `29ac7d7` |
+| N-2r | Design-only; PASS at second design review (no commit) |
+| N-2s | CLOSED at `6c3a1e5` (local-only; not yet pushed — see Path Z note below) |
 
 Per-phase N-2x change history is canonical in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14. Commit identity is canonical in `git log` and the latest committed HEAD is determined by `git rev-parse HEAD`.
 
@@ -53,7 +55,7 @@ Both prior Victor production-action approvals are **CONSUMED** and cannot be reu
 
 **Deployed-runtime verification is still required before any N-3 attempt.** Post-commit deploy-and-verify cycle (per N-2r design):
 
-**N-2s commit-time approval authorizes only the four-file commit (`.nvmrc` + three status docs); it does NOT authorize a deploy (deploy is gate 5 per `orchestrator/APPROVAL-GATES.md`, separately approved), and it does NOT authorize N-3.**
+**N-2s commit-time approval authorized only the four-file commit (`.nvmrc` + three status docs); it did NOT authorize a deploy (deploy is gate 5 per `orchestrator/APPROVAL-GATES.md`, separately approved), and it did NOT authorize N-3. N-2t commit-time approval authorizes only committing the runbook + three status docs; it does NOT authorize a deploy; it does NOT authorize N-3.**
 
 - After the new HEAD is deployed to `agent-avila-dashboard` (auto-deploy or separately scoped deploy approval — gate 5 per `orchestrator/APPROVAL-GATES.md`, not authorized by any N-2x docs commit), the operator MUST verify, via `railway ssh` into the deployed container after the redeploy reaches RUNNING:
   - The deployed commit SHA equals the new approved HEAD byte-for-byte (in-container `git rev-parse HEAD` if available — Case 1 per N-2o GAP-D — OR Railway dashboard "Deployed Commit" full 40-character SHA if `git` unavailable in container — Case 2).
@@ -68,6 +70,10 @@ Both prior Victor production-action approvals are **CONSUMED** and cannot be reu
 **Approved primary N-3 execution surface confirmed: `railway ssh` into the deployed `agent-avila-dashboard` production container.** N-2o GAP-A four conditions empirically PASS (surface available; running container; key setup OK; usable shell binary). **`railway shell` is NOT the approved surface** — `railway shell` opens a local subshell with Railway env vars injected (in-shell `node --version` returns the operator's local Node, not the deployed runtime), placing it in the same REJECTED category as `railway run` (per runbook §3 N-2n rejection of local-injection surfaces).
 
 **P2 informational item:** `package.json:8` declares `"start": "node bot.js"` but the deployed `agent-avila-dashboard` service is observed running `node dashboard.js` (per Railway build log). A service-side override (Railway custom start command, or Nixpacks-detected entry) reconciles the difference. Not material to Check D or the §11 N-3 gate; tracked here for future audit.
+
+**Deploy-method source-identity gating (N-2t).** Operator-side fact-finding during a Path Z evaluation (N-3 against the currently-deployed HEAD via Option E without pushing N-2s) discovered that the currently-running production deploy of `agent-avila-dashboard` was triggered by `railway up` (the project's documented deploy command per `package.json` `scripts.deploy`) and exposes only deployment ID, image digest, build provenance (Nixpacks v1.41.0, `nodejs_24` setup), timestamp, and start command — but **no commit SHA on any non-secret Railway dashboard / build-log / deploy-metadata surface**. Both Cases of §4(x)(a) GAP-D failed for the currently-running deploy: Case 1 (in-container `git rev-parse HEAD`) returned `fatal: not a git repository` because the deployed NIXPACKS container has the `git` binary at `/bin/git` but no `.git/` metadata; Case 2 (Railway deploy-metadata fallback) returned no commit SHA because `railway up` deploys don't record one. **N-2t codifies the rule: deploys lacking a verifiable full 40-character commit SHA on a non-secret Railway deploy-metadata surface (e.g., `railway up` deploys) are REJECTED as a valid §4(x)(a) source-identity surface for N-3** — runbook §3 extended with deploy-method gating that mirrors the N-2n / N-2o rejection pattern; §4(x)(a) GAP-D Case 2 tightened to clarify image digest / deployment ID / timestamp / operator-attested mapping are NOT commit SHAs and do NOT satisfy the check. **The approved N-3 deploy path is GitHub-push-tracked deploys** (or any equivalent that produces a Railway-recorded commit SHA on a non-secret surface).
+
+**Path Z block at HEAD `6c3a1e5` (informational record).** Operator chose Path Z (N-3 against currently-deployed HEAD via Option E) on 2026-05-04 to bypass the local DNS issue blocking the N-2s push. Path Z is currently STRUCTURALLY BLOCKED by the N-2t deploy-method rejection: the currently-running `railway up`-deployed instance does not satisfy §4(x)(a) GAP-D Case 2. To unblock, the operator must either (a) restore local DNS connectivity, push N-2s (`6c3a1e5`) to GitHub, allow Railway auto-deploy (or scoped manual deploy approval) to redeploy the new HEAD via GitHub-tracked deploy method (which records a commit SHA), and proceed with the post-commit deploy-and-verify cycle (Path X resumption); OR (b) use any equivalent deploy method that produces a Railway-recorded full 40-character commit SHA on a non-secret surface. **Path Z attempts via `railway up` are NOT a valid N-3 path under N-2t.**
 
 **Migration 008 remains NOT applied to production.** No migration application, production DB query, deploy, Railway command, live Kraken action, env/secret read or write, `MANUAL_LIVE_ARMED` change, package/lockfile edit, runtime edit, or `position.json` change is authorized by this status.
 
