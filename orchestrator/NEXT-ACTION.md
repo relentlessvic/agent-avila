@@ -31,17 +31,17 @@ The next-action selector returns to the N-track below via the normal ARC-4 selec
 
 **N-3 remains halted/blocked. Migration 008 remains NOT applied to production.**
 
-All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS):
+All N-2x phases through N-2t are CLOSED (or, for N-2r, design-only PASS); N-2u is IN PROGRESS (DOCS-ONLY):
 
-`N-2b e6c9189` -> `N-2c 9ae139d` -> `N-2d 3732721` -> `N-2e afe94d1` -> `N-2f 3af1e44` -> `N-2g 926eb7f` -> `N-2h ea7774d` -> `N-2i 5ee1dcb` -> `N-2j 548383b` -> `N-2k b2d187d` -> `N-2l 3138e7f` -> `N-2m 6b9be1d` -> `N-2n 8fc53b9` -> `N-2o f925ac5` -> `N-2p ddca950` -> `N-2q 29ac7d7` -> `N-2r (design-only PASS, no commit)` -> `N-2s 6c3a1e5 (local-only; not yet pushed)`.
+`N-2b e6c9189` -> `N-2c 9ae139d` -> `N-2d 3732721` -> `N-2e afe94d1` -> `N-2f 3af1e44` -> `N-2g 926eb7f` -> `N-2h ea7774d` -> `N-2i 5ee1dcb` -> `N-2j 548383b` -> `N-2k b2d187d` -> `N-2l 3138e7f` -> `N-2m 6b9be1d` -> `N-2n 8fc53b9` -> `N-2o f925ac5` -> `N-2p ddca950` -> `N-2q 29ac7d7` -> `N-2r (design-only PASS, no commit)` -> `N-2s 6c3a1e5 (superseded by GitHub-tracked deploy at 49650f0…)` -> `N-2t 49650f077509d83dcbf3e9771dc9ca30f351e55b (CLOSED — deploy-method source-identity gating)` -> `N-2u (current — DOCS-ONLY freshness-invalidation runbook fix per Codex Q10)`.
 
-**N-2t (this commit) codifies that `railway up` deploys without a verifiable full 40-character commit SHA are REJECTED as a valid §4(x)(a) source-identity surface for N-3** (per runbook §3 N-2t deploy-method gating + §4(x)(a) GAP-D Case 2 tightening). The approved N-3 deploy path is **GitHub-push-tracked deploys** (or any equivalent producing a Railway-recorded commit SHA on a non-secret surface).
+**N-2u (current) applies Codex's exact required wording from the fresh N-3 preflight at HEAD `49650f077509d83dcbf3e9771dc9ca30f351e55b` (verdict: FAIL on Q10 freshness invalidation) to runbook §4(x)(b).** The freshness-invalidation paragraph (intervening deploy, builder/Nixpacks change, service/environment scope change, unidentifiable deployed SHA, or Nixpacks Node-provider patch advancement → HALT and re-pin `.nvmrc` in a separately scoped phase before any fresh N-3 attempt) is now codified inside the operative §4(x)(b) text rather than only in the N-2r design report.
 
-The next allowed action sequence (Path X resumption after N-2t commits): (1) restore local DNS connectivity that's currently blocking `git push` (resolves `Could not resolve host: github.com`); (2) push the latest committed HEAD to GitHub `origin/main`; (3) allow Railway auto-deploy to redeploy via the GitHub-tracked deploy method (or scoped manual deploy approval); (4) verify post-deploy via `railway ssh` (deployed commit SHA = approved HEAD; in-container `node --version` matches `.nvmrc` byte-for-byte; service healthy); (5) fresh Codex N-3 preflight at the new HEAD (per `git rev-parse HEAD`); (6) fresh Victor in-session production-action approval naming the new HEAD; (7) N-3 attempt from a fresh `railway ssh` session per the N-2m same-session rule.
+The next allowed action sequence: (1) operator approves the N-2u DOCS-ONLY runbook + status-doc commit; (2) commit lands at a new HEAD; (3) GitHub-push-tracked deploy runs and Railway records the new commit SHA on the non-secret deploy-metadata surface; (4) operator re-verifies Check D at the new HEAD via `railway ssh` in-container `node --version` byte-for-byte against `.nvmrc` (per the freshness rule N-2u just codified in §4(x)(b)); (5) fresh Codex N-3 preflight at the new HEAD; (6) fresh Victor in-session production-action approval naming the new HEAD; (7) N-3 attempt from a fresh `railway ssh` session per the N-2m same-session rule.
 
 ## Required Gate State
 
-**N-2s commit-time approval authorized only committing `.nvmrc`, `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, and `orchestrator/NEXT-ACTION.md`; it did NOT authorize a deploy (deploy is gate 5 per `APPROVAL-GATES.md`, separately approved), and it did NOT authorize N-3.** Likewise, **N-2t commit-time approval authorizes only committing the runbook + three status docs; it does NOT authorize a deploy and does NOT authorize N-3.**
+**N-2s commit-time approval authorized only committing `.nvmrc`, `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, and `orchestrator/NEXT-ACTION.md`; it did NOT authorize a deploy and did NOT authorize N-3.** **N-2t commit-time approval (consumed by commit `49650f0…`) authorized only committing the runbook + three status docs; it did NOT authorize a deploy and did NOT authorize N-3.** **N-2u commit-time approval, when granted, authorizes only committing the runbook + three status docs (Codex Q10 freshness-invalidation edit); it does NOT authorize a deploy (deploy is gate 5 per `APPROVAL-GATES.md`, separately approved), and it does NOT authorize N-3.**
 
 Before any N-3 production-action attempt:
 
@@ -55,7 +55,7 @@ Before any N-3 production-action attempt:
 
 ## Check D
 
-**Check D — repo-side pin in place via Option A.** Repo-root `.nvmrc` containing exact normalized value `24.10.0` is committed; satisfies runbook §4(x)(b) source priority 1. Pin matches the deployed runtime as captured at fact-finding time (in-container `node --version` returned `v24.10.0` from `railway ssh` into production `agent-avila-dashboard`; normalized to `24.10.0` per parsing-hygiene rule). `package.json` `engines.node` remains the non-exact range `">=18.0.0"` and is intentionally unchanged in this resolution; the canonical-source rule selects `.nvmrc` (priority 1) with HALT-on-disagreement against any other source.
+**Check D — repo-side pin in place via Option A.** Repo-root `.nvmrc` containing exact normalized value `24.10.0` is committed; satisfies runbook §4(x)(b) source priority 1. Pin matches the deployed runtime as captured at fact-finding time (in-container `node --version` returned `v24.10.0` from `railway ssh` into production `agent-avila-dashboard`; normalized to `24.10.0` per parsing-hygiene rule). `package.json` `engines.node` remains the non-exact range `">=18.0.0"` and is intentionally unchanged in this resolution; the canonical-source rule selects `.nvmrc` (priority 1) with HALT-on-disagreement against any other source. **Verified PASS at deployed HEAD `49650f077509d83dcbf3e9771dc9ca30f351e55b` on 2026-05-04** via Web UI deploy-identity capture plus `railway ssh` in-container `node --version` = `v24.10.0` byte-for-byte match. Freshness invalidation rule codified in runbook §4(x)(b) by N-2u (Codex Q10 required edit).
 
 **Deployed-runtime verification still required before any N-3 attempt.** See "Required Gate State" above for the post-commit deploy-and-verify cycle. The N-2r-preflight freshness rule applies: runtime-version capture is invalidated by intervening deploys, builder changes, service/environment scope switches, inability to identify running deployment SHA, or Nixpacks Node-provider patch updates — re-run capture and update `.nvmrc` in a separately scoped phase if freshness is broken.
 
@@ -65,7 +65,7 @@ Before any N-3 production-action attempt:
 
 Do not apply migrations, deploy, run Railway commands, query the production database, read or write env/secrets, change `MANUAL_LIVE_ARMED`, touch live Kraken paths, edit runtime code, edit migrations/scripts, edit package or lock files, add additional Node version files (`.node-version`, Volta config, etc. — `.nvmrc` resolution is committed), edit deployment config, edit `position.json`, or edit safety-policy docs unless separately authorized.
 
-The Migration 008 runbook `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` is part of the N-2t docs-only commit scope and remains the canonical runbook for N-3.
+The Migration 008 runbook `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` is part of the N-2u docs-only commit scope and remains the canonical runbook for N-3.
 
 ## Stale-Proofing Note
 

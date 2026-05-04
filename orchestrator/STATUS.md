@@ -1,6 +1,6 @@
 # Orchestrator Status
 
-Last updated: 2026-05-04 (ARC-GO-LIVE closeout). ARC-GO-LIVE governance activation is committed and pushed at `de91d325b8160fb8183cc26172e50f3f35831796` and is the active orchestrator governance control layer (DOCS-ONLY; governance only).
+Last updated: 2026-05-04 (N-2u in progress — DOCS-ONLY). ARC-GO-LIVE governance activation remains committed and pushed at `de91d325b8160fb8183cc26172e50f3f35831796` and is the active orchestrator governance control layer (DOCS-ONLY; governance only).
 
 ## ARC Governance Activation (ARC-GO-LIVE)
 
@@ -36,7 +36,7 @@ Active governance controls:
 
 **N-3 remains halted/blocked. Migration 008 remains NOT applied to production.**
 
-All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS):
+All N-2x phases through N-2t are CLOSED (or, for N-2r, design-only PASS); N-2u is IN PROGRESS (DOCS-ONLY):
 
 | Phase | Status |
 |---|---|
@@ -58,7 +58,9 @@ All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS):
 | N-2p | CLOSED at `ddca950` |
 | N-2q | CLOSED at `29ac7d7` |
 | N-2r | Design-only; PASS at second design review (no commit) |
-| N-2s | CLOSED at `6c3a1e5` (local-only; not yet pushed — see Path Z note below) |
+| N-2s | CLOSED at `6c3a1e5` (now superseded by GitHub-tracked deploy at `49650f0…`; see runbook §14) |
+| N-2t | CLOSED at `49650f077509d83dcbf3e9771dc9ca30f351e55b` (deploy-method source-identity gating — GitHub-push-tracked deploy with verified commit SHA on Railway non-secret surface) |
+| N-2u | IN PROGRESS — DOCS-ONLY freshness-invalidation runbook fix per Codex Q10 N-3 preflight required edit on the N-2t-committed runbook |
 
 Per-phase N-2x change history is canonical in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14. Commit identity is canonical in `git log` and the latest committed HEAD is determined by `git rev-parse HEAD`.
 
@@ -81,7 +83,7 @@ Both prior Victor production-action approvals are **CONSUMED** and cannot be reu
 
 ## Required Carry-Forward Gaps
 
-**Check D — repo-side pin in place via Option A.** A repo-root `.nvmrc` containing the exact normalized value `24.10.0` is committed, satisfying runbook §4(x)(b) source priority 1 (highest). The pin matches the deployed runtime as captured at fact-finding time: in-container `node --version` from a `railway ssh` session into the production `agent-avila-dashboard` container returned `v24.10.0`, normalized per the §4(x)(b) parsing-hygiene rule (strip leading `v`, strip trailing whitespace / newlines) to `24.10.0`. `package.json` `engines.node` remains the non-exact range `">=18.0.0"` and is unchanged in this phase; per the canonical-source rule the highest-priority present source (`.nvmrc`) is canonical, with HALT-on-disagreement against any other present source.
+**Check D — repo-side pin in place via Option A.** A repo-root `.nvmrc` containing the exact normalized value `24.10.0` is committed, satisfying runbook §4(x)(b) source priority 1 (highest). The pin matches the deployed runtime as captured at fact-finding time: in-container `node --version` from a `railway ssh` session into the production `agent-avila-dashboard` container returned `v24.10.0`, normalized per the §4(x)(b) parsing-hygiene rule (strip leading `v`, strip trailing whitespace / newlines) to `24.10.0`. `package.json` `engines.node` remains the non-exact range `">=18.0.0"` and is unchanged in this phase; per the canonical-source rule the highest-priority present source (`.nvmrc`) is canonical, with HALT-on-disagreement against any other present source. **Check D verified PASS at deployed HEAD `49650f077509d83dcbf3e9771dc9ca30f351e55b` on 2026-05-04** via Web UI deploy-identity capture (GitHub-push-tracked, full 40-char SHA on Railway non-secret surface) plus `railway ssh` in-container `node --version` = `v24.10.0` (normalized `24.10.0`) byte-for-byte equal to `.nvmrc`. **N-2r-preflight freshness rule remains in force** and is now codified in runbook §4(x)(b) by N-2u (Codex Q10 required edit).
 
 **Deployed-runtime verification is still required before any N-3 attempt.** Post-commit deploy-and-verify cycle (per N-2r design):
 
@@ -106,6 +108,8 @@ Both prior Victor production-action approvals are **CONSUMED** and cannot be reu
 **Path Z block at HEAD `6c3a1e5` (informational record).** Operator chose Path Z (N-3 against currently-deployed HEAD via Option E) on 2026-05-04 to bypass the local DNS issue blocking the N-2s push. Path Z is currently STRUCTURALLY BLOCKED by the N-2t deploy-method rejection: the currently-running `railway up`-deployed instance does not satisfy §4(x)(a) GAP-D Case 2. To unblock, the operator must either (a) restore local DNS connectivity, push N-2s (`6c3a1e5`) to GitHub, allow Railway auto-deploy (or scoped manual deploy approval) to redeploy the new HEAD via GitHub-tracked deploy method (which records a commit SHA), and proceed with the post-commit deploy-and-verify cycle (Path X resumption); OR (b) use any equivalent deploy method that produces a Railway-recorded full 40-character commit SHA on a non-secret surface. **Path Z attempts via `railway up` are NOT a valid N-3 path under N-2t.**
 
 **Migration 008 remains NOT applied to production.** No migration application, production DB query, deploy, Railway command, live Kraken action, env/secret read or write, `MANUAL_LIVE_ARMED` change, package/lockfile edit, runtime edit, or `position.json` change is authorized by this status.
+
+**Codex N-3 preflight at HEAD `49650f077509d83dcbf3e9771dc9ca30f351e55b` = FAIL (Q10 freshness-invalidation gap).** N-2u applies Codex's exact required wording to runbook §4(x)(b). N-3 remains BLOCKED until: (a) Codex returns PASS on the N-2u runbook update; (b) the N-2u commit lands at a new HEAD via GitHub-push-tracked deploy; (c) Check D is re-verified at that new HEAD per the freshness rule; (d) a fresh Codex N-3 preflight returns PASS at the new HEAD; (e) a fresh Victor in-session production-action approval names that new HEAD. Both prior approvals (`9ae139d`, `3138e7f`) remain CONSUMED.
 
 ## Closeout Note
 

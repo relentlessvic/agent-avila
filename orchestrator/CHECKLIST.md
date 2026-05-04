@@ -22,7 +22,7 @@ ARC-GO-LIVE is a DOCS-ONLY governance activation step. It is committed and pushe
 
 ## N-2x Migration 008 Runbook Track
 
-All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS). The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.
+All N-2x phases through N-2t are CLOSED (or, for N-2r, design-only PASS); N-2u is IN PROGRESS (DOCS-ONLY). The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.
 
 | Item | Status |
 |---|---|
@@ -44,7 +44,9 @@ All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS). The ca
 | N-2p status/runbook cleanup | CLOSED at `ddca950` |
 | N-2q status-doc stale-proof refactor | CLOSED at `29ac7d7` |
 | N-2r Check D Node exact-pin gap (design-only) | PASS at second design review (no commit) |
-| N-2s Check D Option A `.nvmrc=24.10.0` | CLOSED at `6c3a1e5` (local-only; not yet pushed) |
+| N-2s Check D Option A `.nvmrc=24.10.0` | CLOSED at `6c3a1e5` (now superseded by GitHub-tracked deploy at `49650f0…`) |
+| N-2t deploy-method source-identity gating | CLOSED at `49650f077509d83dcbf3e9771dc9ca30f351e55b` |
+| N-2u Codex Q10 freshness-invalidation runbook fix | IN PROGRESS — DOCS-ONLY |
 
 ## N-3 State
 
@@ -55,13 +57,14 @@ All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS). The ca
 - [x] Migration 008 remains NOT applied to production.
 - [x] N-3 remains halted/blocked behind the runbook §11 gate.
 - [x] Next N-3 review must be a fresh Codex N-3 preflight on the runbook at the latest committed HEAD, using `git rev-parse HEAD` to identify that HEAD and `git log` for commit truth.
+- [x] Fresh Codex N-3 preflight at HEAD `49650f077509d83dcbf3e9771dc9ca30f351e55b` completed on 2026-05-04 = **FAIL (Q10 freshness-invalidation gap)**. N-2u applies Codex's exact required wording to runbook §4(x)(b); N-3 remains blocked until Codex re-review PASS on the N-2u runbook plus deploy-and-verify cycle at the new post-N-2u HEAD plus a fresh Victor in-session production-action approval naming that new HEAD.
 
 ## Carry-Forward Execution Checks
 
 - [ ] **Approval-gate separation confirmed:** N-2s commit-time approval authorized only committing `.nvmrc` + three status docs; it did NOT authorize deploy (gate 5, separately approved); it did NOT authorize N-3. N-2t commit-time approval authorizes only committing the runbook + three status docs; it does NOT authorize deploy; it does NOT authorize N-3.
 - [ ] **N-2t deploy-method source-identity gating:** the currently-running deploy of `agent-avila-dashboard` was triggered by `railway up` and exposes no commit SHA on any non-secret Railway surface. Per runbook §3 (N-2t) and §4(x)(a) GAP-D Case 2 (tightened in N-2t), `railway up` deploys without a verifiable full 40-character commit SHA are REJECTED as a valid §4(x)(a) source-identity surface for N-3. Image digest, deployment ID, timestamp, and operator-attested mapping are NOT commit SHAs. **The next N-3 attempt requires a GitHub-push-tracked deploy** (or any equivalent that produces a Railway-recorded commit SHA on a non-secret surface).
 - [ ] **Path Z block at HEAD `6c3a1e5`:** Path Z (N-3 against currently-deployed HEAD via Option E) is structurally blocked by the N-2t deploy-method rejection until a GitHub-tracked deploy produces a commit-SHA-recording deployment.
-- [x] **Check D — repo-side pin in place via Option A.** Repo-root `.nvmrc` containing exact normalized value `24.10.0` is committed at HEAD `6c3a1e5` (local-only; not yet pushed); satisfies runbook §4(x)(b) source priority 1. Pin matches the deployed runtime as captured at fact-finding time (in-container `node --version` returned `v24.10.0` from a `railway ssh` session into the production `agent-avila-dashboard` container). `package.json` `engines.node` remains the non-exact range `">=18.0.0"`, unchanged.
+- [x] **Check D — repo-side pin in place via Option A.** Repo-root `.nvmrc` containing exact normalized value `24.10.0` is committed at HEAD `6c3a1e5` (local-only; not yet pushed); satisfies runbook §4(x)(b) source priority 1. Pin matches the deployed runtime as captured at fact-finding time (in-container `node --version` returned `v24.10.0` from a `railway ssh` session into the production `agent-avila-dashboard` container). `package.json` `engines.node` remains the non-exact range `">=18.0.0"`, unchanged. **Verified PASS at deployed HEAD `49650f077509d83dcbf3e9771dc9ca30f351e55b` on 2026-05-04** via Web UI deploy-identity capture (GitHub-push-tracked) plus `railway ssh` in-container `node --version` = `v24.10.0` byte-for-byte match against `.nvmrc`. Freshness invalidation rule (per N-2u) remains in force.
 - [ ] **Deployed-runtime verification (post-commit deploy-and-verify cycle, per N-2r design):** after the new HEAD is deployed to `agent-avila-dashboard` (auto-deploy or separately scoped deploy approval — gate 5 per `orchestrator/APPROVAL-GATES.md`, NOT authorized by any N-2x docs commit), operator verifies via `railway ssh` after the redeploy reaches RUNNING: deployed commit SHA equals the new approved HEAD byte-for-byte; in-container `node --version` matches `.nvmrc` byte-for-byte after parsing-hygiene normalization; deployed service healthy. HALT and re-pin in a separately scoped phase if any check fails.
 - [ ] **N-2r-preflight freshness:** runtime-version capture used to set `.nvmrc` remains valid only if no intervening deploy, builder change, service/environment scope switch, inability to identify running deployment SHA, or Nixpacks Node-provider patch update has occurred since capture. If freshness is broken, operator re-runs in-container `node --version` capture and updates `.nvmrc` in a separately scoped phase before any N-3 attempt.
 - [ ] Fresh Codex N-3 preflight PASS on the latest committed HEAD (after deploy-and-verify cycle complete).
@@ -75,8 +78,8 @@ All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS). The ca
 - [x] Status docs reference the latest committed HEAD via `git rev-parse HEAD` rather than embedding stale "current HEAD" claims (per N-2q stale-proof pattern).
 - [x] Active stale wording about open-work state or incomplete closeout items is absent.
 - [x] Next-action language is stale-proof: it points to a fresh Codex N-3 preflight on the latest committed HEAD, canonical runbook §11, `git log`, and `git rev-parse HEAD`.
-- [x] No new open-phase or unlanded-closeout tail is introduced for N-2t.
-- [x] The runbook `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` IS part of this N-2t commit (deploy-method gating in §3, §4(x)(a) Case 2 tightening, §1 / §9 / §11 / §14 phase-discipline updates). The runbook's §4(x)(b) `.nvmrc` source rule and HALT-on-disagreement remain unchanged.
+- [x] No new open-phase or unlanded-closeout tail is introduced for N-2u.
+- [x] The runbook `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` IS part of this N-2u commit (Codex Q10 freshness-invalidation paragraph appended in §4(x)(b), §1 / §9 / §11 / §14 phase-discipline updates). The runbook's §4(x)(b) `.nvmrc` source-priority list, canonical-source rule, parsing-hygiene rule, and HALT-on-disagreement rule remain unchanged; §4(x)(b) is extended (not weakened) by the freshness-invalidation paragraph.
 
 ## P2 Informational (post-N-2q findings)
 
@@ -88,7 +91,7 @@ All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS). The ca
 
 - **`railway up` deploys do NOT record a commit SHA on Railway's non-secret surfaces.** The currently-running production deploy of `agent-avila-dashboard` was triggered by `railway up` (per the project's documented deploy command at `package.json:14`). The Railway dashboard exposes deployment ID, image digest, build provenance, timestamp, and start command — but no commit SHA. Both Cases of §4(x)(a) GAP-D fail for the current deploy: Case 1 (in-container `git rev-parse HEAD`) returned `fatal: not a git repository` because the deployed NIXPACKS container lacks `.git/` metadata (binary `/bin/git` exists; metadata does not); Case 2 (Railway deploy-metadata fallback) returned no commit SHA.
 - **N-2t codifies the rule:** deploys lacking a verifiable full 40-character commit SHA on a non-secret Railway deploy-metadata surface are REJECTED as a valid §4(x)(a) source-identity surface for N-3 (mirrors N-2n / N-2o rejection patterns for local-injection surfaces). Approved N-3 deploy path is GitHub-push-tracked deploys (or equivalent commit-SHA-recording deploys).
-- **Approved next-step sequence (Path X resumption after N-2t commit):** restore local DNS connectivity → push N-2s (`6c3a1e5`) to GitHub → allow Railway auto-deploy (or scoped manual deploy approval) for the GitHub-tracked deploy → verify deployed commit SHA + in-container `node --version` matches `.nvmrc` + service health → fresh Codex N-3 preflight at the new HEAD → fresh Victor in-session production-action approval naming the new HEAD → N-3 attempt from a fresh `railway ssh` session per the N-2m same-session rule.
+- **Approved next-step sequence (after N-2u commit):** Codex re-review PASS on the N-2u four-file docs diff → operator approves N-2u commit → commit lands at a new HEAD → push to GitHub `origin/main` (GitHub-push-tracked deploy method per N-2t) → allow Railway auto-deploy (or scoped manual deploy approval) for the GitHub-tracked deploy → verify deployed commit SHA + in-container `node --version` matches `.nvmrc` + service health (per the N-2u-codified §4(x)(b) freshness rule) → fresh Codex N-3 preflight at the new HEAD → fresh Victor in-session production-action approval naming the new HEAD → N-3 attempt from a fresh `railway ssh` session per the N-2m same-session rule.
 
 ## Blocked Actions
 
