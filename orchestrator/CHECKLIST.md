@@ -2,6 +2,25 @@
 
 End-to-end progression for the Agent Avila dual-truth fix and surrounding orchestrator work.
 
+## ARC Governance Activation (ARC-GO-LIVE)
+
+ARC-GO-LIVE is a DOCS-ONLY governance activation step. It activates ARC-1 through ARC-7 as the active control layer for Agent Avila. It does NOT authorize live trading, production mutation, migration application, deploy, runtime edits, or commit. It is a draft pending Codex docs-only review and explicit Victor / CEO approval.
+
+- [ ] ARC-GO-LIVE: confirm ARC-1 (`orchestrator/PROTECTED-FILES.md`) is active as the per-path SAFE / RESTRICTED / HARD BLOCK classification matrix.
+- [ ] ARC-GO-LIVE: confirm ARC-2 (`orchestrator/APPROVAL-GATES.md`) is active as the 16-gate action-class matrix and "what is NOT operator approval" non-equivalence list.
+- [ ] ARC-GO-LIVE: confirm ARC-3 (`orchestrator/PHASE-MODES.md`) is active as the six-mode phase-labeling system (READ-ONLY AUDIT / DESIGN-ONLY / DOCS-ONLY / SAFE IMPLEMENTATION / HIGH-RISK IMPLEMENTATION / PRODUCTION ACTION).
+- [ ] ARC-GO-LIVE: confirm ARC-4 (`orchestrator/NEXT-ACTION-SELECTOR.md`) is active as the ten-rule next-action selector and master-order discipline.
+- [ ] ARC-GO-LIVE: confirm ARC-5 (`orchestrator/ROLE-HIERARCHY.md`) is active as the role hierarchy (Victor / ChatGPT / Gemini / Claude / Codex + future-automation governance-only inheritance) and prompt-template source.
+- [ ] ARC-GO-LIVE: confirm ARC-6 (`orchestrator/AUTOMATION-PERMISSIONS.md`) is active as the GREEN / YELLOW / RED three-tier automation-permission system covering Claude, Codex, ChatGPT, Gemini, Ruflo, Hermes, and any successor.
+- [ ] ARC-GO-LIVE: confirm ARC-7 (`orchestrator/HANDOFF-RULES.md` + `orchestrator/handoffs/`) is active as the handoff packet rules and templates; packets cannot approve, cannot transport, and cannot trade.
+- [ ] ARC-GO-LIVE: confirm ARC governance is not live trading and is not production mutation. Trading-runtime separation per `ROLE-HIERARCHY.md` and `AUTOMATION-PERMISSIONS.md` remains in force; the brains govern changes, they do not run the runtime.
+- [ ] ARC-GO-LIVE: confirm Victor / CEO remains the sole final authority. No AI role (Claude, Codex, ChatGPT, Gemini, Ruflo, Hermes, successors) can self-approve. Codex PASS, clean `git status`, green tests, scheduled triggers, signed tokens, CI status, and LLM self-approval DO NOT satisfy any operator-approval gate.
+- [ ] ARC-GO-LIVE: confirm N-phase production work remains blocked behind existing gates. N-3 remains halted/blocked behind runbook §11; Migration 008 remains NOT applied to production.
+- [ ] ARC-GO-LIVE: confirm prior Victor production-action approvals naming `9ae139d` and `3138e7f` remain CONSUMED and cannot be reused. A fresh in-session approval naming the exact full latest committed HEAD from `git rev-parse HEAD` is required for any future N-3 attempt, after the post-commit deploy-and-verify cycle is complete.
+- [ ] ARC-GO-LIVE: confirm future work must obey ARC-1 through ARC-7 without exception (phase modes, protected files, approval gates, next-action selector, role hierarchy, automation permissions, handoff rules).
+- [ ] ARC-GO-LIVE: Codex docs-only review on the activation status-doc updates (STATUS.md / CHECKLIST.md / NEXT-ACTION.md).
+- [ ] ARC-GO-LIVE: explicit Victor / CEO approval before any commit of the activation status-doc updates.
+
 ## N-2x Migration 008 Runbook Track
 
 All N-2x phases through N-2s are CLOSED (or, for N-2r, design-only PASS). The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.

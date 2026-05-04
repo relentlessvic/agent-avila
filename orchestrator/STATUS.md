@@ -1,6 +1,36 @@
 # Orchestrator Status
 
-Last updated: 2026-05-04
+Last updated: 2026-05-04 (N-2t closeout); ARC-GO-LIVE governance activation drafted 2026-05-03 (DOCS-ONLY; pending Codex docs-only review and explicit Victor / CEO approval before commit).
+
+## ARC Governance Activation (ARC-GO-LIVE)
+
+**Mode:** DOCS-ONLY. Pending Codex docs-only review and explicit Victor / CEO approval before commit.
+
+ARC-GO-LIVE is the orchestrator-governance activation checkpoint. It officially activates ARC-1 through ARC-7 as the active control layer for Agent Avila and confirms the governance framework binds all subsequent work. **ARC-GO-LIVE does not equal live trading. It does not authorize any production mutation, migration application, deploy, Railway command, live Kraken action, env / secret read or write, `MANUAL_LIVE_ARMED` change, package / lockfile edit, runtime edit, `position.json` change, or commit.**
+
+Active governance controls:
+
+| ARC | Doc | Function |
+|---|---|---|
+| ARC-1 | `orchestrator/PROTECTED-FILES.md` | Per-path SAFE / RESTRICTED / HARD BLOCK matrix; Ruflo / future-automation rule |
+| ARC-2 | `orchestrator/APPROVAL-GATES.md` | 16-gate action-class matrix; "what is NOT operator approval" non-equivalence list |
+| ARC-3 | `orchestrator/PHASE-MODES.md` | Six phase modes (READ-ONLY AUDIT / DESIGN-ONLY / DOCS-ONLY / SAFE IMPLEMENTATION / HIGH-RISK IMPLEMENTATION / PRODUCTION ACTION) |
+| ARC-4 | `orchestrator/NEXT-ACTION-SELECTOR.md` | Ten ordered selector rules; master-order discipline |
+| ARC-5 | `orchestrator/ROLE-HIERARCHY.md` | Five named roles (Victor / ChatGPT / Gemini / Claude / Codex) + future-automation governance-only inheritance |
+| ARC-6 | `orchestrator/AUTOMATION-PERMISSIONS.md` | GREEN / YELLOW / RED three-tier permission model; Claude / Codex / ChatGPT / Gemini / Ruflo / Hermes / successors all governance-only |
+| ARC-7 | `orchestrator/HANDOFF-RULES.md` + `orchestrator/handoffs/` | Packet rules and templates; packets cannot approve, cannot transport, cannot trade |
+
+**Confirmed at activation:**
+
+1. **ARC governance is not live trading and is not production mutation.** ARC-GO-LIVE is a docs-only governance step. The trading-runtime separation rule from `orchestrator/ROLE-HIERARCHY.md` "Critical separation rule" and `orchestrator/AUTOMATION-PERMISSIONS.md` "Critical separation rule" remains in force: the brains govern changes; they do not run the runtime.
+2. **Victor / CEO remains the sole final authority.** All RED-tier actions (per `AUTOMATION-PERMISSIONS.md`), all 16 numbered approval gates (per `APPROVAL-GATES.md`), all phase-mode promotions (per `PHASE-MODES.md`), all master-order changes (per `NEXT-ACTION-SELECTOR.md`), all scoped lifts on RESTRICTED / HARD BLOCK files (per `PROTECTED-FILES.md`), and all commits of safety-policy docs require explicit, in-session, per-action approval from Victor.
+3. **No AI role can self-approve.** Claude (Lead Engineer / Builder), Codex (Chief Risk & Safety Officer), Gemini (Director of Architecture / UX), ChatGPT (VP of Strategy & Orchestration), and any future automation layer (Ruflo, Hermes, successors) are governance-only and cannot grant themselves authority. Codex PASS, clean `git status`, green tests, scheduled triggers, signed tokens, CI status, and any LLM self-approval DO NOT satisfy any operator-approval gate (per `APPROVAL-GATES.md` "What is NOT operator approval" and `AUTOMATION-PERMISSIONS.md` Tier 3 — RED rule).
+4. **The 3-brains workflow does not enter the trading runtime hot path.** Live order decisions are made by `bot.js` + the operator + Kraken — not by Claude / Codex / ChatGPT / Gemini / Ruflo / Hermes. Automation may freely operate within GREEN-tier read-only verification, draft proposed changes for higher tiers, and surface mode-promotion requests to Victor — but cannot apply, commit, deploy, or execute outside an explicit operator instruction.
+5. **N-phase production work remains blocked behind its existing gates.** N-3 remains halted/blocked behind runbook §11. Migration 008 remains NOT applied to production. The next allowed action toward N-3 remains a fresh Codex N-3 preflight on the runbook at the latest committed HEAD per `git rev-parse HEAD`, with the canonical N-3 gate at `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §11. ARC-GO-LIVE does not advance, bypass, or alter that gate.
+6. **Prior production-action approvals remain CONSUMED and cannot be reused.** The approval naming `9ae139d` (consumed by N-3 attempt 1, halted before SQL execution) and the approval naming `3138e7f` (consumed by N-3 attempt 2, halted before SQL execution) cannot be applied to any future N-3 attempt. A fresh Victor in-session production-action approval naming the exact full latest committed HEAD from `git rev-parse HEAD` is required for any future N-3 attempt, after the post-commit deploy-and-verify cycle is complete.
+7. **Future work obeys ARC-1 through ARC-7 without exception.** Every subsequent phase must (a) be labeled with exactly one mode per `PHASE-MODES.md` before any state-mutating tool call, (b) respect the per-path matrix in `PROTECTED-FILES.md` (SAFE / RESTRICTED / HARD BLOCK), (c) clear the relevant gates in the `APPROVAL-GATES.md` 16-gate matrix, (d) follow the strict ordering in `NEXT-ACTION-SELECTOR.md`'s ten selector rules, (e) respect the role hierarchy in `ROLE-HIERARCHY.md` (CEO is sole approver; brains recommend / review / block but do not approve), (f) operate within the GREEN / YELLOW / RED tiers in `AUTOMATION-PERMISSIONS.md`, and (g) honor the packet rules in `HANDOFF-RULES.md` (packets are not approval channels, not transports, not trading interfaces, and never override the canonical sources).
+
+**ARC-GO-LIVE explicitly does not authorize:** committing any file, deploying, running migrations, running Railway commands, modifying runtime files (`bot.js`, `dashboard.js`, `db.js`, `migrations/**`, `scripts/**`, `position.json`, `package.json`, lockfiles, `.env` files, deploy config), reading or writing env / secrets, changing `MANUAL_LIVE_ARMED`, touching live Kraken paths, executing the N-3 migration application, deploying the latest committed HEAD, or any other RED-tier action. The activation itself is a draft pending Codex docs-only review and explicit Victor / CEO approval; until both arrive, the activation is not committed.
 
 ## Current Phase State
 

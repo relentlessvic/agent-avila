@@ -2,7 +2,42 @@
 
 Single source of truth for what Claude should do next. Read this before doing anything.
 
-## Right Now
+## Right Now — ARC Governance Activation (ARC-GO-LIVE)
+
+**Mode:** DOCS-ONLY. Pending Codex docs-only review and explicit Victor / CEO approval before any commit.
+
+The current step is **ARC-GO-LIVE — orchestrator governance activation.** It officially activates ARC-1 through ARC-7 as the active control layer for Agent Avila. The activation is recorded as a docs-only update to `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, and this file. **ARC-GO-LIVE is not live trading, not production mutation, not migration application, not a deploy, and not authorization for any RED-tier action.**
+
+The activation confirms — and depends on, without modifying — the seven safety-policy docs already in the working tree:
+
+- ARC-1: `orchestrator/PROTECTED-FILES.md` (per-path SAFE / RESTRICTED / HARD BLOCK matrix; Ruflo / future-automation rule).
+- ARC-2: `orchestrator/APPROVAL-GATES.md` (16-gate action-class matrix; "what is NOT operator approval").
+- ARC-3: `orchestrator/PHASE-MODES.md` (six phase modes; phase-labeling rule; automation non-promotion rule).
+- ARC-4: `orchestrator/NEXT-ACTION-SELECTOR.md` (ten ordered selector rules; master-order discipline).
+- ARC-5: `orchestrator/ROLE-HIERARCHY.md` (CEO is sole approver; Claude / Codex / ChatGPT / Gemini cannot approve; Ruflo / Hermes / successors inherit governance role only).
+- ARC-6: `orchestrator/AUTOMATION-PERMISSIONS.md` (GREEN / YELLOW / RED tiers; Claude / Codex / ChatGPT / Gemini / Ruflo / Hermes / successors all governance-only).
+- ARC-7: `orchestrator/HANDOFF-RULES.md` + `orchestrator/handoffs/` (packets are not approval channels, not transports, not trading interfaces).
+
+ARC-GO-LIVE next-action sequence:
+
+1. Operator inspects the drafted ARC-GO-LIVE updates to STATUS.md / CHECKLIST.md / NEXT-ACTION.md (`git diff` only — no commit).
+2. Codex docs-only review of the three drafted updates against the seven safety-policy docs (no widening, no scope creep, no implication of authorization for any RED-tier action).
+3. On Codex PASS, explicit Victor / CEO approval of the activation commit (per `APPROVAL-GATES.md` — ordinary status-doc commit-time approval).
+4. Operator stages by name (`git add orchestrator/STATUS.md orchestrator/CHECKLIST.md orchestrator/NEXT-ACTION.md`) and commits.
+5. Closeout: re-read STATUS.md / CHECKLIST.md / NEXT-ACTION.md and confirm next-action language correctly returns to the prior N-track state (Path X resumption — see "Right Now — N-track" below).
+
+After ARC-GO-LIVE commits, the next-action selector returns to the prior N-track state below; ARC-GO-LIVE does not consume any N-2t / N-3 approval, does not advance N-3, does not authorize a deploy, and does not authorize Migration 008 application.
+
+**Confirmations carried by ARC-GO-LIVE (none of these is altered by the activation; the activation states them on the record):**
+
+- N-3 remains halted/blocked behind runbook §11. Migration 008 remains NOT applied to production.
+- Prior Victor production-action approvals naming `9ae139d` and `3138e7f` remain CONSUMED and cannot be reused.
+- Victor / CEO is the sole final authority for every RED-tier action and every commit of a safety-policy doc.
+- Claude / Codex / ChatGPT / Gemini / Ruflo / Hermes / successors cannot self-approve. Codex PASS, clean tree, green tests, scheduled triggers, signed tokens, and LLM self-approval DO NOT satisfy any operator-approval gate.
+- The trading runtime is not consulted by the brains in its hot path; live order decisions are made by `bot.js` + the operator + Kraken.
+- Future work must obey ARC-1 through ARC-7 without exception.
+
+## Right Now — N-track (resumes after ARC-GO-LIVE commits)
 
 **N-3 remains halted/blocked. Migration 008 remains NOT applied to production.**
 
