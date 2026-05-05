@@ -111,6 +111,20 @@ Per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section, the Controlled Autopilot Bu
 - **Approval-field rule.** Autopilot CANNOT mark the approval field in `OPERATOR-APPROVAL-PACKET.md`, `COMMIT-PACKET.md`, or any successor approval packet. This rule extends to any future automation layer (Ruflo, Hermes, successors). Approval fields are operator-marked only.
 - **Trigger rule.** Autopilot's own scheduling, internal tick, Loop A re-entry, or any internal "decision-to-advance" signal DOES NOT constitute operator approval. The existing "What is NOT operator approval" rules apply in full.
 
+## COMM-HUB-packet conventions (COMM-HUB)
+
+Per `orchestrator/COMM-HUB-RULES.md` (committed in COMM-HUB-DOCS-A as a SAFE-class safety-policy doc), the Communication Hub introduces five new docs-only template files alongside the existing autopilot template set:
+
+- `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` — exact Discord channel definitions, server settings, per-channel permissions.
+- `orchestrator/handoffs/COMM-HUB-DAILY-SUMMARY.md` — daily summary template for `#summaries`.
+- `orchestrator/handoffs/COMM-HUB-WEEKLY-SUMMARY.md` — weekly summary template for `#summaries`.
+- `orchestrator/handoffs/COMM-HUB-CODEX-WARNING.md` — Codex non-PASS warning template for `#codex-warnings`.
+- `orchestrator/handoffs/COMM-HUB-SYSTEM-ALERT.md` — system alert template for `#system-health`.
+
+Each template inherits the Forbidden-content rules above verbatim. Pre-publish Codex sanity check is mandatory for every Discord draft per `orchestrator/AUTOPILOT-RULES.md` ARC-8 + `orchestrator/COMM-HUB-RULES.md`. Auto-publish is RED-tier and is NOT authorized at COMM-HUB-DOCS-A; future Hermes auto-publish is gated behind a separate Gate-10 install phase per `orchestrator/AUTOMATION-PERMISSIONS.md` future-automation rules and applies only to `#status` / `#summaries` / `#system-health` (NEVER `#approvals` or `#codex-warnings`).
+
+A Discord reply, emoji, or reaction is NEVER an approval. Only Victor's in-session chat instruction grants approval (per `orchestrator/APPROVAL-GATES.md` "What is NOT operator approval").
+
 ## Stop conditions
 
 A reviewing agent (Claude, Codex, future automation) MUST halt and surface to the operator if any of the following occur:

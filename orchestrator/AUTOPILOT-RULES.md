@@ -186,6 +186,8 @@ Two channels only:
 
 **No third channel.** AI-to-AI internal coordination goes through `orchestrator/HANDOFF-RULES.md` packets, not Discord.
 
+**Canonical Communication Hub spec.** The full Discord channel architecture, role/permission model, message-type table, approval-request workflow, Codex warning workflow, summary workflow, and Hermes integration point are codified in `orchestrator/COMM-HUB-RULES.md` (committed in COMM-HUB-DOCS-A as a SAFE-class safety-policy doc). The Channel 1 + Channel 2 patterns above remain the canonical autopilot-side authority; `COMM-HUB-RULES.md` is the canonical Discord-side authority. Where the two appear to conflict, the more restrictive rule wins.
+
 ### Multi-agent coordination
 
 Roles per `orchestrator/ROLE-HIERARCHY.md` remain in force. ARC-8 binds Role 4 (Claude — Lead Engineer / Builder) as the orchestrator-process. This is an explicit binding of an existing role — it is NOT a new role and does NOT widen Claude's authority.

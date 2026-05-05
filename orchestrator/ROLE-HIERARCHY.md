@@ -167,6 +167,8 @@ Inherits the governance role only. Specifically:
 
 Any future automation that proposes to widen, batch, or automate any HARD BLOCK action must be surfaced to the CEO and the protections in this file (and the three other safety-policy docs) must be honored as-is.
 
+**Hermes activation gate (per `orchestrator/COMM-HUB-RULES.md`).** Hermes is the proposed future scheduled-summarizer / Discord-publisher role for the Communication Hub. It is DORMANT at COMM-HUB-DOCS-A activation. Hermes install requires a separate dedicated COMM-HUB-HERMES-DESIGN-ONLY phase + Codex docs-only review + explicit Victor approval per `orchestrator/APPROVAL-GATES.md` Gate 10 (automation install / upgrade). Hermes inherits all governance-only constraints in this file: cannot self-approve, cannot widen its authority, cannot become a trading actor, cannot bypass trading-runtime separation. Once active, Hermes is permitted to auto-publish `#status` / `#summaries` / `#system-health` Discord messages (after Codex pre-publish sanity check) but is NEVER permitted to auto-publish `#approvals` or `#codex-warnings` (those remain operator-published forever) and is NEVER permitted to write to Category C trading channels (those require additional multi-gated activation).
+
 ## ARC-8 orchestration binding
 
 Per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section, the Controlled Autopilot Builder System binds Role 4 (Claude — Lead Engineer / Builder) as the orchestrator-process for the four-loop architecture (Sense / Decide / Draft / Approve→Execute→Report). This is an explicit binding of an existing role — it is NOT a new role and does NOT widen Claude's authority.

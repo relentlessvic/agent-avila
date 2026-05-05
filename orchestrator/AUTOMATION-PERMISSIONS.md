@@ -41,6 +41,18 @@ The Controlled Autopilot Builder System (per `orchestrator/AUTOPILOT-RULES.md` A
 
 ARC-8 adds zero new gates and weakens zero existing gates. It is a scheduler + drafting + comms layer bound by the existing matrix.
 
+### COMM-HUB autopilot mapping
+
+The Communication Hub (per `orchestrator/COMM-HUB-RULES.md`, committed in COMM-HUB-DOCS-A) maps cleanly into the three-tier model and adds no new tier:
+
+- **Drafting Discord messages (`#approvals`, `#status`, `#codex-warnings`, `#summaries`, `#system-health`) and pre-publish Codex sanity-checking those drafts** is GREEN tier — orchestrator may execute these autonomously within the active phase mode.
+- **Publishing Discord messages** is RED tier at COMM-HUB-DOCS-A activation — operator-published only. Future Hermes auto-publish for `#status` / `#summaries` / `#system-health` (NOT `#approvals` and NOT `#codex-warnings`) is gated behind a separate Gate-10 install phase. Auto-publish is NEVER authorized for `#approvals` or `#codex-warnings` regardless of any future Hermes install.
+- **Discord-bot install, webhook creation, scheduler / cron / MCP install, server creation, role-permission widening, third-party integration install** is RED tier and HARD-BLOCKED at COMM-HUB-DOCS-A. Each requires its own dedicated phase with security review and explicit Victor approval per Gate 10 (automation install / upgrade) and Gate 16 (any command that could widen automation authority).
+- **Trading-channel activation** (Category C: `#trading-alerts`, `#trading-summaries`) is HARD-BLOCKED — multi-gated (trading-track activation + Trading-Writer install + per-message Victor approval); not authorized by COMM-HUB-DOCS-A.
+- **A Discord reply, emoji, or reaction** is NEVER operator approval. Per the existing rule in this file: a Codex PASS, clean `git status`, green tests, scheduled trigger, signed token, or any LLM-self-approval — and now a Discord reply / reaction / emoji — DOES NOT promote a YELLOW or RED action into GREEN. Only Victor's in-session chat instruction grants approval.
+
+COMM-HUB adds zero new gates and weakens zero existing gates.
+
 ## Tier 1 — GREEN: actions automation may do automatically
 
 Provided the active phase mode (per `orchestrator/PHASE-MODES.md`) allows them, these actions do not require fresh approval each time:

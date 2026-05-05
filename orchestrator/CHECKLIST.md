@@ -46,27 +46,32 @@ ARC-8-DOCS-A closed at `c8dc4f4547ce34531cde44dbe61315cae7aa5661` (Controlled Au
 - [x] ARC-8-RUN-B: ARC-8-RUN-B-CLOSEOUT (this current phase) opened by explicit operator direction (Direction A) as **operator-directed manual** — does NOT advance autopilot phase-loop counter.
 - [x] ARC-8-RUN-B: closed at `4737f5cede88f28fecc9e287e3a935083403316d`; pushed to origin/main; Codex Rounds 1, 2, 3 all PASS; ARC-8 framework validation COMPLETE.
 
-- [ ] ARC-8-RUN-B-CLOSEOUT: STATUS.md updated to record ARC-8-RUN-B closed at `4737f5c…`, ARC-8 framework validation COMPLETE, phase-loop ceiling FIRED at 3 of 3, CEILING-PAUSE state, phase table extended with ARC-8-RUN-B-CLOSEOUT row, Closeout Note rewrite.
-- [ ] ARC-8-RUN-B-CLOSEOUT: CHECKLIST.md updated (this section), phase table close ARC-8-RUN-B / open ARC-8-RUN-B-CLOSEOUT, ARC-8-RUN-B 10 [ ] checkboxes converted to [x].
-- [ ] ARC-8-RUN-B-CLOSEOUT: NEXT-ACTION.md updated with phase chain extension, current-phase summary rewrite, Required Gate State extended with ARC-8-RUN-B CONSUMED clause + ARC-8-RUN-B-CLOSEOUT clause + explicit CEILING-PAUSE clause.
-- [ ] ARC-8-RUN-B-CLOSEOUT: scope confirmed exactly the 3 status docs; no other file modified by this phase.
-- [ ] ARC-8-RUN-B-CLOSEOUT: ARC-8-DOCS-A safety-policy docs and autopilot template set NOT modified by this phase (per ARC-8 self-modification HARD BLOCK).
-- [ ] ARC-8-RUN-B-CLOSEOUT: Migration 008 runbook NOT modified; N-3 closed; Migration 008 APPLIED at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877`.
-- [ ] ARC-8-RUN-B-CLOSEOUT: classified as operator-directed MANUAL closeout; does NOT advance the autopilot phase-loop counter; does NOT break the CEILING-PAUSE state. Only an explicit Victor direction-confirmation instruction breaks the ceiling and resets the autopilot phase-loop counter to 0.
-- [ ] ARC-8-RUN-B-CLOSEOUT: ARC-8-RUN-B PASS recorded across all 3 status docs.
-- [ ] ARC-8-RUN-B-CLOSEOUT: Codex Rounds 1, 2, 3 all PASS recorded across all 3 status docs.
-- [ ] ARC-8-RUN-B-CLOSEOUT: ARC-8 framework validation COMPLETE recorded prominently.
-- [ ] ARC-8-RUN-B-CLOSEOUT: phase-loop ceiling FIRED at 3 of 3 recorded explicitly.
-- [ ] ARC-8-RUN-B-CLOSEOUT: CEILING-PAUSE state recorded explicitly with canonical wording — autopilot Loop B may NOT propose phase candidates while in CEILING-PAUSE.
-- [ ] ARC-8-RUN-B-CLOSEOUT: no Discord publication (Channel 1 + 4 Channel 2 drafts remained conversation-only; never auto-published; never operator-published).
-- [ ] ARC-8-RUN-B-CLOSEOUT: autopilot runtime remains DORMANT after this phase; no scheduler / webhook / MCP / cron / Discord-bot installed; no autopilot execution authority granted.
-- [ ] ARC-8-RUN-B-CLOSEOUT: approval-fatigue queue position at this request = 1 of 2 (this commit-only approval is the single pending request).
-- [ ] ARC-8-RUN-B-CLOSEOUT: ARC-8-RUN-C / further autopilot-driven phases remain GATED behind explicit Victor direction-confirmation per CEILING-PAUSE rule.
-- [ ] ARC-8-RUN-B-CLOSEOUT: pending Codex docs-only review; pending operator approval to commit; pending separate operator approval to push.
+- [x] ARC-8-RUN-B-CLOSEOUT: closed at `7da7eb84682cb9483691d9269e700e997649a516`; pushed to origin/main; STATUS.md / CHECKLIST.md / NEXT-ACTION.md updated to record ARC-8-RUN-B as CLOSED PASS, ARC-8 framework validation COMPLETE, phase-loop ceiling FIRED at 3 of 3, CEILING-PAUSE state; Codex docs-only review PASS WITH REQUIRED EDITS first round (Q11 Railway-string finding); operator clarification packet (byte-level + blame + prior-rounds evidence) successfully resolved Q11 as a false positive (WITHDRAWN); final Codex re-review PASS; 3-file scope (STATUS.md, CHECKLIST.md, NEXT-ACTION.md); operator-directed manual; did NOT advance autopilot phase-loop counter; did NOT break CEILING-PAUSE; autopilot runtime DORMANT throughout.
+
+## Communication Hub — COMM-HUB-DOCS-A — In Progress
+
+COMM-HUB-DOCS-A is an operator-directed manual phase writing the official Agent Avila Communication Hub spec and templates. The Communication Hub is a Discord-centered control-room surface for project updates, approval requests, Codex warnings, summaries, and system alerts. It is operator-private, governance/comms layer only, and never enters the trading-runtime hot path.
+
+- [ ] COMM-HUB-DOCS-A: `orchestrator/COMM-HUB-RULES.md` written (canonical Communication Hub spec; SAFE-class safety-policy doc; channel architecture / role-permission model / message types / approval-request workflow / Codex warning workflow / summary workflow / system-alert workflow / Hermes integration point / forbidden-content rules / pre-publish Codex sanity check / hard limits).
+- [ ] COMM-HUB-DOCS-A: `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` written (exact Discord channel definitions, server settings, per-channel permissions; 3 categories, 7 channels; Category C `#future-trading` DORMANT).
+- [ ] COMM-HUB-DOCS-A: `orchestrator/handoffs/COMM-HUB-DAILY-SUMMARY.md` written (daily summary template).
+- [ ] COMM-HUB-DOCS-A: `orchestrator/handoffs/COMM-HUB-WEEKLY-SUMMARY.md` written (weekly summary template).
+- [ ] COMM-HUB-DOCS-A: `orchestrator/handoffs/COMM-HUB-CODEX-WARNING.md` written (Codex non-PASS warning template for `#codex-warnings`).
+- [ ] COMM-HUB-DOCS-A: `orchestrator/handoffs/COMM-HUB-SYSTEM-ALERT.md` written (system alert template for `#system-health`).
+- [ ] COMM-HUB-DOCS-A: cross-reference updates to AUTOPILOT-RULES.md (ARC-8 Discord rules pointer to COMM-HUB-RULES.md), AUTOMATION-PERMISSIONS.md (COMM-HUB autopilot mapping subsection), HANDOFF-RULES.md (COMM-HUB-packet conventions subsection), PROTECTED-FILES.md (COMM-HUB-RULES.md as SAFE-class), ROLE-HIERARCHY.md (Hermes activation gate clause), CLAUDE.md (one-paragraph COMM-HUB reference) applied.
+- [ ] COMM-HUB-DOCS-A: STATUS.md / CHECKLIST.md / NEXT-ACTION.md updated with phase-table close ARC-8-RUN-B-CLOSEOUT / open COMM-HUB-DOCS-A, preamble flips, ARC-8 Activation section ARC-8-RUN-B-CLOSEOUT 17 [ ] back-filled to [x], Closeout Note rewrite, Required Gate State extension.
+- [ ] COMM-HUB-DOCS-A: scope confirmed exactly 15 files (6 new + 9 cross-reference updates); no runtime / migration / script / package.json / lockfile / .nvmrc / .env* / position.json / deploy-config touched; no autopilot template touched; closed Migration 008 runbook not touched.
+- [ ] COMM-HUB-DOCS-A: no Discord server creation; no Discord bot install; no webhook creation; no scheduler / MCP / cron / background automation install.
+- [ ] COMM-HUB-DOCS-A: classified as operator-directed manual; not autopilot-driven; does NOT advance autopilot phase-loop counter; does NOT break CEILING-PAUSE.
+- [ ] COMM-HUB-DOCS-A: autopilot runtime remains DORMANT; CEILING-PAUSE state preserved; no autopilot execution authority granted.
+- [ ] COMM-HUB-DOCS-A: Migration 008 APPLIED at HEAD `189eb1b…` preserved; N-3 closed preserved; the set of approvers remains exactly {Victor}.
+- [ ] COMM-HUB-DOCS-A: approval-fatigue queue position at this request = 1 of 2 (this commit-only approval is the single pending request).
+- [ ] COMM-HUB-DOCS-A: future Hermes install, Discord-bot install, server creation, webhook creation, trading-channel activation each require their own dedicated phases under separate operator approval per Gate 10 (automation install / upgrade); not authorized by COMM-HUB-DOCS-A.
+- [ ] COMM-HUB-DOCS-A: pending Codex docs-only review; pending operator approval to commit; pending separate operator approval to push.
 
 ## N-2x Migration 008 Runbook Track
 
-All N-2x phases through ARC-8-RUN-B are CLOSED (or, for N-2r, design-only PASS); ARC-8-RUN-B-CLOSEOUT is IN PROGRESS (DOCS-ONLY **operator-directed manual** closeout phase recording ARC-8 framework validation complete + CEILING-PAUSE state). **Migration 008 is APPLIED to production at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 — 2026-05-04, runner exit 0). N-3 is closed. Autopilot runtime remains DORMANT. ARC-8 framework validation is COMPLETE — first autopilot-driven DOCS-ONLY phase end-to-end succeeded (ARC-8-RUN-B with Codex Rounds 1, 2, 3 all PASS). Phase-loop ceiling has FIRED at 3 of 3; autopilot is in CEILING-PAUSE state; no further autopilot-driven phase may open until Victor gives explicit direction confirmation.** The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`. ARC-8 (Controlled Autopilot Builder System) extension is canonical in `orchestrator/AUTOPILOT-RULES.md` ARC-8 section; the autopilot template set is canonical in `orchestrator/handoffs/AUTOPILOT-*.md` and `orchestrator/prompts/AUTOPILOT-LOOP-*.md`.
+All N-2x phases through ARC-8-RUN-B-CLOSEOUT are CLOSED (or, for N-2r, design-only PASS); COMM-HUB-DOCS-A is IN PROGRESS (DOCS-ONLY **operator-directed manual** phase writing the Communication Hub spec + 5 templates + 9 cross-reference updates). **Migration 008 is APPLIED to production at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 — 2026-05-04, runner exit 0). N-3 is closed. Autopilot runtime remains DORMANT. ARC-8 framework validation is COMPLETE. Phase-loop ceiling has FIRED at 3 of 3; autopilot is in CEILING-PAUSE state. COMM-HUB-DOCS-A is operator-directed manual; does NOT advance autopilot phase-loop counter; does NOT break CEILING-PAUSE; no Discord bot installed; no webhooks created; no schedulers / cron / MCP added.** The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`. ARC-8 (Controlled Autopilot Builder System) extension is canonical in `orchestrator/AUTOPILOT-RULES.md` ARC-8 section; the autopilot template set is canonical in `orchestrator/handoffs/AUTOPILOT-*.md` and `orchestrator/prompts/AUTOPILOT-LOOP-*.md`. Communication Hub spec is canonical in `orchestrator/COMM-HUB-RULES.md`; the COMM-HUB template set is canonical in `orchestrator/handoffs/COMM-HUB-*.md`.
 
 | Item | Status |
 |---|---|
@@ -102,7 +107,8 @@ All N-2x phases through ARC-8-RUN-B are CLOSED (or, for N-2r, design-only PASS);
 | ARC-8-RUN-A First autopilot dry-run — ARC-8 framework self-consistency audit (READ-ONLY AUDIT mode; conversation-only output; no commit; Loop A/B/C real, Loop D simulated; Codex Round 1 PASS) | CLOSED — PASS (no commit; working tree unchanged at HEAD `629f74744e4d2d22f267cab4807be74f3a6a67b8`) |
 | ARC-8-RUN-A-CLOSEOUT Record ARC-8-RUN-A PASS + back-fill stale-tail references from ARC-8-DOCS-B (3 status docs: STATUS.md, CHECKLIST.md, NEXT-ACTION.md) | CLOSED at `a427d1c509597b769728d95a7ec95ea7ebb0dc9f` (pushed to origin/main) |
 | ARC-8-RUN-B First autopilot-driven DOCS-ONLY phase end-to-end (back-fill ARC-8-RUN-A-CLOSEOUT stale-tail in 3 status docs; Loops A/B/C/D all real; Codex Rounds 1, 2, 3 all PASS; no Discord publication; phase-loop ceiling fired at completion) | CLOSED at `4737f5cede88f28fecc9e287e3a935083403316d` (pushed to origin/main) |
-| ARC-8-RUN-B-CLOSEOUT Operator-directed manual closeout phase: back-fill ARC-8-RUN-B post-push stale-tail in 3 status docs + record ARC-8 framework validation complete + record CEILING-PAUSE state; not autopilot-driven; does NOT advance the autopilot phase-loop counter | IN PROGRESS — DOCS-ONLY |
+| ARC-8-RUN-B-CLOSEOUT Operator-directed manual closeout phase | CLOSED at `7da7eb84682cb9483691d9269e700e997649a516` (pushed to origin/main; recorded ARC-8 framework validation COMPLETE + CEILING-PAUSE state) |
+| COMM-HUB-DOCS-A Operator-directed manual phase: Communication Hub spec (`orchestrator/COMM-HUB-RULES.md`) + 5 new templates + 9 cross-reference updates = 15 files; not autopilot-driven; does NOT advance autopilot phase-loop counter; does NOT break CEILING-PAUSE; no Discord bot / webhook / scheduler installed | IN PROGRESS — DOCS-ONLY |
 
 ## N-3 State
 

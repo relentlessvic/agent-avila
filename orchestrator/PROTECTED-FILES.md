@@ -37,7 +37,8 @@ Safe to edit during normal orchestrator work after Codex docs-only review (or, f
 | `orchestrator/ROLE-HIERARCHY.md` | Role hierarchy and prompt templates; safety-policy doc |
 | `orchestrator/AUTOMATION-PERMISSIONS.md` | Automation permission rules; safety-policy doc |
 | `orchestrator/HANDOFF-RULES.md` | Handoff packet rules; safety-policy doc |
-| `orchestrator/handoffs/**` | Handoff packet templates and instances; SAFE-class governance docs |
+| `orchestrator/COMM-HUB-RULES.md` | Communication Hub spec (Discord-centered control-room rules); safety-policy doc |
+| `orchestrator/handoffs/**` | Handoff packet templates and instances; SAFE-class governance docs (includes the five COMM-HUB-* templates: COMM-HUB-CHANNEL-LAYOUT.md, COMM-HUB-DAILY-SUMMARY.md, COMM-HUB-WEEKLY-SUMMARY.md, COMM-HUB-CODEX-WARNING.md, COMM-HUB-SYSTEM-ALERT.md) |
 | `orchestrator/prompts/**` | Prompt templates for Codex / operator workflows |
 | Design reports (any `*.md` produced as a design-only deliverable) | Must be design-only; no code touched |
 | Read-only audit reports (`*.md`) | Audit observations, no mutations |
