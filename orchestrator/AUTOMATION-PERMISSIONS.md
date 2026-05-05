@@ -221,7 +221,7 @@ Any future automation layer (named "Ruflo", "Hermes", or otherwise) inherits the
 
 **Specifically:**
 - **Ruflo** is bound by these rules. Ruflo cannot self-approve or widen its authority. A Ruflo install or upgrade requires explicit operator approval (per `orchestrator/APPROVAL-GATES.md` gate 10).
-- **Hermes** is bound by these rules. Hermes cannot self-approve or widen its authority. A Hermes install or upgrade requires explicit operator approval (per `orchestrator/APPROVAL-GATES.md` gate 10 — automation upgrade class).
+- **Hermes** is bound by these rules. Hermes cannot self-approve or widen its authority. A Hermes install or upgrade requires explicit operator approval (per `orchestrator/APPROVAL-GATES.md` gate 10 — automation upgrade class). The canonical Hermes spec is `orchestrator/COMM-HUB-HERMES-RULES.md` (SAFE-class) — full capability matrix, anti-execution boundaries, approval discipline (per-message Victor approval through Stage 9; bounded class only at Stage 10a/10b with 7 documented bounds: channel, template, allowed event types, max count, expiration, revocation rule, forbidden-content constraints), idempotency mechanism (orchestrator-side keys + Hermes-private append-only publish logs; **no Discord-side reads of any kind**), and staged activation path (Stages 1–10b + EOL).
 - **Any successor** to Ruflo or Hermes is bound by these rules. The rules apply by class, not by name.
 
 The brief that automation is "smart enough to know what's safe" is not honored. Automation must always escalate to the CEO for any RED action.

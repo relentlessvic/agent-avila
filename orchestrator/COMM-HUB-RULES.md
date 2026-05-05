@@ -183,6 +183,8 @@ Future automation: after explicit Victor approval to install Hermes (Gate 10), s
 
 ## Future Hermes integration point
 
+**Canonical Hermes spec:** `orchestrator/COMM-HUB-HERMES-RULES.md` (SAFE-class). The summary below is intentionally short; the canonical spec carries the full capability matrix, anti-execution boundaries, approval discipline (per-message through Stage 9; bounded class only at Stage 10a/10b with 7 documented bounds), idempotency mechanism (orchestrator-side keys + Hermes-private append-only publish logs; **no Discord-side reads**), and staged activation path. If this section diverges from the canonical Hermes spec, the canonical spec wins for Hermes-specific detail.
+
 **Hermes** is the proposed future scheduled-summarizer / Discord-publisher role. Currently DORMANT.
 
 Activation gate (when operator chooses to install Hermes):
