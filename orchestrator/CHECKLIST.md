@@ -20,27 +20,26 @@ ARC-GO-LIVE is a DOCS-ONLY governance activation step. It is committed and pushe
 - [x] ARC-GO-LIVE: future work must obey ARC-1 through ARC-7 without exception (phase modes, protected files, approval gates, next-action selector, role hierarchy, automation permissions, handoff rules); next work returns to the N-track only via the normal ARC-4 selector and ARC-2 gates.
 - [x] ARC-GO-LIVE: activation committed and pushed at `de91d325b8160fb8183cc26172e50f3f35831796`.
 
-## ARC-8 Activation (ARC-8-DOCS-A) — In Progress
+## ARC-8 Activation (ARC-8-DOCS-B) — In Progress
 
-ARC-8-DOCS-A is a DOCS-ONLY orchestration-layer spec phase. It introduces the Controlled Autopilot Builder System as an extension to the existing supervised-autopilot Loop in `orchestrator/AUTOPILOT-RULES.md`. ARC-8 does NOT authorize autopilot runtime activation, scheduler installation, MCP/webhook installation, Discord-bot installation, or any RED-tier action. It only writes the spec; activation is deferred to ARC-8-RUN-A under separate operator approval.
+ARC-8-DOCS-A closed at `c8dc4f4547ce34531cde44dbe61315cae7aa5661` (Controlled Autopilot Builder System spec — `orchestrator/AUTOPILOT-RULES.md` ARC-8 extension + 10 cross-reference updates; autopilot runtime NOT activated). ARC-8-DOCS-B (this phase) writes the autopilot template set the autopilot system needs to operate uniformly. ARC-8-DOCS-B does NOT authorize autopilot runtime activation, scheduler installation, MCP/webhook installation, Discord-bot installation, or any RED-tier action.
 
-- [ ] ARC-8-DOCS-A: AUTOPILOT-RULES.md extended with ARC-8 sections (Purpose, four-loop architecture, allowed/blocked/forbidden actions, Codex auto-trigger criteria, operator approval-request packet rules, Discord channels and content rules, multi-agent coordination, phase-candidate proposal mechanism, self-modification HARD BLOCK, phase-loop ceiling, approval-fatigue mitigation, ARC-8 stop conditions, cross-references, change history). Existing supervised-autopilot Loop preserved verbatim.
-- [ ] ARC-8-DOCS-A: AUTOMATION-PERMISSIONS.md updated with ARC-8 autopilot mapping subsection (Loop A/B/C/D tier mapping, self-modification HARD BLOCK clause, trigger-source non-equivalence).
-- [ ] ARC-8-DOCS-A: NEXT-ACTION-SELECTOR.md updated with autopilot phase-candidate proposal mechanism section (ranks rules 1–10 in strict order; cannot self-execute; cannot rewrite master order; cannot promote phase modes).
-- [ ] ARC-8-DOCS-A: HANDOFF-RULES.md updated with autopilot-packet conventions (uses existing OPERATOR-APPROVAL-PACKET.md; cannot mark approval field; Discord summaries pre-publish Codex check; no auto-publish).
-- [ ] ARC-8-DOCS-A: ROLE-HIERARCHY.md updated with ARC-8 orchestration binding subsection (Claude-as-orchestrator process binding, not authority binding; set of approvers remains exactly {Victor}).
-- [ ] ARC-8-DOCS-A: PHASE-MODES.md updated with ARC-8 phase-candidate proposals classified as READ-ONLY AUDIT outputs.
-- [ ] ARC-8-DOCS-A: PROTECTED-FILES.md updated with ARC-8 autopilot self-modification HARD BLOCK clause.
-- [ ] ARC-8-DOCS-A: STATUS.md updated with ARC-8 Activation Pending section and phase-table close N-2aa / open ARC-8-DOCS-A.
-- [ ] ARC-8-DOCS-A: NEXT-ACTION.md updated with ARC-8-DOCS-A current-phase summary and phase chain extension.
-- [ ] ARC-8-DOCS-A: CLAUDE.md updated with one-line autopilot reference (`orchestrator/AUTOPILOT-RULES.md` ARC-8 + "set of approvers is exactly {Victor}").
-- [ ] ARC-8-DOCS-A: ARC-8 explicitly does NOT activate autopilot runtime; does NOT install schedulers / webhooks / MCP / cron / Discord bots; does NOT grant autopilot any execution authority. ARC-8-RUN-A (first dry-run) is a separate phase under separate operator approval.
-- [ ] ARC-8-DOCS-A: scope confirmed exactly the 11 files above; no runtime / migration / script / package.json / lockfile / .nvmrc / .env* / position.json / deploy-config file is modified by this phase.
-- [ ] ARC-8-DOCS-A: pending Codex docs-only review (mandatory per `orchestrator/PROTECTED-FILES.md` safety-policy doc commit gate); pending operator approval to commit; pending separate operator approval to push.
+- [ ] ARC-8-DOCS-B: 5 new handoff packet templates written under `orchestrator/handoffs/`: `AUTOPILOT-DISCORD-STATUS.md` (Channel 2 status format), `AUTOPILOT-DISCORD-APPROVAL.md` (Channel 1 approval format), `AUTOPILOT-PHASE-CANDIDATE.md` (Loop B output format), `AUTOPILOT-DRY-RUN-REPORT.md` (ARC-8-RUN-A output format), `AUTOPILOT-HALT.md` (stop-condition surface).
+- [ ] ARC-8-DOCS-B: 3 existing handoff packet templates extended with autopilot-fillable sections: `CODEX-REVIEW-PACKET.md`, `OPERATOR-APPROVAL-PACKET.md`, `CLOSEOUT-PACKET.md` (existing structure preserved verbatim; autopilot-fillable section appended).
+- [ ] ARC-8-DOCS-B: 4 new prompt templates written under `orchestrator/prompts/`: `AUTOPILOT-LOOP-A-SENSE.md`, `AUTOPILOT-LOOP-B-DECIDE.md`, `AUTOPILOT-LOOP-C-DRAFT.md`, `AUTOPILOT-LOOP-D-APPROVE-EXECUTE-REPORT.md` (each is a documentation prompt template — describes WHAT autopilot should do, not a script that DOES it).
+- [ ] ARC-8-DOCS-B: STATUS.md updated with ARC-8-DOCS-B in-progress entry, phase-table close ARC-8-DOCS-A / open ARC-8-DOCS-B, Closeout Note rewrite.
+- [ ] ARC-8-DOCS-B: CHECKLIST.md updated with ARC-8-DOCS-B checklist (this section), phase-table close ARC-8-DOCS-A / open ARC-8-DOCS-B.
+- [ ] ARC-8-DOCS-B: NEXT-ACTION.md updated with ARC-8-DOCS-B current-phase summary and phase chain extension.
+- [ ] ARC-8-DOCS-B: ARC-8 autopilot runtime remains DORMANT after ARC-8-DOCS-B commits and pushes; no scheduler / webhook / MCP / cron / Discord-bot installed; no autopilot execution authority granted; no autopilot-driven phase active.
+- [ ] ARC-8-DOCS-B: scope confirmed exactly the 15 files (5 new + 3 extended handoff packet templates + 4 new prompt templates + 3 status doc updates); no runtime / migration / script / package.json / lockfile / .nvmrc / .env* / position.json / deploy-config / safety-policy file is modified by this phase beyond the three status docs and the named handoff/prompt templates.
+- [ ] ARC-8-DOCS-B: ARC-8-DOCS-A safety-policy docs (AUTOPILOT-RULES.md, AUTOMATION-PERMISSIONS.md, NEXT-ACTION-SELECTOR.md, HANDOFF-RULES.md, ROLE-HIERARCHY.md, PHASE-MODES.md, PROTECTED-FILES.md, CLAUDE.md) NOT modified by this phase (per ARC-8 self-modification HARD BLOCK).
+- [ ] ARC-8-DOCS-B: Migration 008 runbook (`orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md`) NOT modified; N-3 is closed.
+- [ ] ARC-8-DOCS-B: ARC-8-RUN-A (first autopilot dry-run on a low-risk read-only phase) remains DEFERRED to a separate future operator approval; ARC-8-DOCS-B does NOT authorize ARC-8-RUN-A.
+- [ ] ARC-8-DOCS-B: pending Codex docs-only review (mandatory per `orchestrator/PROTECTED-FILES.md` SAFE-class governance doc rule and `orchestrator/HANDOFF-RULES.md` packet rules); pending operator approval to commit; pending separate operator approval to push.
 
 ## N-2x Migration 008 Runbook Track
 
-All N-2x phases through N-2aa are CLOSED (or, for N-2r, design-only PASS); ARC-8-DOCS-A is IN PROGRESS (DOCS-ONLY orchestration-layer spec phase). **Migration 008 is APPLIED to production at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 — 2026-05-04, runner exit 0). N-3 is closed.** The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`. ARC-8 (Controlled Autopilot Builder System) extension is canonical in `orchestrator/AUTOPILOT-RULES.md` ARC-8 section.
+All N-2x phases through ARC-8-DOCS-A are CLOSED (or, for N-2r, design-only PASS); ARC-8-DOCS-B is IN PROGRESS (DOCS-ONLY autopilot-template phase). **Migration 008 is APPLIED to production at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 — 2026-05-04, runner exit 0). N-3 is closed. Autopilot runtime remains DORMANT.** The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`. ARC-8 (Controlled Autopilot Builder System) extension is canonical in `orchestrator/AUTOPILOT-RULES.md` ARC-8 section; the autopilot template set is canonical in `orchestrator/handoffs/AUTOPILOT-*.md` and `orchestrator/prompts/AUTOPILOT-LOOP-*.md`.
 
 | Item | Status |
 |---|---|
@@ -71,7 +70,8 @@ All N-2x phases through N-2aa are CLOSED (or, for N-2r, design-only PASS); ARC-8
 | N-2y operator-side preflight checker module-format rule (ESM/CommonJS) + N-3 attempt history back-fill (Attempt 5) + §14 back-fill (N-2y) | CLOSED at `74d940b6d1b4252363fba00bf22e402bd7c09263` |
 | N-2z runbook clarification: §4(x)(a)/(b) Evidence-record form codification per Codex Pattern B | CLOSED at `189eb1be6ef6304d914671bdaedec44d389cf877` |
 | N-2aa Attempt 6 SUCCESS closeout + §6(a) SIX-A verifier-expectation correction per Codex closeout review | CLOSED at `be120749ca6ebb88fb7400eca0ec1692cfc828e0` (pushed to origin/main) |
-| ARC-8-DOCS-A Controlled Autopilot Builder System spec (orchestrator/AUTOPILOT-RULES.md ARC-8 extension + 10 cross-reference updates) | IN PROGRESS — DOCS-ONLY |
+| ARC-8-DOCS-A Controlled Autopilot Builder System spec (orchestrator/AUTOPILOT-RULES.md ARC-8 extension + 10 cross-reference updates) | CLOSED at `c8dc4f4547ce34531cde44dbe61315cae7aa5661` (pushed to origin/main) |
+| ARC-8-DOCS-B Autopilot template set (5 new + 3 extended handoff packet templates + 4 new prompt templates + 3 status doc updates = 15 files) | IN PROGRESS — DOCS-ONLY |
 
 ## N-3 State
 
