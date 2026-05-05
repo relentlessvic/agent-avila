@@ -29,6 +29,18 @@ Every action attempted by any automation layer falls into one of three tiers:
 
 A Codex PASS, clean `git status`, green tests, scheduled trigger, signed token, or any LLM-self-approval DOES NOT promote a YELLOW or RED action into GREEN (per `orchestrator/APPROVAL-GATES.md` "What is NOT operator approval" and `orchestrator/PROTECTED-FILES.md` Ruflo / future-automation rule).
 
+### ARC-8 autopilot mapping
+
+The Controlled Autopilot Builder System (per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section) maps cleanly into the three-tier model and adds no new tier:
+
+- **Autopilot Loop A (Sense), Loop B (Decide / phase-candidate proposal), and Loop C drafting steps for SAFE-class files** are GREEN tier — autopilot may execute these autonomously within the active phase mode.
+- **Autopilot Loop C drafting steps for any file outside the SAFE class** (RESTRICTED / HARD BLOCK / safety-policy doc / runtime / migration / script / `package.json` / lockfile / `.nvmrc` / `.env*` / `position.json` / deploy config) are bound by the same YELLOW (Codex review) or RED (Codex review + Victor approval) gates that bind a manual draft. Autopilot drafting does NOT lower the gate.
+- **Autopilot Loop D execute steps** (any commit, push, deploy, runner invocation, env change, `MANUAL_LIVE_ARMED` change, Kraken-touching action) are RED tier and require explicit, in-session, scoped Victor approval per the existing 16-gate matrix and the blocked-commands list. Autopilot may NEVER execute these autonomously even if Codex has returned PASS on the draft.
+- **Autopilot self-modification** (edits to `orchestrator/AUTOPILOT-RULES.md`, edits to its own permission tier in this file, edits to its own phase-candidate ranking logic, edits to any ARC-1 through ARC-8 safety-policy doc) is HARD BLOCK; requires explicit Victor approval through the standard safety-policy-doc commit gate. The HARD BLOCK is structural — autopilot's self-modification is forbidden even with Codex PASS. Indirect self-modification (editing a "non-self" file in a way that effectively widens autopilot authority) is also HARD BLOCK.
+- **Autopilot trigger sources** (cron, scheduler, MCP server, webhook, signed token, scheduled-trigger event, CI status, green tests, clean tree, LLM self-approval) DO NOT satisfy any operator-approval gate. Autopilot's "decision" to advance is not an approval. The existing rule applies: a Codex PASS, clean `git status`, green tests, scheduled trigger, signed token, or any LLM-self-approval DOES NOT promote a YELLOW or RED action into GREEN.
+
+ARC-8 adds zero new gates and weakens zero existing gates. It is a scheduler + drafting + comms layer bound by the existing matrix.
+
 ## Tier 1 — GREEN: actions automation may do automatically
 
 Provided the active phase mode (per `orchestrator/PHASE-MODES.md`) allows them, these actions do not require fresh approval each time:

@@ -21,3 +21,7 @@ Project instructions for AI assistants working in this repository.
 - Check `git status` before and after edits.
 - Run tests after edits when possible.
 - Summarize exactly what changed.
+
+## Autopilot
+
+Autopilot rules are at `orchestrator/AUTOPILOT-RULES.md` (ARC-8 — Controlled Autopilot Builder System extends the existing supervised-autopilot Loop). Autopilot may sense, propose phase candidates, draft work, route Codex reviews, and prepare operator-approval packets — but it never approves anything. Victor is the sole approver. The set of approvers is exactly {Victor}.

@@ -221,6 +221,8 @@ Last updated: 2026-05-02 (ARC-3 — docs-only; pending Codex docs-only review an
 - Automation may freely operate within a labeled mode's allowed actions, may draft proposed changes for higher modes, and may surface mode-promotion requests to the operator — but it cannot apply, commit, deploy, or execute outside the labeled mode without explicit operator instruction.
 - This rule is consistent with `orchestrator/PROTECTED-FILES.md` (Ruflo / future-automation rule) and `orchestrator/APPROVAL-GATES.md` ("Ruflo or future-automation approval is not operator approval").
 
+**ARC-8 phase-candidate proposals.** Per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section, autopilot's phase-candidate proposals are READ-ONLY AUDIT outputs (Mode 1) — they consist of consulting `orchestrator/NEXT-ACTION-SELECTOR.md` rules 1–10 and surfacing the highest-priority candidate(s) to the operator. The proposal itself does not mutate any file or state and does not require operator approval to generate. Confirming a candidate (i.e., advancing into the candidate phase) requires the operator's explicit instruction and re-labels the phase to the candidate's intended mode. Autopilot CANNOT promote phase modes; phase-mode promotion remains operator-only per the Automation / Ruflo rule above.
+
 ## Cross-references
 
 - `orchestrator/PROTECTED-FILES.md` — per-path classification (SAFE / RESTRICTED / HARD BLOCK) referenced by every mode's allowed/blocked lists.

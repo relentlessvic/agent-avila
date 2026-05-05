@@ -43,6 +43,17 @@ Claude MUST evaluate these rules in order before any new phase begins. The first
 9. **Stop if Codex returns FAIL / REJECT / required edits.** A Codex verdict of FAIL, FAIL-WITH-CONDITIONS, REJECT, or PASS-WITH-REQUIRED-EDITS halts the commit and the production action that the commit enables. Required edits must be applied verbatim and the artifact must be re-reviewed by Codex before the next selector evaluation proceeds.
 10. **Stop if any non-operator signal is treated as approval.** Codex PASS, clean `git status`, green tests, Claude self-approval, Ruflo / future-automation approval, scheduled trigger, signed token, and LLM self-approval are NOT operator approvals (per `orchestrator/APPROVAL-GATES.md` and `orchestrator/PROTECTED-FILES.md`). If any of these appear to be clearing a gate that requires explicit operator approval, Claude must stop.
 
+## Autopilot phase-candidate proposal mechanism (ARC-8)
+
+Per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section, the Controlled Autopilot Builder System may evaluate rules 1–10 above in strict order to generate phase-candidate proposals for the operator. The proposal mechanism does NOT change rule order, does NOT skip any rule, and does NOT add new gates.
+
+- Autopilot may propose up to N candidate next phases (default N=3) ranked by selector priority.
+- Each candidate is surfaced to the operator with a one-paragraph rationale tying the candidate to the first-firing rule.
+- The operator confirms one candidate, redirects to a different action, or rejects all candidates.
+- Autopilot CANNOT self-execute the candidate, CANNOT rewrite the master order, CANNOT promote phase modes (per `orchestrator/PHASE-MODES.md` automation non-promotion rule), and CANNOT bypass any of rules 1–10.
+- A Codex PASS, clean working tree, green tests, scheduled trigger, signed token, LLM self-approval, or autopilot's own "best candidate" determination DO NOT constitute operator override (per rule 10 above and `orchestrator/AUTOPILOT-RULES.md` ARC-8 cross-references).
+- Phase-candidate proposals are READ-ONLY AUDIT outputs (per `orchestrator/PHASE-MODES.md` Mode 1); they do not mutate any file or state and do not require operator approval to generate. Confirming a candidate (i.e., advancing into the candidate phase) requires the operator's explicit instruction and re-labels the phase to the candidate's intended mode.
+
 ## Current selector output — master order (as of 2026-05-02 / HEAD `9b5093f`)
 
 The selector evaluates the current state and produces this ordered roadmap. Phases must be executed in order; jumping ahead is forbidden unless the operator explicitly changes the master order.

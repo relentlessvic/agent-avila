@@ -167,6 +167,23 @@ Inherits the governance role only. Specifically:
 
 Any future automation that proposes to widen, batch, or automate any HARD BLOCK action must be surfaced to the CEO and the protections in this file (and the three other safety-policy docs) must be honored as-is.
 
+## ARC-8 orchestration binding
+
+Per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section, the Controlled Autopilot Builder System binds Role 4 (Claude — Lead Engineer / Builder) as the orchestrator-process for the four-loop architecture (Sense / Decide / Draft / Approve→Execute→Report). This is an explicit binding of an existing role — it is NOT a new role and does NOT widen Claude's authority.
+
+Role bindings under ARC-8:
+
+- **Claude (Role 4)** runs the autopilot loops as the orchestrator. Claude drafts, routes, and executes operator-approved actions. Claude cannot self-approve any gate.
+- **Codex (Role 5)** is auto-invoked by autopilot for review under the criteria in `AUTOPILOT-RULES.md` ARC-8 "Codex auto-trigger criteria". Codex retains its block authority; Codex cannot approve.
+- **ChatGPT (Role 2)** is invoked by autopilot for ambiguous-priority arbitration when two candidate phases have comparable selector priority.
+- **Gemini (Role 3)** is invoked by autopilot when long-context architecture or UX review is appropriate and quota is available.
+- **Ruflo / Hermes / future-automation (Role 6+)** remain governance-only per `orchestrator/AUTOMATION-PERMISSIONS.md` and `orchestrator/PROTECTED-FILES.md`. Autopilot does NOT delegate execution to these layers; it may delegate drafting work, subject to the same gates.
+- **Victor (Role 1)** remains the sole final authority. ARC-8 does not change the set of approvers — the set is exactly {Victor}.
+
+**No AI role inherits Victor's authority through ARC-8.** The orchestrator binding is a process binding, not an authority binding.
+
+**Disagreement resolution.** If Codex returns FAIL but ChatGPT or Gemini suggests PASS, Codex (Chief Risk & Safety Officer) wins on safety/risk per the role hierarchy above. Disagreements between Codex and other reviewers are surfaced to Victor as a "conflicting verdicts" packet rather than auto-resolved.
+
 ## What requires Victor / CEO approval
 
 Per `APPROVAL-GATES.md` 16-gate matrix and `NEXT-ACTION-SELECTOR.md` rule 6, the following actions require explicit, in-session, per-action approval from the CEO:

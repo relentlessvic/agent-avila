@@ -100,6 +100,17 @@ Per `orchestrator/AUTOMATION-PERMISSIONS.md` and `orchestrator/PROTECTED-FILES.m
 
 These rules apply by class, not by name. Any successor inherits them automatically.
 
+## Autopilot-packet conventions (ARC-8)
+
+Per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section, the Controlled Autopilot Builder System uses the existing packet framework defined above without introducing new packet types in this phase (templates deferred to ARC-8-DOCS-B). Specifically:
+
+- **Approval requests.** Autopilot uses the existing `OPERATOR-APPROVAL-PACKET.md` template for every operator-facing approval request. Autopilot fills in the request fields; the operator marks the approval field. **Autopilot CANNOT mark the approval field under any circumstance.**
+- **Codex review requests.** Autopilot uses the existing `CODEX-REVIEW-PACKET.md` template. Codex's verdict is transcribed into the append-only `CODEX-VERDICT.md` per the existing rule.
+- **Autopilot phase-candidate proposals.** Phase-candidate proposals from autopilot's Loop B are not packets in the formal sense; they are conversational surfaces to the operator. They obey the same forbidden-content rules above. They are append-only — autopilot cannot rewrite a prior proposal; a new proposal supersedes a prior one only after operator instruction.
+- **Discord summaries.** See `orchestrator/AUTOPILOT-RULES.md` ARC-8 "Discord channels and content rules". Discord summaries obey the forbidden-content rules above (no secrets, no `DATABASE_URL`, no env values, no runner output, no prod-DB content, no live Kraken endpoints, no `MANUAL_LIVE_ARMED` state, no `position.json` contents). Each Discord draft passes through a pre-publish Codex sanity check before posting. Autopilot does NOT auto-publish; the operator publishes.
+- **Approval-field rule.** Autopilot CANNOT mark the approval field in `OPERATOR-APPROVAL-PACKET.md`, `COMMIT-PACKET.md`, or any successor approval packet. This rule extends to any future automation layer (Ruflo, Hermes, successors). Approval fields are operator-marked only.
+- **Trigger rule.** Autopilot's own scheduling, internal tick, Loop A re-entry, or any internal "decision-to-advance" signal DOES NOT constitute operator approval. The existing "What is NOT operator approval" rules apply in full.
+
 ## Stop conditions
 
 A reviewing agent (Claude, Codex, future automation) MUST halt and surface to the operator if any of the following occur:

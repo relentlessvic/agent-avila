@@ -20,9 +20,27 @@ ARC-GO-LIVE is a DOCS-ONLY governance activation step. It is committed and pushe
 - [x] ARC-GO-LIVE: future work must obey ARC-1 through ARC-7 without exception (phase modes, protected files, approval gates, next-action selector, role hierarchy, automation permissions, handoff rules); next work returns to the N-track only via the normal ARC-4 selector and ARC-2 gates.
 - [x] ARC-GO-LIVE: activation committed and pushed at `de91d325b8160fb8183cc26172e50f3f35831796`.
 
+## ARC-8 Activation (ARC-8-DOCS-A) — In Progress
+
+ARC-8-DOCS-A is a DOCS-ONLY orchestration-layer spec phase. It introduces the Controlled Autopilot Builder System as an extension to the existing supervised-autopilot Loop in `orchestrator/AUTOPILOT-RULES.md`. ARC-8 does NOT authorize autopilot runtime activation, scheduler installation, MCP/webhook installation, Discord-bot installation, or any RED-tier action. It only writes the spec; activation is deferred to ARC-8-RUN-A under separate operator approval.
+
+- [ ] ARC-8-DOCS-A: AUTOPILOT-RULES.md extended with ARC-8 sections (Purpose, four-loop architecture, allowed/blocked/forbidden actions, Codex auto-trigger criteria, operator approval-request packet rules, Discord channels and content rules, multi-agent coordination, phase-candidate proposal mechanism, self-modification HARD BLOCK, phase-loop ceiling, approval-fatigue mitigation, ARC-8 stop conditions, cross-references, change history). Existing supervised-autopilot Loop preserved verbatim.
+- [ ] ARC-8-DOCS-A: AUTOMATION-PERMISSIONS.md updated with ARC-8 autopilot mapping subsection (Loop A/B/C/D tier mapping, self-modification HARD BLOCK clause, trigger-source non-equivalence).
+- [ ] ARC-8-DOCS-A: NEXT-ACTION-SELECTOR.md updated with autopilot phase-candidate proposal mechanism section (ranks rules 1–10 in strict order; cannot self-execute; cannot rewrite master order; cannot promote phase modes).
+- [ ] ARC-8-DOCS-A: HANDOFF-RULES.md updated with autopilot-packet conventions (uses existing OPERATOR-APPROVAL-PACKET.md; cannot mark approval field; Discord summaries pre-publish Codex check; no auto-publish).
+- [ ] ARC-8-DOCS-A: ROLE-HIERARCHY.md updated with ARC-8 orchestration binding subsection (Claude-as-orchestrator process binding, not authority binding; set of approvers remains exactly {Victor}).
+- [ ] ARC-8-DOCS-A: PHASE-MODES.md updated with ARC-8 phase-candidate proposals classified as READ-ONLY AUDIT outputs.
+- [ ] ARC-8-DOCS-A: PROTECTED-FILES.md updated with ARC-8 autopilot self-modification HARD BLOCK clause.
+- [ ] ARC-8-DOCS-A: STATUS.md updated with ARC-8 Activation Pending section and phase-table close N-2aa / open ARC-8-DOCS-A.
+- [ ] ARC-8-DOCS-A: NEXT-ACTION.md updated with ARC-8-DOCS-A current-phase summary and phase chain extension.
+- [ ] ARC-8-DOCS-A: CLAUDE.md updated with one-line autopilot reference (`orchestrator/AUTOPILOT-RULES.md` ARC-8 + "set of approvers is exactly {Victor}").
+- [ ] ARC-8-DOCS-A: ARC-8 explicitly does NOT activate autopilot runtime; does NOT install schedulers / webhooks / MCP / cron / Discord bots; does NOT grant autopilot any execution authority. ARC-8-RUN-A (first dry-run) is a separate phase under separate operator approval.
+- [ ] ARC-8-DOCS-A: scope confirmed exactly the 11 files above; no runtime / migration / script / package.json / lockfile / .nvmrc / .env* / position.json / deploy-config file is modified by this phase.
+- [ ] ARC-8-DOCS-A: pending Codex docs-only review (mandatory per `orchestrator/PROTECTED-FILES.md` safety-policy doc commit gate); pending operator approval to commit; pending separate operator approval to push.
+
 ## N-2x Migration 008 Runbook Track
 
-All N-2x phases through N-2z are CLOSED (or, for N-2r, design-only PASS); N-2aa is IN PROGRESS (DOCS-ONLY closeout phase). **Migration 008 is APPLIED to production at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 — 2026-05-04, runner exit 0). N-3 is closed.** The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`.
+All N-2x phases through N-2aa are CLOSED (or, for N-2r, design-only PASS); ARC-8-DOCS-A is IN PROGRESS (DOCS-ONLY orchestration-layer spec phase). **Migration 008 is APPLIED to production at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 — 2026-05-04, runner exit 0). N-3 is closed.** The canonical detailed change history lives in `orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md` §14; commit truth lives in `git log`. ARC-8 (Controlled Autopilot Builder System) extension is canonical in `orchestrator/AUTOPILOT-RULES.md` ARC-8 section.
 
 | Item | Status |
 |---|---|
@@ -52,7 +70,8 @@ All N-2x phases through N-2z are CLOSED (or, for N-2r, design-only PASS); N-2aa 
 | N-2x operator-side preflight checker module-resolution rule + host/container command-boundary rule + N-3 attempt history back-fill (Attempts 3, 4) + §14 back-fill (N-2v, N-2w) | CLOSED at `726b2e33988b4ea4f31f94a3361144d3ce8e8fac` |
 | N-2y operator-side preflight checker module-format rule (ESM/CommonJS) + N-3 attempt history back-fill (Attempt 5) + §14 back-fill (N-2y) | CLOSED at `74d940b6d1b4252363fba00bf22e402bd7c09263` |
 | N-2z runbook clarification: §4(x)(a)/(b) Evidence-record form codification per Codex Pattern B | CLOSED at `189eb1be6ef6304d914671bdaedec44d389cf877` |
-| N-2aa Attempt 6 SUCCESS closeout + §6(a) SIX-A verifier-expectation correction per Codex closeout review | IN PROGRESS — DOCS-ONLY |
+| N-2aa Attempt 6 SUCCESS closeout + §6(a) SIX-A verifier-expectation correction per Codex closeout review | CLOSED at `be120749ca6ebb88fb7400eca0ec1692cfc828e0` (pushed to origin/main) |
+| ARC-8-DOCS-A Controlled Autopilot Builder System spec (orchestrator/AUTOPILOT-RULES.md ARC-8 extension + 10 cross-reference updates) | IN PROGRESS — DOCS-ONLY |
 
 ## N-3 State
 
