@@ -85,6 +85,12 @@ const PERF_STATE_FILE   = dataPath("performance-state.json");
 const CAPITAL_FILE      = dataPath("capital-state.json");
 const PORTFOLIO_FILE    = dataPath("portfolio-state.json");
 
+// DASH-2.A — deploy-identity observability (read-only; ?? null on missing env).
+const DEPLOY_COMMIT_SHA       = process.env.RAILWAY_GIT_COMMIT_SHA ?? null;
+const DEPLOY_COMMIT_SHORT_SHA = DEPLOY_COMMIT_SHA ? DEPLOY_COMMIT_SHA.slice(0, 7) : null;
+const DEPLOY_DEPLOYMENT_ID    = process.env.RAILWAY_DEPLOYMENT_ID ?? null;
+const DEPLOY_BOOT_TIME        = new Date().toISOString();
+
 // Phase D-5.12b — manual-live action allowlist used by the /api/trade
 // Layer 1 MANUAL_LIVE_ARMED gate. Must match the operator-facing command
 // tokens the dashboard sends to /api/trade. Layer 2 inside
@@ -12412,6 +12418,12 @@ const server = createServer(async (req, res) => {
       errors,
       persistence,
       database,
+      deploy: {
+        commitSha:      DEPLOY_COMMIT_SHA,
+        commitShortSha: DEPLOY_COMMIT_SHORT_SHA,
+        deploymentId:   DEPLOY_DEPLOYMENT_ID,
+        bootTime:       DEPLOY_BOOT_TIME,
+      },
       // legacy fields kept for backwards compat with existing UI
       krakenOk,
     }));
