@@ -2071,7 +2071,7 @@ async function handleTradeCommand(command, params = {}) {
         log.warn("d-5.7.1 dual-write", `manual CLOSE LOG_FILE write failed (DB committed): ${e.message}`);
       }
       balanceCache = null;
-      return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | Paper SELL at $${price.toFixed(4)}`, price, orderId: exitOrderId, pnlPct, pnlUSD };
+      return { ok: true, message: `Position closed — P&L: ${pnlPct}% ($${pnlUSD}) | Paper SELL at $${price.toFixed(4)}`, price, orderId: exitOrderId, quantity, pnlPct, pnlUSD };
     }
     // Phase D-5.12e — DB-first live CLOSE persistence with fail-loud
     // caller-driven failure ladder. Mirror of B.1's paper close pattern
