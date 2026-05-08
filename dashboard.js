@@ -2250,15 +2250,149 @@ async function handleTradeCommand(command, params = {}) {
       balanceCache = null;
       return { ok: true, message: `Paper SELL ALL — ${quantity.toFixed(4)} XRP at $${price.toFixed(4)} | P&L ${pnlPct}% ($${pnlUSD})`, price, orderId: exitOrderId, quantity, pnlPct, pnlUSD };
     }
-    // Live path: byte-identical to today (Kraken balance gate + Kraken sell + JSON write).
+    // Phase D-5.12f — DB-first live SELL_ALL persistence with fail-loud
+    // caller-driven failure ladder. Mirror of D-5.12e CLOSE_POSITION
+    // adapted for SELL_ALL semantics. Round-2 revision per Codex M2:
+    // call-site fallback does not mutate attempted_payload.
+    const dbPos = await loadOpenPosition("live");
+    if (!dbPos) throw new Error("No open live position to sell");
+
     const bal = await fetchKrakenBalance();
+    if (bal?.error) {
+      throw new Error(`Live SELL_ALL: cannot read Kraken balance for drift check (${bal.error}). Aborting.`);
+    }
     const xrp = bal.balances?.find(b => b.asset === "XRP");
-    if (!xrp || xrp.amount < 0.001) throw new Error("No XRP balance to sell");
-    const order = await execKrakenOrder("sell", krakenPair, xrp.amount.toFixed(8), 1);
+    const walletAmount = xrp ? parseFloat(xrp.amount) : 0;
+    const dbQuantity = parseFloat(dbPos.quantity);
+    if (walletAmount < dbQuantity - 1e-8) {
+      throw new Error(
+        `Live SELL_ALL: wallet XRP (${walletAmount.toFixed(8)}) < DB-tracked quantity ` +
+        `(${dbQuantity.toFixed(8)}). Reconcile DB / Kraken before sell.`
+      );
+    }
+    if (walletAmount > dbQuantity + 1e-8) {
+      log.warn(
+        "d-5.12f live-sellall",
+        `wallet_excess_residue: wallet=${walletAmount.toFixed(8)} db=${dbQuantity.toFixed(8)} ` +
+        `residue=${(walletAmount - dbQuantity).toFixed(8)}`
+      );
+    }
+    const sellVol = dbQuantity.toFixed(8);
+
+    const order   = await execKrakenOrder("sell", krakenPair, sellVol, 1);
     const orderId = order.orderId;
-    writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
+    const entryPrice = parseFloat(dbPos.entry_price);
+    const quantity   = dbQuantity;
+    const tradeSize  = parseFloat(dbPos.trade_size_usd);
+    const pnlPct = ((price - entryPrice) / entryPrice * 100).toFixed(2);
+    const pnlUSD = ((price - entryPrice) / entryPrice * tradeSize).toFixed(2);
+    const exitEntry = {
+      type: "EXIT", timestamp: new Date().toISOString(),
+      symbol, price, quantity, tradeSize, entryPrice,
+      exitReason: "MANUAL_SELLALL",
+      pct: pnlPct, pnlUSD,
+      paperTrading: false, orderId,
+      conditions: [], allPass: false, orderPlaced: true,
+    };
+    const r = await shadowRecordManualLiveClose(exitEntry);
+    if (r.ok) {
+      writeFileSync(POSITION_FILE, JSON.stringify({ open: false }, null, 2));
+      try {
+        tradeLog.trades.push(exitEntry);
+        writeFileSync(LOG_FILE, JSON.stringify(tradeLog, null, 2));
+      } catch (e) {
+        log.warn("d-5.12f live-sellall", `LOG_FILE write failed (DB+JSON committed): ${e.message}`);
+      }
+      balanceCache = null;
+      return {
+        ok: true,
+        message: `Live SELL ALL — ${quantity.toFixed(4)} XRP at $${price.toFixed(4)} | P&L ${pnlPct}% ($${pnlUSD})`,
+        price, orderId, quantity, pnlPct, pnlUSD,
+      };
+    }
+    const failure_class =
+      r.reason === "no_open_position"
+        ? "kraken_post_success_db_no_open_position"
+        : "kraken_post_success_db_other_error";
+    let attempted_payload, attempted_payload_hash;
+    if (r.emergency_context && r.emergency_context.attempted_payload) {
+      attempted_payload = r.emergency_context.attempted_payload;
+      attempted_payload_hash = r.emergency_context.attempted_payload_hash ?? sha256HexCanonical(attempted_payload);
+    } else {
+      // Round-2 revision per Codex M2: attempted_payload remains pure 9-field
+      // redacted object. NO mutation appending attempted_payload_hash.
+      // Hash carried only as separate top-level variable.
+      attempted_payload = _redactAttemptedPayload({
+        symbol: exitEntry.symbol,
+        exit_price: price,
+        exit_time: exitEntry.timestamp,
+        exit_reason: "MANUAL_SELLALL",
+        quantity,
+        trade_size_usd: tradeSize,
+        realized_pnl_usd: parseFloat(pnlUSD),
+        realized_pnl_pct: parseFloat(pnlPct),
+        kraken_exit_order_id: orderId,
+      });
+      attempted_payload_hash = sha256HexCanonical(attempted_payload);
+      // (intentional divergence from shipped D-5.12e dashboard.js:2144-2145;
+      // see D-5-12F-LIVE-SELLALL-DESIGN.md §10 D-5.12e.1 deferred cleanup note)
+    }
+    const failureContext = {
+      mode: "live",
+      source: "manual_live_sellall",
+      kraken_order_id: orderId,
+      failure_class,
+      error_message: r.error?.message ?? r.reason ?? null,
+      attempted_payload,
+    };
+    const auditResult = await _emergencyAuditWrite(failureContext);
+    if (auditResult.ok) {
+      if (failure_class === "kraken_post_success_db_no_open_position") {
+        log.error("d-5.12f live-sellall",
+          `Kraken sold (orderId=${orderId}) but no open live position exists in DB ` +
+          `(race or pre-existing drift). Emergency audit row recorded ` +
+          `(event_id=${auditResult.event_id}). Operator: reconcile DB / Kraken state.`);
+      } else {
+        log.error("d-5.12f live-sellall",
+          `Kraken sold (orderId=${orderId}) but DB persist FAILED (${r.errorClass ?? r.reason ?? "db_error"}). ` +
+          `Emergency audit row recorded (event_id=${auditResult.event_id}). ` +
+          `Operator: reconstruct close from emergency_audit_log.`);
+      }
+    } else {
+      const line = JSON.stringify({
+        event_id: auditResult.event_id ?? null,
+        mode: "live",
+        source: "manual_live_sellall",
+        kraken_order_id: orderId,
+        failure_class,
+        error_message: r.error?.message ?? r.reason ?? null,
+        attempted_payload,
+        attempted_payload_hash,
+        prior_failures: ["db_persistence_failed", "audit_insert_failed"],
+        ts: new Date().toISOString(),
+      });
+      _loglineFallback(line);
+      log.error("d-5.12f live-sellall",
+        `Kraken sold (orderId=${orderId}) but DB persist + emergency audit BOTH failed. ` +
+        `Reconstruction line written to LOG_FILE (or stderr triple-fault).`);
+    }
     balanceCache = null;
-    return { ok: true, message: `Live SELL ALL — ${xrp.amount.toFixed(4)} XRP at $${price.toFixed(4)}`, price, orderId, quantity: xrp.amount };
+    const auditPointer = auditResult.ok
+      ? `emergency audit row ${auditResult.event_id}`
+      : `emergency audit DEGRADED — see LOG_FILE`;
+    if (failure_class === "kraken_post_success_db_no_open_position") {
+      throw new Error(
+        `Live SELL_ALL: Kraken sold (orderId=${orderId}) but no open live position ` +
+        `exists in the database (race or pre-existing drift). Manual operator ` +
+        `reconciliation required. ${auditPointer}.`
+      );
+    } else {
+      throw new Error(
+        `Live SELL_ALL: Kraken sold (orderId=${orderId}) but DB persistence failed ` +
+        `(${r.errorClass ?? r.reason ?? "db_error"}). ${auditPointer}. Position ` +
+        `close is NOT recorded in DB or position.json. Reconstruct manually.`
+      );
+    }
   }
 
   if (command === "SET_STOP_LOSS") {
