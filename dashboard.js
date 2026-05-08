@@ -2142,7 +2142,6 @@ async function handleTradeCommand(command, params = {}) {
         kraken_exit_order_id: orderId,
       });
       attempted_payload_hash = sha256HexCanonical(attempted_payload);
-      attempted_payload.attempted_payload_hash = attempted_payload_hash;
     }
     const failureContext = {
       mode: "live",
