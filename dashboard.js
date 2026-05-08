@@ -2312,12 +2312,20 @@ async function handleTradeCommand(command, params = {}) {
       }
       return { ok: true, message: `Take profit updated to $${newTP.toFixed(4)} (+${pct}% from entry $${entryPrice.toFixed(4)})` };
     }
-    // Live path: byte-identical to today (writes position.json directly).
-    if (!pos.open) throw new Error("No open position — open a trade first");
-    const pct       = parseFloat(params.pct || 2.0);
-    pos.takeProfit  = pos.entryPrice * (1 + pct / 100);
-    writeFileSync(POSITION_FILE, JSON.stringify(pos, null, 2));
-    return { ok: true, message: `Take profit updated to $${pos.takeProfit.toFixed(4)} (+${pct}% from entry $${pos.entryPrice.toFixed(4)})` };
+    // Phase DASH-5.B — DB-canonical live TP update. Helper at dashboard.js:906-964
+    // already implemented; this is the call-site wiring. No Kraken interaction;
+    // failure ladder collapses to throw-on-DB-failure (paper-symmetric).
+    const dbPos = await loadOpenPosition("live");
+    if (!dbPos) throw new Error("No open live position to update");
+    const pct = parseFloat(params.pct || 2.0);
+    const entryPrice = parseFloat(dbPos.entry_price);
+    const newTP = entryPrice * (1 + pct / 100);
+    const r = await shadowRecordManualLiveTPUpdate(dbPos, newTP);
+    if (!r.ok) {
+      log.warn("d-5.12c live-helper", `manual TP caller: ${r.reason}`);
+      throw new Error(`Manual live TP update not recorded in DB (${r.reason}). Take profit NOT updated.`);
+    }
+    return { ok: true, message: `Take profit updated to $${newTP.toFixed(4)} (+${pct}% from entry $${entryPrice.toFixed(4)})` };
   }
 
   throw new Error("Unknown trade command: " + command);
