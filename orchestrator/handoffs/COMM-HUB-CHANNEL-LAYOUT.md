@@ -31,7 +31,7 @@ Last updated: 2026-05-05 (COMM-HUB-DOCS-A — DOCS-ONLY)
 - **Format:** Per `orchestrator/handoffs/AUTOPILOT-DISCORD-APPROVAL.md` template.
 - **Drafts authored by:** Orchestrator (Claude) or operator-driven manual orchestrator process.
 - **Pre-publish Codex sanity check:** Mandatory.
-- **Published by:** Victor (manually). Future Hermes auto-publish for `#approvals` is NOT authorized — approval requests stay operator-published forever.
+- **Published by:** Victor (manually). Future Relay auto-publish for `#approvals` is NOT authorized — approval requests stay operator-published forever.
 - **Append-only:** No (each request is independent).
 - **Rate limit:** Maximum 1 message per pending Victor decision; queue limit N=2 pending requests at a time per `orchestrator/AUTOPILOT-RULES.md` ARC-8 approval-fatigue mitigation.
 - **CEO write:** Yes.
@@ -47,12 +47,12 @@ Last updated: 2026-05-05 (COMM-HUB-DOCS-A — DOCS-ONLY)
 - **Event types:** `PHASE_OPENED`, `PHASE_CLOSED`, `CODEX_VERDICT`, `COMMIT_LANDED`, `PUSH_COMPLETED`, `HALTED`.
 - **Drafts authored by:** Orchestrator.
 - **Pre-publish Codex sanity check:** Mandatory.
-- **Published by:** Victor (manually) at COMM-HUB-DOCS-A; future Hermes after Gate-10 approval.
+- **Published by:** Victor (manually) at COMM-HUB-DOCS-A; future Relay after Gate-10 approval.
 - **Append-only:** Yes (corrections via new "ARC-8 correction:" message; never edit prior).
 - **Rate limit:** Maximum 5 messages per phase.
 - **CEO write:** Yes.
 - **Hub-Read read:** Yes.
-- **System-Writer write:** Yes (after Hermes Gate-10 install; DORMANT at COMM-HUB-DOCS-A).
+- **System-Writer write:** Yes (after Relay Gate-10 install; DORMANT at COMM-HUB-DOCS-A).
 
 #### `#codex-warnings`
 
@@ -60,7 +60,7 @@ Last updated: 2026-05-05 (COMM-HUB-DOCS-A — DOCS-ONLY)
 - **Format:** Per `orchestrator/handoffs/COMM-HUB-CODEX-WARNING.md` template.
 - **Drafts authored by:** Orchestrator (Codex verdict transcribed).
 - **Pre-publish Codex sanity check:** Mandatory (Codex sanity-checks its own warning's wording, especially for forbidden-content leakage).
-- **Published by:** Victor (manually). Future Hermes auto-publish for warnings is NOT authorized — too high-stakes.
+- **Published by:** Victor (manually). Future Relay auto-publish for warnings is NOT authorized — too high-stakes.
 - **Append-only:** Yes.
 - **Rate limit:** Maximum 1 message per Codex round.
 - **CEO write:** Yes.
@@ -73,14 +73,14 @@ Last updated: 2026-05-05 (COMM-HUB-DOCS-A — DOCS-ONLY)
 
 - **Purpose:** Daily / weekly phase summaries.
 - **Format:** Per `orchestrator/handoffs/COMM-HUB-DAILY-SUMMARY.md` and `orchestrator/handoffs/COMM-HUB-WEEKLY-SUMMARY.md` templates.
-- **Drafts authored by:** Orchestrator (Claude); future Hermes after Gate-10.
+- **Drafts authored by:** Orchestrator (Claude); future Relay after Gate-10.
 - **Pre-publish Codex sanity check:** Mandatory.
-- **Published by:** Victor (manually) at COMM-HUB-DOCS-A; future Hermes after Gate-10 approval.
+- **Published by:** Victor (manually) at COMM-HUB-DOCS-A; future Relay after Gate-10 approval.
 - **Append-only:** Yes.
 - **Rate limit:** Maximum 1 daily summary + 1 weekly summary.
 - **CEO write:** Yes.
 - **Hub-Read read:** Yes.
-- **System-Writer write:** Yes (after Hermes Gate-10 install; DORMANT at COMM-HUB-DOCS-A).
+- **System-Writer write:** Yes (after Relay Gate-10 install; DORMANT at COMM-HUB-DOCS-A).
 
 #### `#system-health`
 
@@ -88,12 +88,12 @@ Last updated: 2026-05-05 (COMM-HUB-DOCS-A — DOCS-ONLY)
 - **Format:** Per `orchestrator/handoffs/COMM-HUB-SYSTEM-ALERT.md` template.
 - **Drafts authored by:** Orchestrator on autopilot stop condition / drift detection.
 - **Pre-publish Codex sanity check:** Mandatory.
-- **Published by:** Victor (manually) at COMM-HUB-DOCS-A; future Hermes after Gate-10.
+- **Published by:** Victor (manually) at COMM-HUB-DOCS-A; future Relay after Gate-10.
 - **Append-only:** Yes.
 - **Rate limit:** Maximum 5 messages per phase.
 - **CEO write:** Yes.
 - **Hub-Read read:** Yes.
-- **System-Writer write:** Yes (after Hermes Gate-10 install; DORMANT at COMM-HUB-DOCS-A).
+- **System-Writer write:** Yes (after Relay Gate-10 install; DORMANT at COMM-HUB-DOCS-A).
 
 ### CATEGORY C — `#future-trading` (DORMANT)
 
@@ -139,7 +139,7 @@ The per-channel "Forbidden content" attribute in the channel definitions above r
 |---|---|---|---|
 | CEO (Victor) | Yes | All channels (A + B + C) | All channels (A + B + C) |
 | Hub-Read (Victor mobile / alt) | Yes | All channels (A + B + C) | None |
-| System-Writer (Hermes) | DORMANT | None at activation | After Gate-10: `#status`, `#summaries`, `#system-health` only (NOT `#approvals`, NOT `#codex-warnings`, NOT category C) |
+| System-Writer (Relay) | DORMANT | None at activation | After Gate-10: `#status`, `#summaries`, `#system-health` only (NOT `#approvals`, NOT `#codex-warnings`, NOT category C) |
 | Codex-Writer | DORMANT | None at activation | After separate gate: `#codex-warnings` only |
 | Trading-Writer | DORMANT | None at activation | After multi-gated activation: `#trading-alerts`, `#trading-summaries` only |
 | `@everyone` | N/A | Read-only on Category A + B (no read on C) | None |
@@ -160,7 +160,7 @@ The per-channel "Forbidden content" attribute in the channel definitions above r
 
 - Not authorization to create the Discord server. Server creation is operator-owned and happens outside the repo.
 - Not authorization to install a Discord bot or webhook.
-- Not authorization to install Hermes.
+- Not authorization to install Relay.
 - Not authorization to activate Category C channels.
 - Not authorization to break CEILING-PAUSE or open ARC-8-RUN-C.
 - Not authorization to widen any role's permissions beyond the table above.

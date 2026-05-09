@@ -1,6 +1,6 @@
 # Communication Hub — Discord Install Checklist (template — COMM-HUB)
 
-> **Author rule:** This checklist codifies the click-by-click manual Discord install plan for the Agent Avila Communication Hub. It is a docs-only specification — not a runtime install. **This checklist is NOT authorization to create the Discord server, install a bot, create a webhook, install Hermes, activate any DORMANT role, activate Category C, take any production action, take any trading action, or break CEILING-PAUSE.** Actual server creation by manual operator clicks requires a separate operator-approved phase (`COMM-HUB-INSTALL-DISCORD`); bot/webhook/scheduler/Hermes install requires its own Gate-10 phase per `orchestrator/APPROVAL-GATES.md`; trading-channel activation requires a multi-gated activation phase.
+> **Author rule:** This checklist codifies the click-by-click manual Discord install plan for the Agent Avila Communication Hub. It is a docs-only specification — not a runtime install. **This checklist is NOT authorization to create the Discord server, install a bot, create a webhook, install Relay, activate any DORMANT role, activate Category C, take any production action, take any trading action, or break CEILING-PAUSE.** Actual server creation by manual operator clicks requires a separate operator-approved phase (`COMM-HUB-INSTALL-DISCORD`); bot/webhook/scheduler/Relay install requires its own Gate-10 phase per `orchestrator/APPROVAL-GATES.md`; trading-channel activation requires a multi-gated activation phase.
 >
 > **No Discord server, bot, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
 
@@ -73,7 +73,7 @@ Each channel must have its `Topic` field set to the exact text below. Operator c
 ### `#approvals`
 
 ```
-ARC-8 Channel 1 — pending Victor decisions. Drafted by orchestrator; published manually by Victor; future Hermes auto-publish NOT authorized for this channel. A reply, emoji, or reaction is NEVER an approval — only Victor's in-session chat instruction is.
+ARC-8 Channel 1 — pending Victor decisions. Drafted by orchestrator; published manually by Victor; future Relay auto-publish NOT authorized for this channel. A reply, emoji, or reaction is NEVER an approval — only Victor's in-session chat instruction is.
 ```
 
 ### `#status`
@@ -91,13 +91,13 @@ Codex non-PASS verdicts, halt conditions, scope-creep flags. Drafted by orchestr
 ### `#summaries`
 
 ```
-Daily and weekly phase summaries. Drafted by orchestrator; published manually by Victor; future Hermes auto-publish after Gate-10. Max 1 daily plus 1 weekly per UTC week. Pre-publish Codex sanity check mandatory.
+Daily and weekly phase summaries. Drafted by orchestrator; published manually by Victor; future Relay auto-publish after Gate-10. Max 1 daily plus 1 weekly per UTC week. Pre-publish Codex sanity check mandatory.
 ```
 
 ### `#system-health`
 
 ```
-System alerts: working-tree drift, three-way SHA inconsistency, autopilot CEILING-PAUSE state changes, autopilot stop-condition fires, framework anomalies. Drafted by orchestrator on autopilot stop / drift; published manually by Victor; future Hermes after Gate-10. Max 5 messages per phase.
+System alerts: working-tree drift, three-way SHA inconsistency, autopilot CEILING-PAUSE state changes, autopilot stop-condition fires, framework anomalies. Drafted by orchestrator on autopilot stop / drift; published manually by Victor; future Relay after Gate-10. Max 5 messages per phase.
 ```
 
 ### `#trading-alerts` (DORMANT)
@@ -122,7 +122,7 @@ Five roles total, only two active at install. All other roles are created at ins
 |---|---|---|---|---|
 | `CEO` | Yes | Red | Victor's primary Discord account | Server owner; Administrator |
 | `Hub-Read` | Yes | Blue | Victor's mobile / alt Discord account if applicable; otherwise unassigned | Read all channels A + B + C; no write anywhere |
-| `System-Writer` (Hermes) | NO — DORMANT | Gray | None at install | Zero permissions; future Gate-10 install would grant write to `#status`, `#summaries`, `#system-health` only — NEVER `#approvals`, NEVER `#codex-warnings`, NEVER Category C |
+| `System-Writer` (Relay) | NO — DORMANT | Gray | None at install | Zero permissions; future Gate-10 install would grant write to `#status`, `#summaries`, `#system-health` only — NEVER `#approvals`, NEVER `#codex-warnings`, NEVER Category C |
 | `Codex-Writer` | NO — DORMANT | Gray | None at install | Zero permissions; future separate gate would grant write to `#codex-warnings` only |
 | `Trading-Writer` | NO — DORMANT | Gray | None at install | Zero permissions; future multi-gated activation would grant write to `#trading-alerts`, `#trading-summaries` only |
 
@@ -210,7 +210,7 @@ Category C `future-trading` is fully DORMANT at install. To enforce CEO + Hub-Re
 7. **Server Settings → Roles** — create roles in this order (top → bottom of role list):
    1. `CEO` — color red — Permissions: Administrator — Display this role separately ON — Allow `@mention` OFF — assign to Victor's primary account.
    2. `Hub-Read` — color blue — Permissions: View Channels and Read Message History only — all other permissions OFF — assign to Victor's mobile/alt if applicable.
-   3. `System-Writer` — color gray — Permissions: NONE — zero members — note: "DORMANT — Hermes auto-publisher; future Gate-10 install required to add members and grant write to status / summaries / system-health only".
+   3. `System-Writer` — color gray — Permissions: NONE — zero members — note: "DORMANT — Relay auto-publisher; future Gate-10 install required to add members and grant write to status / summaries / system-health only".
    4. `Codex-Writer` — color gray — Permissions: NONE — zero members — note: "DORMANT — future separate gate".
    5. `Trading-Writer` — color gray — Permissions: NONE — zero members — note: "DORMANT — multi-gated future activation".
 8. **Server Settings → Roles → @everyone**: open and set per the `@everyone` server-level restrictions table above. Save.
@@ -269,12 +269,12 @@ Category C `future-trading` is fully DORMANT at install. To enforce CEO + Hub-Re
 
 ## What remains DORMANT
 
-- **Hermes (`System-Writer` role)** — DORMANT at install. Activation requires separate Gate-10 phase: `COMM-HUB-INSTALL-HERMES`. Until then, role exists with zero members and zero write permissions; `#status`, `#summaries`, `#system-health` are operator-published only.
+- **Relay (`System-Writer` role)** — DORMANT at install. Activation requires separate Gate-10 phase: `COMM-HUB-INSTALL-HERMES`. Until then, role exists with zero members and zero write permissions; `#status`, `#summaries`, `#system-health` are operator-published only.
 - **`Codex-Writer` role** — DORMANT at install. Activation requires separate gate. Until then, `#codex-warnings` is operator-published only.
 - **`Trading-Writer` role** — DORMANT at install. Activation requires multi-gated future trading-track activation phase. Until then, Category C is empty.
 - **Category C channels** (`#trading-alerts`, `#trading-summaries`) — DORMANT at install. No source authorized. Channel topics carry the verbatim DORMANT label.
 - **Bots, webhooks, schedulers, MCP triggers, cron jobs, background automation** — none at install.
-- **Auto-publish for `#approvals` and `#codex-warnings`** — NEVER authorized, even after future Hermes install. These channels stay operator-published forever.
+- **Auto-publish for `#approvals` and `#codex-warnings`** — NEVER authorized, even after future Relay install. These channels stay operator-published forever.
 - **Trading-runtime hot path** — Discord install does NOT enter the trading runtime; Discord is governance-comms only.
 - **Autopilot runtime** — DORMANT (CEILING-PAUSE active and not broken by install).
 
@@ -287,7 +287,7 @@ Category C `future-trading` is fully DORMANT at install. To enforce CEO + Hub-Re
 - Creating any channel, category, role, invite, or permission.
 - Installing any bot.
 - Creating any webhook.
-- Installing Hermes.
+- Installing Relay.
 - Activating Codex-Writer.
 - Activating Category C trading channels.
 - Any Gate-10 automation install / upgrade.
@@ -341,12 +341,12 @@ Category C `future-trading` is fully DORMANT at install. To enforce CEO + Hub-Re
 **P3 (low impact, monitoring-only):**
 
 - **R11** — Discord UI changes between this checklist and install execution. Mitigation: setting-name terms, not click-position terms; operator adapts to UI.
-- **R12** — Future Hermes install reveals permission gaps. Mitigation: COMM-HUB-INSTALL-HERMES is its own design + Codex-review phase.
+- **R12** — Future Relay install reveals permission gaps. Mitigation: COMM-HUB-INSTALL-HERMES is its own design + Codex-review phase.
 - **R13** — Spec drift over time. Mitigation: any spec change goes through COMM-HUB-DOCS-B successor phase; install design re-runs against new spec before any change to live server.
 
 **Risks NOT in scope of this checklist (flagged for separate phases):**
 
-- Hermes auth-token storage (Gate-10 phase).
+- Relay auth-token storage (Gate-10 phase).
 - Codex-Writer authentication flow.
 - Trading-Writer authentication and per-message approval mechanism.
 - Discord rate-limiting under burst orchestrator drafts.
@@ -380,7 +380,7 @@ Operator confirms each item with a direct visual check in the Discord client:
 - [ ] No third-party integration is enabled.
 - [ ] No public invite link exists.
 - [ ] No message has been posted in any channel.
-- [ ] Hermes is DORMANT (no members in `System-Writer`).
+- [ ] Relay is DORMANT (no members in `System-Writer`).
 - [ ] Codex-Writer is DORMANT.
 - [ ] Trading-Writer is DORMANT.
 - [ ] Category C channels carry the verbatim DORMANT topic.
@@ -413,7 +413,7 @@ Each screenshot is annotated locally with timestamp and step-reference. Screensh
 - No webhook is created by writing this checklist or by following it.
 - No third-party integration is installed.
 - No scheduler / cron / MCP trigger / background automation is installed.
-- No Hermes is installed.
+- No Relay is installed.
 - No Codex-Writer is activated.
 - No Trading-Writer is activated.
 - No Category C channel is activated.
@@ -431,7 +431,7 @@ Each screenshot is annotated locally with timestamp and step-reference. Screensh
 
 - **Not authorization to create the Discord server.** Server creation requires a separate operator-approved phase (`COMM-HUB-INSTALL-DISCORD`).
 - **Not authorization to install a Discord bot or webhook.** Bot / webhook install requires its own Gate-10 phase per `orchestrator/APPROVAL-GATES.md`.
-- **Not authorization to install Hermes.** Hermes install requires `COMM-HUB-INSTALL-HERMES` Gate-10 phase.
+- **Not authorization to install Relay.** Relay install requires `COMM-HUB-INSTALL-HERMES` Gate-10 phase.
 - **Not authorization to activate the Codex-Writer or Trading-Writer role.** Each requires its own scoped operator-approved phase.
 - **Not authorization to activate Category C channels.** Multi-gated activation phase required.
 - **Not authorization to break CEILING-PAUSE.** Only an explicit operator direction-confirmation instruction breaks the ceiling.

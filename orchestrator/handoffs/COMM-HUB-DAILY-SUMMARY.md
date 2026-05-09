@@ -1,10 +1,10 @@
 # Communication Hub Daily Summary (template — COMM-HUB)
 
-> **Author rule:** Orchestrator (Claude) DRAFTS this summary in chat. The operator publishes it to `#summaries` (or future Hermes after Gate-10 install). Autopilot does NOT auto-publish at COMM-HUB-DOCS-A activation.
+> **Author rule:** Orchestrator (Claude) DRAFTS this summary in chat. The operator publishes it to `#summaries` (or future Relay after Gate-10 install). Autopilot does NOT auto-publish at COMM-HUB-DOCS-A activation.
 >
 > **No file is written, no commit, no push, no Discord publication results from drafting this summary.** The summary is conversation-only until the operator explicitly publishes it.
 
-Author: Orchestrator (Claude); future Hermes after Gate-10
+Author: Orchestrator (Claude); future Relay after Gate-10
 Channel: `#summaries`
 Cadence: Once per active day, or operator-on-demand
 Generated: `<UTC date>`
@@ -93,6 +93,6 @@ Maximum 1 daily summary per UTC day. Higher rates require explicit operator inst
 - Not an approval signal of any kind.
 - Not authorization to publish to Discord without operator action.
 - Not authorization to install schedulers, webhooks, MCP, cron, or background automation.
-- Not authorization to install Hermes.
+- Not authorization to install Relay.
 - Not authorization to break CEILING-PAUSE.
 - Not canonical over `orchestrator/STATUS.md` / `orchestrator/CHECKLIST.md` / `orchestrator/NEXT-ACTION.md` / `git log`.

@@ -38,7 +38,7 @@ Safe to edit during normal orchestrator work after Codex docs-only review (or, f
 | `orchestrator/AUTOMATION-PERMISSIONS.md` | Automation permission rules; safety-policy doc |
 | `orchestrator/HANDOFF-RULES.md` | Handoff packet rules; safety-policy doc |
 | `orchestrator/COMM-HUB-RULES.md` | Communication Hub spec (Discord-centered control-room rules); safety-policy doc |
-| `orchestrator/COMM-HUB-HERMES-RULES.md` | Canonical Hermes spec (future auto-publisher; currently DORMANT); safety-policy doc — modifications require Codex docs-only review + explicit operator approval before commit |
+| `orchestrator/COMM-HUB-HERMES-RULES.md` | Canonical Relay spec (future auto-publisher; currently DORMANT); safety-policy doc — modifications require Codex docs-only review + explicit operator approval before commit. Filename retains `HERMES` literal pending COMM-HUB-RENAME-RELAY-FILES Phase B. |
 | `orchestrator/handoffs/**` | Handoff packet templates and instances; SAFE-class governance docs (includes the five COMM-HUB-* templates: COMM-HUB-CHANNEL-LAYOUT.md, COMM-HUB-DAILY-SUMMARY.md, COMM-HUB-WEEKLY-SUMMARY.md, COMM-HUB-CODEX-WARNING.md, COMM-HUB-SYSTEM-ALERT.md, plus COMM-HUB-INSTALL-DISCORD-CHECKLIST.md) |
 | `orchestrator/prompts/**` | Prompt templates for Codex / operator workflows |
 | Design reports (any `*.md` produced as a design-only deliverable) | Must be design-only; no code touched |

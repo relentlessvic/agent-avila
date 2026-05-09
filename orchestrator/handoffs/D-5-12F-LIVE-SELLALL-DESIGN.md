@@ -387,8 +387,8 @@ When the D-5.12f code-implementation phase is opened (separate phase, separate a
 - `bot.js`, `db.js`, `migrations/`, `scripts/`, `package.json`, `package-lock.json`, `.nvmrc`, `.env`, `.env.example`.
 - `position.json`, `position.json.snap.20260502T020154Z`, `trades.csv`.
 - All safety-policy docs.
-- All other COMM-HUB / Hermes / autopilot docs.
-- Discord, Hermes, Railway, env vars, secrets.
+- All other COMM-HUB / Relay / autopilot docs.
+- Discord, Relay, Railway, env vars, secrets.
 - Helpers (`shadowRecordManualLiveClose`, `_emergencyAuditWrite`, `_loglineFallback`, `_redactAttemptedPayload`, `sha256HexCanonical`, `buildEmergencyEventId`, `closePosition`, `insertTradeEvent`, `loadOpenPosition`).
 - Any other `dashboard.js` block (BUY / OPEN_LONG, CLOSE_POSITION, SET_STOP_LOSS, SET_TAKE_PROFIT, balance / SSE / auth / dashboard render).
 

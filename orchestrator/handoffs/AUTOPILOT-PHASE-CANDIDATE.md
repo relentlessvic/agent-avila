@@ -1,6 +1,6 @@
 # Autopilot Phase Candidate Proposal (template — ARC-8 Loop B output)
 
-> **Author rule:** Autopilot DRAFTS this proposal in Loop B (Decide). The operator confirms one candidate, redirects to a different action, or rejects all candidates in-session in chat. Autopilot CANNOT self-execute the candidate. Future automation (Ruflo, Hermes, successors) MAY NEVER self-execute (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8 phase-candidate proposal mechanism).
+> **Author rule:** Autopilot DRAFTS this proposal in Loop B (Decide). The operator confirms one candidate, redirects to a different action, or rejects all candidates in-session in chat. Autopilot CANNOT self-execute the candidate. Future automation (Ruflo, Relay, successors) MAY NEVER self-execute (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8 phase-candidate proposal mechanism).
 >
 > **Phase mode of THIS proposal: READ-ONLY AUDIT** (Mode 1 per `orchestrator/PHASE-MODES.md`). Generating the proposal does NOT mutate any file or state and does NOT require operator approval. Confirming a candidate (advancing into the candidate phase) requires the operator's explicit instruction and re-labels the phase to the candidate's intended mode.
 

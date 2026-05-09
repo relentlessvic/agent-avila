@@ -26,7 +26,7 @@ The Communication Hub is:
 - **Operator-private.** Server invite list is Victor-only at activation; no public channels; no third-party guests; no integrations beyond explicitly-gated bot installs.
 - **Governance / comms layer only.** It is NOT a trading interface. It does NOT enter the live trading hot path. Live order decisions are made by `bot.js` + the operator + Kraken — not by Discord, not by any Discord bot, not by any future automation.
 - **A delivery channel for status and a draft surface for approval requests** — never the approval channel itself. A Discord reply, emoji, or reaction is NEVER operator approval. Only Victor's in-session chat instruction grants approval (per `orchestrator/APPROVAL-GATES.md` "What is NOT operator approval" and `orchestrator/AUTOPILOT-RULES.md` ARC-8 Discord rules).
-- **Read-from-the-system-side only at activation.** The system writes summaries; the operator publishes them. Auto-publish is gated behind separate operator-approval (Hermes install, Gate-10-class authority widening).
+- **Read-from-the-system-side only at activation.** The system writes summaries; the operator publishes them. Auto-publish is gated behind separate operator-approval (Relay install, Gate-10-class authority widening).
 
 ## Channel architecture
 
@@ -51,7 +51,7 @@ Three categories, seven channels:
 
 | Channel | Status | Activation gate |
 |---|---|---|
-| `#trading-alerts` | DORMANT — no source authorized | Multi-gated: trading-track activation + Hermes/Trading-Writer install + per-message Victor approval |
+| `#trading-alerts` | DORMANT — no source authorized | Multi-gated: trading-track activation + Relay/Trading-Writer install + per-message Victor approval |
 | `#trading-summaries` | DORMANT — no source authorized | Same multi-gate |
 
 Channel descriptions for both Category C channels MUST prominently state "DORMANT — no source authorized" so accidental publishes are visibly impossible (the channel literally has zero history at activation).
@@ -62,7 +62,7 @@ Channel descriptions for both Category C channels MUST prominently state "DORMAN
 |---|---|---|---|---|
 | **CEO** | Victor | All channels | All channels | Yes |
 | **Hub-Read** | Victor (alt account, mobile) | All channels | None | Yes (read-only) |
-| **System-Writer** | Future Hermes / scheduled summarizer | None | `#status`, `#summaries`, `#system-health` (write-only after Hermes install) | DORMANT |
+| **System-Writer** | Future Relay / scheduled summarizer | None | `#status`, `#summaries`, `#system-health` (write-only after Relay install) | DORMANT |
 | **Codex-Writer** | Future Codex-publish role | None | `#codex-warnings` (after separate gate) | DORMANT |
 | **Trading-Writer** | DORMANT | None | `#trading-alerts`, `#trading-summaries` (after multiple gated phases) | DORMANT |
 
@@ -79,10 +79,10 @@ Channel descriptions for both Category C channels MUST prominently state "DORMAN
 | Type | Channel | Author (drafts) | Publisher | Approval needed |
 |---|---|---|---|---|
 | Approval request | `#approvals` | Orchestrator (Claude) | Victor (manually publishes after Codex sanity-check PASS); reply still in-session chat | Drafting GREEN; publishing requires explicit Victor direction |
-| Status event | `#status` | Orchestrator (Claude); future Hermes after Gate-10 | Victor (or future Hermes after Gate-10 approval) | Drafting GREEN; publishing requires explicit Victor direction (or future Hermes Gate-10 approval) |
-| Codex warning | `#codex-warnings` | Codex verdict transcribed by orchestrator (Claude) | Victor (Hermes auto-publish NOT authorized for warnings — too high-stakes) | Drafting GREEN; publishing requires explicit Victor direction |
-| System alert | `#system-health` | Orchestrator on autopilot stop condition / drift detection | Victor (or future Hermes after Gate-10) | Same |
-| Daily summary | `#summaries` | Orchestrator (Claude); future Hermes after Gate-10 | Victor (or future Hermes after Gate-10) | Same |
+| Status event | `#status` | Orchestrator (Claude); future Relay after Gate-10 | Victor (or future Relay after Gate-10 approval) | Drafting GREEN; publishing requires explicit Victor direction (or future Relay Gate-10 approval) |
+| Codex warning | `#codex-warnings` | Codex verdict transcribed by orchestrator (Claude) | Victor (Relay auto-publish NOT authorized for warnings — too high-stakes) | Drafting GREEN; publishing requires explicit Victor direction |
+| System alert | `#system-health` | Orchestrator on autopilot stop condition / drift detection | Victor (or future Relay after Gate-10) | Same |
+| Daily summary | `#summaries` | Orchestrator (Claude); future Relay after Gate-10 | Victor (or future Relay after Gate-10) | Same |
 | Weekly summary | `#summaries` | Same as daily | Same as daily | Same |
 | Trading alert | `#trading-alerts` | DORMANT (no active source) | DORMANT | Triple-gated: trading-track activation + Trading-Writer install + per-message Victor approval |
 | Trading summary | `#trading-summaries` | DORMANT (no active source) | DORMANT | Same triple-gate |
@@ -123,13 +123,13 @@ The pre-publish sanity check is a Round-3-equivalent gate per the ARC-8 four-rou
    - Victor-as-only-approver clause check.
    - Discord-reply-NOT-approval clause check.
 4. If Codex PASS:
-   - Operator publishes the #approvals message manually (or future Hermes after Gate-10).
+   - Operator publishes the #approvals message manually (or future Relay after Gate-10).
    - Orchestrator surfaces the in-session OPERATOR-APPROVAL-PACKET in chat.
 5. Operator responds in-session chat (NOT in Discord) with Option 1 / 2 / 3 / instructions.
 6. Orchestrator executes the approved action (stage by name + commit; push as separate gate).
 7. After execution:
    - Orchestrator drafts #status PHASE_CLOSED + COMMIT_LANDED + PUSH_COMPLETED messages.
-   - Operator publishes (or future Hermes after Gate-10).
+   - Operator publishes (or future Relay after Gate-10).
 8. If Codex FAIL on the pre-publish sanity check:
    - Halt-and-surface via AUTOPILOT-HALT.md.
    - No publication; no commit; no execution.
@@ -168,7 +168,7 @@ Weekly summary:
 - Same flow with broader window (7-day rollup) per COMM-HUB-WEEKLY-SUMMARY.md template.
 - Includes phase-loop ceiling fire events, CEILING-PAUSE state changes, framework anomalies.
 
-Future automation: after explicit Victor approval to install Hermes (Gate 10), summaries auto-post to #summaries on cron. Until then: operator-published only.
+Future automation: after explicit Victor approval to install Relay (Gate 10), summaries auto-post to #summaries on cron. Until then: operator-published only.
 ```
 
 ## System-alert workflow
@@ -177,33 +177,33 @@ Future automation: after explicit Victor approval to install Hermes (Gate 10), s
 1. Stop condition fires (working-tree drift, three-way SHA inconsistency, autopilot stop-condition, framework anomaly).
 2. Orchestrator drafts a #system-health message per COMM-HUB-SYSTEM-ALERT.md template.
 3. Pre-publish Codex sanity check.
-4. Operator publishes (or future Hermes after Gate-10).
+4. Operator publishes (or future Relay after Gate-10).
 5. Halt-and-surface via AUTOPILOT-HALT.md if autopilot-driven; in-session surface if operator-driven.
 ```
 
-## Future Hermes integration point
+## Future Relay integration point
 
-**Canonical Hermes spec:** `orchestrator/COMM-HUB-HERMES-RULES.md` (SAFE-class). The summary below is intentionally short; the canonical spec carries the full capability matrix, anti-execution boundaries, approval discipline (per-message through Stage 9; bounded class only at Stage 10a/10b with 7 documented bounds), idempotency mechanism (orchestrator-side keys + Hermes-private append-only publish logs; **no Discord-side reads**), and staged activation path. If this section diverges from the canonical Hermes spec, the canonical spec wins for Hermes-specific detail.
+**Canonical Relay spec:** `orchestrator/COMM-HUB-HERMES-RULES.md` (SAFE-class; filename retains `HERMES` literal pending COMM-HUB-RENAME-RELAY-FILES Phase B). The summary below is intentionally short; the canonical spec carries the full capability matrix, anti-execution boundaries, approval discipline (per-message through Stage 9; bounded class only at Stage 10a/10b with 7 documented bounds), idempotency mechanism (orchestrator-side keys + Relay-private append-only publish logs; **no Discord-side reads**), and staged activation path. If this section diverges from the canonical Relay spec, the canonical spec wins for Relay-specific detail.
 
-**Hermes** is the proposed future scheduled-summarizer / Discord-publisher role. Currently DORMANT.
+**Relay** is the proposed future scheduled-summarizer / Discord-publisher role. Currently DORMANT.
 
-Activation gate (when operator chooses to install Hermes):
+Activation gate (when operator chooses to install Relay):
 
 1. Separate dedicated COMM-HUB-HERMES-DESIGN-ONLY phase.
 2. Codex docs-only review.
 3. Explicit Victor approval per `orchestrator/APPROVAL-GATES.md` Gate 10 (automation install / upgrade).
-4. Hermes inherits ARC-8 Discord rules verbatim — no auto-publish without operator approval per channel-class; rate limits enforced; pre-publish Codex sanity check mandatory; no role can self-promote; no role can mark approval fields.
-5. Phase-loop ceiling discipline: Hermes is governance-only / future-automation per `orchestrator/AUTOMATION-PERMISSIONS.md` future-automation rules; cannot self-execute; cannot become a trading actor.
+4. Relay inherits ARC-8 Discord rules verbatim — no auto-publish without operator approval per channel-class; rate limits enforced; pre-publish Codex sanity check mandatory; no role can self-promote; no role can mark approval fields.
+5. Phase-loop ceiling discipline: Relay is governance-only / future-automation per `orchestrator/AUTOMATION-PERMISSIONS.md` future-automation rules; cannot self-execute; cannot become a trading actor.
 
 Scope when activated:
 
 - `#status` PHASE_OPENED / PHASE_CLOSED / CODEX_VERDICT / COMMIT_LANDED / PUSH_COMPLETED auto-publish (after Codex sanity check).
 - `#summaries` daily / weekly auto-publish on schedule.
 - NOT `#approvals` (approval requests stay operator-published).
-- NOT `#codex-warnings` (warnings stay operator-published; Hermes can draft but operator publishes; warnings are too high-stakes for auto-publish).
+- NOT `#codex-warnings` (warnings stay operator-published; Relay can draft but operator publishes; warnings are too high-stakes for auto-publish).
 - NOT `#trading-alerts` / `#trading-summaries` (separate trading-track gate).
 
-Hermes does NOT enter the trading runtime hot path. Per `orchestrator/ROLE-HIERARCHY.md` Critical separation rule, Hermes is governance / comms only.
+Relay does NOT enter the trading runtime hot path. Per `orchestrator/ROLE-HIERARCHY.md` Critical separation rule, Relay is governance / comms only.
 
 ## Hard limits (canonical, repeated for emphasis)
 
@@ -237,9 +237,9 @@ Hermes does NOT enter the trading runtime hot path. Per `orchestrator/ROLE-HIERA
 - `orchestrator/AUTOMATION-PERMISSIONS.md` — GREEN / YELLOW / RED tiers; COMM-HUB-mapping.
 - `orchestrator/HANDOFF-RULES.md` — packet rules; Discord forbidden-content rules.
 - `orchestrator/PROTECTED-FILES.md` — per-path classification; this file is SAFE-class safety-policy doc.
-- `orchestrator/ROLE-HIERARCHY.md` — five named roles + future-automation governance-only rule; Hermes activation gate.
+- `orchestrator/ROLE-HIERARCHY.md` — five named roles + future-automation governance-only rule; Relay activation gate.
 - `orchestrator/PHASE-MODES.md` — six phase modes.
-- `orchestrator/APPROVAL-GATES.md` — 16-gate matrix; Gate 10 (automation install / upgrade) governs Hermes / Discord-bot install.
+- `orchestrator/APPROVAL-GATES.md` — 16-gate matrix; Gate 10 (automation install / upgrade) governs Relay / Discord-bot install.
 - `orchestrator/handoffs/AUTOPILOT-DISCORD-APPROVAL.md` — Channel 1 approval-request template.
 - `orchestrator/handoffs/AUTOPILOT-DISCORD-STATUS.md` — Channel 2 status-message template.
 - `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` — exact Discord channel definitions.

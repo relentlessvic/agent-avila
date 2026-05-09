@@ -1,6 +1,6 @@
 # ARC-8-RUN-C — Dashboard Stability Design
 
-> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Hermes runtime install. Per `orchestrator/HANDOFF-RULES.md` and `orchestrator/APPROVAL-GATES.md`, every downstream DASH-N phase, the interleaved D-5.12f and D-5.12e.1 phases, and Phase 11 (`ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP`) are each separately gated and require their own scoped approvals.
+> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Relay runtime install. Per `orchestrator/HANDOFF-RULES.md` and `orchestrator/APPROVAL-GATES.md`, every downstream DASH-N phase, the interleaved D-5.12f and D-5.12e.1 phases, and Phase 11 (`ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP`) are each separately gated and require their own scoped approvals.
 >
 > **Canonical authority:** `orchestrator/NEXT-ACTION.md` and `orchestrator/NEXT-ACTION-SELECTOR.md` (per `HANDOFF-RULES.md`). If this document ever conflicts with either canonical source, the canonical source wins and this document is treated as stale.
 >
@@ -26,7 +26,7 @@ ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN-SPEC codifies the Codex-PASS-verified Pha
 - Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `BLUEPRINT.md`, `AUTOPILOT-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-HERMES-RULES.md`, `CLAUDE.md`).
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, or autopilot runtime activation.
 - Any DASH-1 through DASH-6 implementation, any D-5.12f code-implementation, any D-5.12e.1 cleanup. Each separately gated.
-- Any Hermes runtime authoring, Hermes repo creation, Hermes runtime deployment.
+- Any Relay runtime authoring, Relay repo creation, Relay runtime deployment.
 
 ## §2 — Current state at design time
 
@@ -37,7 +37,7 @@ ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN-SPEC codifies the Codex-PASS-verified Pha
 - Phase-loop counter: 0 of 3.
 - Active master-order position: Phase 2 of 11 — ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN.
 - Autopilot runtime: DORMANT.
-- Hermes: shelved (passive bot member of `Agent Avila Hub` with `System-Writer` role + canonical channel overrides; no runtime running; no posting capability). Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` CONSUMED.
+- Relay: shelved (passive bot member of `Agent Avila Hub` with `System-Writer` role + canonical channel overrides; no runtime running; no posting capability). Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` CONSUMED.
 - Migration 008: APPLIED to production at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 — 2026-05-04, runner exit 0).
 - N-3: CLOSED.
 - Approvers: exactly `{Victor}`.
@@ -178,7 +178,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 - `package.json`, `package-lock.json`, `.nvmrc` — HARD BLOCK throughout (DASH-6 may add `tests/` runner config only via a separately-scoped lift if the phase actually needs it; default is to use existing tools).
 - `.env*` — HARD BLOCK forever for automation per ARC-6.
 - All safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `AUTOPILOT-RULES.md`, `BLUEPRINT.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-HERMES-RULES.md`) — HARD BLOCK throughout the DASH track.
-- All Hermes templates / runtime — HARD BLOCK; Hermes stays shelved.
+- All Relay templates / runtime — HARD BLOCK; Relay stays shelved.
 
 ### Hard-blocked production-side surfaces across the entire DASH track
 
@@ -188,7 +188,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 - Migration application (009+) — RED-tier; not on this roadmap.
 - `MANUAL_LIVE_ARMED` env value reads or writes — RED-tier.
 - Any deploy — RED-tier per ARC-2 Gate 5.
-- Discord post via Hermes runtime — would require Hermes runtime to exist; doesn't, and isn't being built by this track.
+- Discord post via Relay runtime — would require Relay runtime to exist; doesn't, and isn't being built by this track.
 
 ### Out-of-scope phase boundaries
 
@@ -247,5 +247,5 @@ ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN-SPEC explicitly does NOT authorize:
 - Any Phase 11 (`ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP`) work. Separately gated; DASH-6 PASS is a structural prerequisite.
 - Any edit to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
 - Any safety-policy doc edit.
-- Any Hermes runtime authoring, Hermes repo creation, Hermes runtime deployment, Hermes install resumption (Steps 14–21).
+- Any Relay runtime authoring, Relay repo creation, Relay runtime deployment, Relay install resumption (Steps 14–21).
 - Any production action: Railway CLI, Railway env, Railway redeploy, Kraken action (live or otherwise), production DB query / mutation, migration application, `MANUAL_LIVE_ARMED` change, deploy, env / secret read or write, autopilot runtime activation, automation install / widening, Discord post, webhook / scheduler / MCP / cron / Ruflo install.

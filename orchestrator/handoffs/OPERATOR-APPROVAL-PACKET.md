@@ -1,6 +1,6 @@
 # Operator Approval Packet (template)
 
-> **Author rule:** Claude DRAFTS this packet as a request to the operator. Claude does NOT mark the operator-approval field; only the operator may mark it, and only by an in-session instruction (typed in the chat). Future automation (Ruflo, Hermes, successors) MAY NEVER mark this field (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
+> **Author rule:** Claude DRAFTS this packet as a request to the operator. Claude does NOT mark the operator-approval field; only the operator may mark it, and only by an in-session instruction (typed in the chat). Future automation (Ruflo, Relay, successors) MAY NEVER mark this field (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
 >
 > **No packet substitutes for in-session operator approval.** This packet is a structured request; the actual approval is the operator's in-session response (per `orchestrator/APPROVAL-GATES.md` "What is NOT operator approval").
 

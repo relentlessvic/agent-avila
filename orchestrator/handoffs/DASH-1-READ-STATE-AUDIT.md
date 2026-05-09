@@ -1,6 +1,6 @@
 # DASH-1 — Read-State Audit (Dashboard Inventory)
 
-> **DOCS-ONLY ARTIFACT.** This document is the canonical audit report produced by the DASH-1-READ-STATE-AUDIT phase (READ-ONLY AUDIT, Mode 1) and persisted by the DASH-1-READ-STATE-AUDIT-SPEC phase (DOCS-ONLY, Mode 3). It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Hermes runtime install. Every downstream DASH phase (DASH-2 through DASH-6), the interleaved D-5.12f impl Phase 8 and D-5.12e.1 cleanup Phase 9, and Phase 11 ARC-8-RUN-D each remain separately gated.
+> **DOCS-ONLY ARTIFACT.** This document is the canonical audit report produced by the DASH-1-READ-STATE-AUDIT phase (READ-ONLY AUDIT, Mode 1) and persisted by the DASH-1-READ-STATE-AUDIT-SPEC phase (DOCS-ONLY, Mode 3). It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Relay runtime install. Every downstream DASH phase (DASH-2 through DASH-6), the interleaved D-5.12f impl Phase 8 and D-5.12e.1 cleanup Phase 9, and Phase 11 ARC-8-RUN-D each remain separately gated.
 >
 > **Canonical authority:** `orchestrator/NEXT-ACTION.md` and `orchestrator/NEXT-ACTION-SELECTOR.md` (per `HANDOFF-RULES.md`). If this document ever conflicts with either canonical source, the canonical source wins.
 >
@@ -27,7 +27,7 @@ DASH-1-READ-STATE-AUDIT-SPEC persists the read-only dashboard inventory produced
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, or autopilot runtime activation.
 - Any DASH-2 / DASH-3 / DASH-4 / DASH-5 / DASH-6 implementation.
 - Any D-5.12f code-implementation (Phase 8) or D-5.12e.1 cleanup (Phase 9) or Phase 11 work.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 
 ## §2 — Audit context
 
@@ -38,7 +38,7 @@ DASH-1-READ-STATE-AUDIT-SPEC persists the read-only dashboard inventory produced
 - ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN CLOSED — Design-only PASS (Codex round-1 PASS WITH REQUIRED EDITS on A1/A4/B1/C3 + round-2 clean PASS on all 24 checks).
 - ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN-SPEC CLOSED at `b7ce42fa79b493ae532fe5a5ba89692c4ad6ae89` (Codex round-1 PASS WITH REQUIRED EDITS on A4/F4/F6 + round-2 PASS WITH REQUIRED EDITS on A4/F4 + round-3 clean PASS on all 36 checks).
 - Phase-loop counter 0 of 3.
-- Autopilot DORMANT. Hermes shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
+- Autopilot DORMANT. Relay shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
 - Working tree clean except `position.json.snap.20260502T020154Z` pre-existing untracked carve-out.
 
 **Source files inventoried (read-only):**
@@ -366,12 +366,12 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 
 ### Hard-blocked across the entire DASH track
 
-- `bot.js`, `db.js`, `migrations/`, `position.json`, `position.json.snap.20260502T020154Z`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, all safety-policy docs, all Hermes templates / runtime — HARD BLOCK throughout.
+- `bot.js`, `db.js`, `migrations/`, `position.json`, `position.json.snap.20260502T020154Z`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, all safety-policy docs, all Relay templates / runtime — HARD BLOCK throughout.
 - `tests/` — RESTRICTED: DASH-6 may extend `tests/` only via a separately-scoped lift at DASH-6 phase open time.
 
 ### Hard-blocked production-side surfaces
 
-- Railway CLI / env / redeploy triggers, Kraken API (live or otherwise), production DB queries / mutations, migration application (009+), `MANUAL_LIVE_ARMED` env value reads or writes, any deploy, Discord post via Hermes runtime — RED-tier.
+- Railway CLI / env / redeploy triggers, Kraken API (live or otherwise), production DB queries / mutations, migration application (009+), `MANUAL_LIVE_ARMED` env value reads or writes, any deploy, Discord post via Relay runtime — RED-tier.
 
 ### Out-of-scope phase boundaries
 
@@ -408,5 +408,5 @@ DASH-1-READ-STATE-AUDIT-SPEC explicitly does NOT authorize:
 - Any Phase 11 (`ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP`) work. Separately gated.
 - Any edit to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
 - Any safety-policy doc edit.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 - Any production action: Railway CLI, Railway env, Railway redeploy, Kraken action (live or otherwise), production DB query / mutation, migration application, `MANUAL_LIVE_ARMED` change, deploy, env / secret read or write, autopilot runtime activation, automation install / widening, Discord post, webhook / scheduler / MCP / cron / Ruflo install.

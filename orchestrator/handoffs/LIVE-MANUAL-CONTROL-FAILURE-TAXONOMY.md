@@ -1,6 +1,6 @@
 # Live Manual-Control Failure Taxonomy
 
-> **DOCS-ONLY ARTIFACT.** This document is a SAFE-class taxonomy reference. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Hermes runtime install. Every consumer of this taxonomy (DASH-5.A SL caller, DASH-5.B TP caller, future Phase 8 SELL_ALL implementation, future Phase 9 cleanup) is separately gated.
+> **DOCS-ONLY ARTIFACT.** This document is a SAFE-class taxonomy reference. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Relay runtime install. Every consumer of this taxonomy (DASH-5.A SL caller, DASH-5.B TP caller, future Phase 8 SELL_ALL implementation, future Phase 9 cleanup) is separately gated.
 >
 > **Canonical authority:** `orchestrator/NEXT-ACTION.md` and `orchestrator/NEXT-ACTION-SELECTOR.md`. If this document ever conflicts with either canonical source, the canonical source wins.
 
@@ -25,7 +25,7 @@ DASH-5.D-LIVE-MANUAL-CONTROL-FAILURE-TAXONOMY-CODIFICATION codifies the 7-class 
 - Any edit to other handoff records (`DASH-1-READ-STATE-AUDIT.md`, `ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN.md`, `DASH-3-POSITION-DISPLAY-CANONICALIZATION-DESIGN.md`, `DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN.md`, `DASH-5-LIVE-CONTROLS-DESIGN.md`, `D-5-12F-LIVE-SELLALL-DESIGN.md` — referenced but not modified).
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, autopilot runtime activation.
 - Any DASH-5.A / DASH-5.B / Phase 8 / Phase 9 / DASH-6 / Phase 11 work.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 
 ## §2 — Audit context
 
@@ -42,7 +42,7 @@ DASH-5.D-LIVE-MANUAL-CONTROL-FAILURE-TAXONOMY-CODIFICATION codifies the 7-class 
 - DASH-5.B-LIVE-TAKE-PROFIT-HELPER-WIRING CLOSED at `9eb21f8f9ac73a452ff5822fdeb05029bf642da8` (live TP wired to `shadowRecordManualLiveTPUpdate` at `dashboard.js:906-964`; addresses G5.3).
 - DASH-5-B-CLOSEOUT-SYNC CLOSED at `1c9766a8cfe569abed9c8ee83ce609ff6b0beebc`.
 - Phase 8 (D-5.12f-LIVE-SELLALL-IMPLEMENTATION; HIGH-RISK; ARC-2 Gate 9), Phase 9 (D-5.12e.1-EMERGENCY-PAYLOAD-CLEANUP; HIGH-RISK), DASH-6, Phase 11 separately gated.
-- Hermes shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
+- Relay shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
 
 ## §3 — The 7-class taxonomy
 
@@ -225,7 +225,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 | `.env*` | HARD BLOCK forever for automation |
 | `MANUAL_LIVE_ARMED` env reads | RESTRICTED-not-lifted |
 | All safety-policy docs | HARD BLOCK throughout the DASH track |
-| All Hermes templates / runtime | HARD BLOCK; Hermes stays shelved |
+| All Relay templates / runtime | HARD BLOCK; Relay stays shelved |
 | `tests/*.spec.js` | RESTRICTED; DASH-6 territory |
 | Other handoff records (`DASH-1-READ-STATE-AUDIT.md`, `ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN.md`, `DASH-3-POSITION-DISPLAY-CANONICALIZATION-DESIGN.md`, `DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN.md`, `DASH-5-LIVE-CONTROLS-DESIGN.md`, `D-5-12F-LIVE-SELLALL-DESIGN.md`) | Cross-referenced but NOT modified by this codification |
 | All paper handlers, live handlers, emergency-audit code | RESTRICTED-not-lifted in DASH-5.D |
@@ -246,7 +246,7 @@ DASH-5.D explicitly does NOT authorize:
 - Phase 9 (D-5.12e.1-EMERGENCY-PAYLOAD-CLEANUP) — separately gated; HIGH-RISK per D-5.12f §10.
 - Any edit to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
 - Any safety-policy doc edit.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 - Any production action: Railway CLI, Railway env, Railway redeploy, Kraken action, production DB query / mutation, migration application, `MANUAL_LIVE_ARMED` change, deploy, env / secret read or write, autopilot runtime activation, automation install / widening, Discord post, webhook / scheduler / MCP / cron / Ruflo install.
 
 ## §10 — Cross-references

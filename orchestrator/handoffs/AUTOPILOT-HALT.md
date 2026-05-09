@@ -1,6 +1,6 @@
 # Autopilot Halt Report (template — ARC-8 stop condition surface)
 
-> **Author rule:** Autopilot DRAFTS this report when any of the ARC-8 stop conditions fires (per `orchestrator/AUTOPILOT-RULES.md` ARC-8 "ARC-8 stop conditions" plus the supervised-autopilot stop conditions). The operator is the only authority that can resume autopilot. Future automation (Ruflo, Hermes, successors) MAY NEVER auto-recover from a halt (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
+> **Author rule:** Autopilot DRAFTS this report when any of the ARC-8 stop conditions fires (per `orchestrator/AUTOPILOT-RULES.md` ARC-8 "ARC-8 stop conditions" plus the supervised-autopilot stop conditions). The operator is the only authority that can resume autopilot. Future automation (Ruflo, Relay, successors) MAY NEVER auto-recover from a halt (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
 >
 > **On stop: report; do not attempt automatic recovery.** Per `orchestrator/AUTOMATION-PERMISSIONS.md` "Stop conditions" and `orchestrator/AUTOPILOT-RULES.md` supervised-autopilot Loop step 9, autopilot must surface the unexpected state and wait for operator instruction.
 

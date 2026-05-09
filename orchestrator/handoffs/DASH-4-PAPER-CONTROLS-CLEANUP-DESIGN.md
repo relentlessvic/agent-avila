@@ -1,6 +1,6 @@
 # DASH-4 — Paper Controls Cleanup Design
 
-> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Hermes runtime install. The downstream DASH-4.A implementation sub-phase, the deferred DASH-4.B / DASH-4.C sub-phases, the interleaved D-5.12f impl Phase 8 and D-5.12e.1 cleanup Phase 9, and Phase 11 ARC-8-RUN-D each remain separately gated.
+> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Relay runtime install. The downstream DASH-4.A implementation sub-phase, the deferred DASH-4.B / DASH-4.C sub-phases, the interleaved D-5.12f impl Phase 8 and D-5.12e.1 cleanup Phase 9, and Phase 11 ARC-8-RUN-D each remain separately gated.
 >
 > **Canonical authority:** `orchestrator/NEXT-ACTION.md` and `orchestrator/NEXT-ACTION-SELECTOR.md` (per `HANDOFF-RULES.md`). If this document ever conflicts with either canonical source, the canonical source wins.
 >
@@ -28,7 +28,7 @@ DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN-SPEC persists the Codex round-2 PASS-verifi
 - **DASH-4.A implementation is NOT authorized by this codification.** DASH-4.A requires its own separately-gated SAFE IMPLEMENTATION phase with operator-granted scoped lift on RESTRICTED `dashboard.js` for DASH-4.A only + Codex implementation review + commit + push approvals.
 - DASH-4.B and DASH-4.C are deferred (see §5).
 - Any DASH-5, Phase 8, Phase 9, DASH-6, Phase 11 work. Each separately gated.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 
 ## §2 — Audit context
 
@@ -46,7 +46,7 @@ DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN-SPEC persists the Codex round-2 PASS-verifi
 - DASH-3-POSITION-DISPLAY-CANONICALIZATION-DESIGN-SPEC CLOSED at `5d0abcb15c008d669e5653b21f4c15091d474aed`.
 - DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN CLOSED — Design-only PASS (round-1 methodology FAIL + round-2 clean PASS on all 38 checks).
 - Phase-loop counter 0 of 3.
-- Autopilot DORMANT. Hermes shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
+- Autopilot DORMANT. Relay shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
 - Working tree clean except `position.json.snap.20260502T020154Z` pre-existing untracked carve-out.
 
 **`dashboard.js` classification:** RESTRICTED per `PROTECTED-FILES.md:53-73`. The DASH-2.A scoped lift was consumed at commit `d6c77af…` per `PROTECTED-FILES.md:59`. DASH-4.A implementation will require a new operator-granted scoped lift.
@@ -144,7 +144,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 | `package.json`, `package-lock.json`, `.nvmrc` | RESTRICTED; no scoped lift granted in DASH-4 |
 | `.env*` | HARD BLOCK forever for automation |
 | All safety-policy docs | HARD BLOCK throughout the DASH track |
-| All Hermes templates / runtime | HARD BLOCK; Hermes stays shelved |
+| All Relay templates / runtime | HARD BLOCK; Relay stays shelved |
 | `tests/*.spec.js` | RESTRICTED; DASH-6 territory |
 | Live BUY / CLOSE / SELL_ALL / SL / TP handlers | RESTRICTED-not-lifted in DASH-4 (DASH-5 / Phase 8 / Phase 9 territory) |
 | `MANUAL_LIVE_ARMED` env reads | RESTRICTED-not-lifted in DASH-4 |
@@ -191,7 +191,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 
 The preamble explicitly framed the packet body itself as the reviewable design artifact for DESIGN-ONLY phases, with on-disk codification following the design PASS rather than preceding it.
 
-**Round 2 (DASH-4 design — 2026-05-07) — clean PASS on all 38 checks** (A1-A7, B1-B3, C1-C6, D1-D6, E1-E3, F1-F8). No required edits. Codex confirmed all DB-first claims by direct read of `dashboard.js` and `db.js`; confirmed the I1 envelope discrepancy at `:2074` vs `:2251`; confirmed `quantity` is already declared at `:2056`; confirmed exit-entry shape symmetry between CLOSE and SELL_ALL except `exitReason` and `orderId` prefix; confirmed DASH-4.A is exactly 1 additive line at `:2074` with no new control flow / DB call / helper / file write / Kraken call / `balanceCache` change; confirmed DASH-4.B and DASH-4.C are properly deferred; confirmed all live branch line ranges; confirmed hard-block set; confirmed CEILING-PAUSE / Hermes / Migration 008 / N-3 / approver preservation; confirmed forbidden-content compliance.
+**Round 2 (DASH-4 design — 2026-05-07) — clean PASS on all 38 checks** (A1-A7, B1-B3, C1-C6, D1-D6, E1-E3, F1-F8). No required edits. Codex confirmed all DB-first claims by direct read of `dashboard.js` and `db.js`; confirmed the I1 envelope discrepancy at `:2074` vs `:2251`; confirmed `quantity` is already declared at `:2056`; confirmed exit-entry shape symmetry between CLOSE and SELL_ALL except `exitReason` and `orderId` prefix; confirmed DASH-4.A is exactly 1 additive line at `:2074` with no new control flow / DB call / helper / file write / Kraken call / `balanceCache` change; confirmed DASH-4.B and DASH-4.C are properly deferred; confirmed all live branch line ranges; confirmed hard-block set; confirmed CEILING-PAUSE / Relay / Migration 008 / N-3 / approver preservation; confirmed forbidden-content compliance.
 
 ## §11 — Path A vs Path B
 
@@ -232,5 +232,5 @@ DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN-SPEC explicitly does NOT authorize:
 - Any DASH-5, Phase 8, Phase 9, DASH-6, Phase 11 work. Each separately gated.
 - Any edit to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
 - Any safety-policy doc edit.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 - Any production action: Railway CLI, Railway env, Railway redeploy, Kraken action (live or otherwise), production DB query / mutation, migration application, `MANUAL_LIVE_ARMED` change, deploy, env / secret read or write, autopilot runtime activation, automation install / widening, Discord post, webhook / scheduler / MCP / cron / Ruflo install.

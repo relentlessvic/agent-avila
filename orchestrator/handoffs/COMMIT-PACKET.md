@@ -1,6 +1,6 @@
 # Commit Packet (template)
 
-> **Author rule:** Claude DRAFTS this packet. The operator-approval field is operator-marked only; only an in-session instruction (typed in the chat) constitutes approval. Future automation (Ruflo, Hermes, successors) MAY NEVER mark the approval field (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
+> **Author rule:** Claude DRAFTS this packet. The operator-approval field is operator-marked only; only an in-session instruction (typed in the chat) constitutes approval. Future automation (Ruflo, Relay, successors) MAY NEVER mark the approval field (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
 >
 > **A commit packet is NOT a commit.** A commit happens only when the operator approves in-session and Claude runs `git add` (by name) followed by `git commit -m`. The packet is a description; the action is a separate, named operator instruction.
 

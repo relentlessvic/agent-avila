@@ -1,6 +1,6 @@
 # DASH-5 — Live Controls Design
 
-> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Hermes runtime install. The downstream DASH-5.A / DASH-5.B / DASH-5.D sub-phases, the interleaved Phase 8 (D-5.12f-LIVE-SELLALL-IMPLEMENTATION) and Phase 9 (D-5.12e.1-EMERGENCY-PAYLOAD-CLEANUP), and Phase 11 ARC-8-RUN-D each remain separately gated.
+> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Relay runtime install. The downstream DASH-5.A / DASH-5.B / DASH-5.D sub-phases, the interleaved Phase 8 (D-5.12f-LIVE-SELLALL-IMPLEMENTATION) and Phase 9 (D-5.12e.1-EMERGENCY-PAYLOAD-CLEANUP), and Phase 11 ARC-8-RUN-D each remain separately gated.
 >
 > **Canonical authority:** `orchestrator/NEXT-ACTION.md` and `orchestrator/NEXT-ACTION-SELECTOR.md` (per `HANDOFF-RULES.md`). If this document ever conflicts with either canonical source, the canonical source wins.
 >
@@ -31,7 +31,7 @@
 - DASH-4-A-CLOSEOUT-SYNC CLOSED at `c8b0e3c6d8eeca3f9cc6efcaa86a72ae57174ddb`.
 - DASH-5-LIVE-CONTROLS-DESIGN-ONLY CLOSED — Design-only PASS (Codex round-1 PASS WITH REQUIRED EDITS on D5 / E3 / F1 + round-2 clean PASS on all 38 checks).
 - Phase 8 (D-5.12f-LIVE-SELLALL-IMPLEMENTATION; HIGH-RISK; ARC-2 Gate 9), Phase 9 (D-5.12e.1-EMERGENCY-PAYLOAD-CLEANUP; HIGH-RISK), Phase 10 (DASH-6), Phase 11 (ARC-8-RUN-D) all separately gated.
-- Hermes shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
+- Relay shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
 
 **`dashboard.js` classification:** RESTRICTED per `PROTECTED-FILES.md:53-73`. The DASH-4.A scoped lift was CONSUMED at `5e1509e…` per `PROTECTED-FILES.md:59`. No active lift held. Any DASH-5.A / DASH-5.B implementation will require a fresh operator-granted scoped lift.
 
@@ -268,7 +268,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 | `MANUAL_LIVE_ARMED` env reads | RESTRICTED-not-lifted in DASH-5; Layer 1 at `:12937` and Layer 2 at `:1847` byte-stable across DASH-5 sub-phases |
 | `_emergencyAuditWrite`, `_loglineFallback`, `_redactAttemptedPayload` | RESTRICTED-not-lifted in DASH-5 — DASH-5.A / DASH-5.B do NOT use the emergency-audit ladder (no Kraken call, no real-money movement) |
 | All safety-policy docs | HARD BLOCK throughout the DASH track |
-| All Hermes templates / runtime | HARD BLOCK; Hermes stays shelved |
+| All Relay templates / runtime | HARD BLOCK; Relay stays shelved |
 | Live BUY at `:1867-2046` | RESTRICTED-not-lifted in DASH-5 (G5.4 closed as no-finding) |
 | Live CLOSE_POSITION at `:2049-2223` | RESTRICTED-not-lifted in DASH-5 (D-5.12e mutation cleanup is Phase 9; DASH-5 does not touch) |
 | Live SELL_ALL at `:2253-2261` | RESTRICTED-not-lifted in DASH-5 (D-5.12f implementation is Phase 8; DASH-5 does not touch) |
@@ -332,7 +332,7 @@ The 3 round-1 FAILs were precision/completeness corrections:
 - **E3** — proposed `db_only_*` taxonomy listed 3 classes (validation_failed / db_error / no_open_position). Both helpers `shadowRecordManualLiveSLUpdate` at `:847` and `shadowRecordManualLiveTPUpdate` at `:907` have an early-return `db_unavailable` path that needs its own named class. Required: add `db_only_db_unavailable` for full 4-class set.
 - **F1** — §10 hard-block table didn't explicitly include `scripts/`, `tests/`, `.nvmrc`, deploy config (DASH-1 protected-surface list at lines 409-412). Required: re-cite explicitly.
 
-**Round 2 (DASH-5 design — 2026-05-07) — clean PASS on all 38 checks.** D5 / E3 / F1 all flipped from FAIL to PASS after verbatim corrections. Codex confirmed all DB-bypass identifications by direct read of `dashboard.js` and `db.js`; confirmed live BUY at `:1956-1975` is clean of mutation; confirmed CLOSE mutation lives at `:2145`; confirmed SL helper at `:846-903` and TP helper at `:906-964` are functionally complete-but-unwired; confirmed the 4-class db_only_* taxonomy matches helper early-return paths; confirmed §10 hard-block list is complete; confirmed CEILING-PAUSE / Hermes / Migration 008 / N-3 / approver preservation; confirmed forbidden-content compliance.
+**Round 2 (DASH-5 design — 2026-05-07) — clean PASS on all 38 checks.** D5 / E3 / F1 all flipped from FAIL to PASS after verbatim corrections. Codex confirmed all DB-bypass identifications by direct read of `dashboard.js` and `db.js`; confirmed live BUY at `:1956-1975` is clean of mutation; confirmed CLOSE mutation lives at `:2145`; confirmed SL helper at `:846-903` and TP helper at `:906-964` are functionally complete-but-unwired; confirmed the 4-class db_only_* taxonomy matches helper early-return paths; confirmed §10 hard-block list is complete; confirmed CEILING-PAUSE / Relay / Migration 008 / N-3 / approver preservation; confirmed forbidden-content compliance.
 
 ## §12 — What this phase does NOT authorize
 
@@ -349,7 +349,7 @@ DASH-5-LIVE-CONTROLS-DESIGN-SPEC explicitly does NOT authorize:
 - **Any DASH-6 / Phase 11 (ARC-8-RUN-D) work.** Each separately gated.
 - Any edit to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
 - Any safety-policy doc edit.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 - Any production action: Railway CLI, Railway env, Railway redeploy, Kraken action (live or otherwise), production DB query / mutation, migration application, `MANUAL_LIVE_ARMED` change, deploy, env / secret read or write, autopilot runtime activation, automation install / widening, Discord post, webhook / scheduler / MCP / cron / Ruflo install.
 
 ## §13 — Cross-references

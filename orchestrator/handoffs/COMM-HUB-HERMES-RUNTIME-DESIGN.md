@@ -1,15 +1,15 @@
-# Communication Hub — Hermes Runtime Design (template — COMM-HUB)
+# Communication Hub — Relay Runtime Design (template — COMM-HUB)
 
-> **Author rule:** This file codifies the Codex-PASS-verified runtime design for Hermes (the planned future Discord auto-publisher), produced as a conversation-only design packet during the `COMM-HUB-HERMES-RUNTIME-DESIGN` phase and Codex-PASS-verified after the EDIT-1 through EDIT-5 correction round on §5, §8, §13, and §18.8. **This document is NOT authorization to write Hermes runtime code, create the `relentlessvic/agent-avila-hermes` repository, install Hermes further, deploy a Hermes runtime, register a Discord application, mint a Discord bot token, invite a bot to the server, grant any Discord permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, post to Discord, run a Stage 7 dry-run, take a production action, take a trading action, or break CEILING-PAUSE.** Stage 5 install Steps 14–21 resumption (`COMM-HUB-HERMES-INSTALL` resume) remains RED-tier Gate-10 per `orchestrator/APPROVAL-GATES.md` and requires a fresh Codex install-readiness review plus explicit Victor in-session Gate-10 approval at the then-current HEAD. Future codification of any subsequent design revisions, runtime authoring (`COMM-HUB-HERMES-RUNTIME-IMPLEMENT`), and runtime deployment are each their own separately-approved phases.
+> **Author rule:** This file codifies the Codex-PASS-verified runtime design for Relay (the planned future Discord auto-publisher), produced as a conversation-only design packet during the `COMM-HUB-HERMES-RUNTIME-DESIGN` phase and Codex-PASS-verified after the EDIT-1 through EDIT-5 correction round on §5, §8, §13, and §18.8. **This document is NOT authorization to write Relay runtime code, create the `relentlessvic/agent-avila-hermes` repository, install Relay further, deploy a Relay runtime, register a Discord application, mint a Discord bot token, invite a bot to the server, grant any Discord permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, post to Discord, run a Stage 7 dry-run, take a production action, take a trading action, or break CEILING-PAUSE.** Stage 5 install Steps 14–21 resumption (`COMM-HUB-HERMES-INSTALL` resume) remains RED-tier Gate-10 per `orchestrator/APPROVAL-GATES.md` and requires a fresh Codex install-readiness review plus explicit Victor in-session Gate-10 approval at the then-current HEAD. Future codification of any subsequent design revisions, runtime authoring (`COMM-HUB-HERMES-RUNTIME-IMPLEMENT`), and runtime deployment are each their own separately-approved phases.
 >
-> **No Hermes runtime, Hermes repo, Discord bot capability change, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
+> **No Relay runtime, Relay repo, Discord bot capability change, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
 
 Author: Operator-driven manual planning (Claude as orchestrator; future implementation Victor-only)
 Last updated: 2026-05-06 (COMM-HUB-DOCS-G-HERMES-RUNTIME-DESIGN-SPEC — DOCS-ONLY)
 Source-design HEAD: `01a449020cb97e817667557fadb2c80fc682479d` (the conversation-only design packet was Codex-PASS-verified at this HEAD after EDIT-1 through EDIT-5 corrections)
 Canonical references:
-- `orchestrator/COMM-HUB-HERMES-RULES.md` — canonical Hermes specification (SAFE-class)
-- `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` — Hermes Stage 5 install checklist (21-step manual sequence; Steps 1–13 complete; Steps 14–21 deferred)
+- `orchestrator/COMM-HUB-HERMES-RULES.md` — canonical Relay specification (SAFE-class)
+- `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` — Relay Stage 5 install checklist (21-step manual sequence; Steps 1–13 complete; Steps 14–21 deferred)
 - `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` — Stage 4 dry-run design (19 halt classes; 13 test fixtures)
 - `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md` — Stage 5 preconditions 12–15
 - `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` — Stage 5 partial-install record (Steps 1–13 done; Steps 14–21 deferred; 3-step rollback path canonical in §7)
@@ -25,24 +25,24 @@ Canonical references:
 
 **Output type:** conversation-only design packet (this document is its codification). No commit by the design phase itself. No file written by the design phase. No Discord / Railway / env / production / trading action by the design phase. Codification of the design (this current `COMM-HUB-DOCS-G-HERMES-RUNTIME-DESIGN-SPEC` phase) writes the design to disk as a docs-only commit; codification does NOT authorize implementation or deployment.
 
-**Stage in canonical Hermes activation path:** between Stage 6 closeout (already done at `69b3790…` recording the partial Stage 5 install) and any future Stage 5 resumption. The canonical Hermes spec staged-path (per `orchestrator/COMM-HUB-HERMES-RULES.md` §"Staged activation path" lines 274–289) does NOT include a runtime-design step explicitly because the spec assumed a runtime would already exist. This phase fills that gap retroactively as its own design track, separate from but compatible with the canonical staged path.
+**Stage in canonical Relay activation path:** between Stage 6 closeout (already done at `69b3790…` recording the partial Stage 5 install) and any future Stage 5 resumption. The canonical Relay spec staged-path (per `orchestrator/COMM-HUB-HERMES-RULES.md` §"Staged activation path" lines 274–289) does NOT include a runtime-design step explicitly because the spec assumed a runtime would already exist. This phase fills that gap retroactively as its own design track, separate from but compatible with the canonical staged path.
 
 **Codex review at end of draft:** Codex docs-only review with ~25 questions covering design content + safety properties. PASS gate before any future codification phase opens. Established review pattern (similar to COMM-HUB-DESIGN-DISCORD-INSTALL 15-Q, COMM-HUB-DESIGN-HERMES 8-Q, COMM-HUB-HERMES-DRY-RUN-DESIGN 20-Q).
 
 **Future codification (this current phase performs codification):** the codification commits this design to disk as `orchestrator/handoffs/COMM-HUB-HERMES-RUNTIME-DESIGN.md`. Any subsequent design revisions would require their own separately-approved DOCS-ONLY phase.
 
-**Future implementation (not authorized by this codification phase):** runtime authoring (writing actual Hermes process code — Node.js modules, Discord client integration, halt-on-anomaly state machine, idempotency store, etc.) is a separate substantive implementation phase. Implementation is NOT a DOCS-ONLY phase; it would be SAFE IMPLEMENTATION or HIGH-RISK IMPLEMENTATION tier per `orchestrator/PHASE-MODES.md`. Implementation requires its own design + Codex code review + Victor approval cascade with fresh approvals.
+**Future implementation (not authorized by this codification phase):** runtime authoring (writing actual Relay process code — Node.js modules, Discord client integration, halt-on-anomaly state machine, idempotency store, etc.) is a separate substantive implementation phase. Implementation is NOT a DOCS-ONLY phase; it would be SAFE IMPLEMENTATION or HIGH-RISK IMPLEMENTATION tier per `orchestrator/PHASE-MODES.md`. Implementation requires its own design + Codex code review + Victor approval cascade with fresh approvals.
 
-**Future deployment (not authorized by this codification phase):** deploying the Hermes runtime to the existing `agent-avila-hermes` Railway service is yet another separately-approved phase, equivalent to Stage 5 resumption (Steps 14–21). Requires fresh Gate-10 approval at the then-current HEAD.
+**Future deployment (not authorized by this codification phase):** deploying the Relay runtime to the existing `agent-avila-hermes` Railway service is yet another separately-approved phase, equivalent to Stage 5 resumption (Steps 14–21). Requires fresh Gate-10 approval at the then-current HEAD.
 
 **Hard limits this design preserves:**
 
-- Hermes is governance-only and never a trading actor (per `orchestrator/AUTOMATION-PERMISSIONS.md` line 224 + `orchestrator/COMM-HUB-HERMES-RULES.md` line 37).
-- Hermes has zero approval authority forever (per `COMM-HUB-HERMES-RULES.md` §"Approval discipline" line 160).
-- Hermes never reads Discord channels (per `COMM-HUB-HERMES-RULES.md` §"Forbidden — explicit non-listener clause" line 106).
-- Hermes never has `Read Message History` (per `COMM-HUB-HERMES-RULES.md` lines 88, 106).
-- Hermes never posts to `#approvals`, `#codex-warnings`, or Category C (per `COMM-HUB-HERMES-RULES.md` §"Channel allow-list" line 222 + `COMM-HUB-CHANNEL-LAYOUT.md`).
-- Hermes never auto-resumes after halt (per `COMM-HUB-HERMES-RULES.md` §"Anti-execution boundaries" item 7 line 148).
+- Relay is governance-only and never a trading actor (per `orchestrator/AUTOMATION-PERMISSIONS.md` line 224 + `orchestrator/COMM-HUB-HERMES-RULES.md` line 37).
+- Relay has zero approval authority forever (per `COMM-HUB-HERMES-RULES.md` §"Approval discipline" line 160).
+- Relay never reads Discord channels (per `COMM-HUB-HERMES-RULES.md` §"Forbidden — explicit non-listener clause" line 106).
+- Relay never has `Read Message History` (per `COMM-HUB-HERMES-RULES.md` lines 88, 106).
+- Relay never posts to `#approvals`, `#codex-warnings`, or Category C (per `COMM-HUB-HERMES-RULES.md` §"Channel allow-list" line 222 + `COMM-HUB-CHANNEL-LAYOUT.md`).
+- Relay never auto-resumes after halt (per `COMM-HUB-HERMES-RULES.md` §"Anti-execution boundaries" item 7 line 148).
 - CEILING-PAUSE remains active and not broken throughout this phase.
 - Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`; N-3 CLOSED. Approvers exactly `{Victor}`.
 
@@ -52,27 +52,27 @@ Canonical references:
 
 The operator's phase-open instruction listed 22 numbered design requirements. They are recorded here verbatim as the canonical design spec for this phase:
 
-1. Hermes must be one-way publisher only.
-2. Hermes must never read Discord messages.
-3. Hermes must never use Read Message History.
-4. Hermes must never listen to Discord events.
-5. Hermes must never treat Discord replies, emojis, reactions, messages, or activity as approval.
-6. Hermes must never approve anything.
-7. Hermes must never trade.
-8. Hermes must have no Kraken credentials.
-9. Hermes must have no production DB credentials.
-10. Hermes must have no dashboard credentials.
-11. Hermes must have no `MANUAL_LIVE_ARMED` variable.
-12. Hermes must have no access to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `position.json`, `.env*`, trading runtime, or production execution surfaces.
-13. Hermes must publish only to approved channels: `#status`, `#summaries`, `#system-health`.
-14. Hermes must NOT publish to: `#approvals`, `#codex-warnings`, `#trading-alerts`, `#trading-summaries`.
-15. Hermes must halt on anomaly.
-16. Hermes must support idempotency so duplicate messages are not posted.
-17. Hermes must have clear message-source rules.
-18. Hermes must have dry-run / no-publish test mode.
-19. Hermes must have audit logs that do not contain secrets.
-20. Hermes must be deployable separately from `agent-avila-dashboard`.
-21. Hermes runtime design must preserve trading-system isolation.
+1. Relay must be one-way publisher only.
+2. Relay must never read Discord messages.
+3. Relay must never use Read Message History.
+4. Relay must never listen to Discord events.
+5. Relay must never treat Discord replies, emojis, reactions, messages, or activity as approval.
+6. Relay must never approve anything.
+7. Relay must never trade.
+8. Relay must have no Kraken credentials.
+9. Relay must have no production DB credentials.
+10. Relay must have no dashboard credentials.
+11. Relay must have no `MANUAL_LIVE_ARMED` variable.
+12. Relay must have no access to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `position.json`, `.env*`, trading runtime, or production execution surfaces.
+13. Relay must publish only to approved channels: `#status`, `#summaries`, `#system-health`.
+14. Relay must NOT publish to: `#approvals`, `#codex-warnings`, `#trading-alerts`, `#trading-summaries`.
+15. Relay must halt on anomaly.
+16. Relay must support idempotency so duplicate messages are not posted.
+17. Relay must have clear message-source rules.
+18. Relay must have dry-run / no-publish test mode.
+19. Relay must have audit logs that do not contain secrets.
+20. Relay must be deployable separately from `agent-avila-dashboard`.
+21. Relay runtime design must preserve trading-system isolation.
 22. Runtime implementation and deployment are NOT authorized by this design phase.
 
 Every section §4–§18 below maps back to one or more of these requirements. The numbered references below cite both the requirement number (e.g., R12 = requirement 12) and the canonical safety-policy doc location (e.g., spec line 145).
@@ -81,11 +81,11 @@ Every section §4–§18 below maps back to one or more of these requirements. T
 
 ## §3 — Canonical references
 
-This design is derivative of the existing canonical Hermes safety-policy + handoff docs. The canonical files win on any divergence; the design must be re-aligned in a follow-up DOCS-ONLY phase if any divergence is later detected.
+This design is derivative of the existing canonical Relay safety-policy + handoff docs. The canonical files win on any divergence; the design must be re-aligned in a follow-up DOCS-ONLY phase if any divergence is later detected.
 
 | Canonical file | Last commit | Role for this design |
 |---|---|---|
-| `orchestrator/COMM-HUB-HERMES-RULES.md` | `96f56a4…` | SAFE-class Hermes spec; 13 anti-execution boundaries; capability allow-list; staged activation path |
+| `orchestrator/COMM-HUB-HERMES-RULES.md` | `96f56a4…` | SAFE-class Relay spec; 13 anti-execution boundaries; capability allow-list; staged activation path |
 | `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` | `e18f220…` | 21-step install checklist; partial-completed at Steps 1–13; Steps 14–21 deferred |
 | `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` | `f58451a…` | Stage 4 dry-run design; 19 halt classes; sample test fixtures |
 | `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md` | `40f3137…` | Stage 5 preconditions 12–15 (host class A — Separate Railway service `agent-avila-hermes`; Discord API egress only; token-storage discipline; account good-standing) |
@@ -104,13 +104,13 @@ This design is derivative of the existing canonical Hermes safety-policy + hando
 
 ## §4 — Runtime architecture
 
-**Process model:** single-instance, long-running daemon process. Runs as a single OS process in a single container; a single concurrent instance only (per Hermes spec §"Anti-execution boundaries" item 13 line 154 — concurrent instances = halt class).
+**Process model:** single-instance, long-running daemon process. Runs as a single OS process in a single container; a single concurrent instance only (per Relay spec §"Anti-execution boundaries" item 13 line 154 — concurrent instances = halt class).
 
 **Justification:** alternatives considered:
 
 - **Serverless function (Lambda / Cloudflare Worker / Vercel):** rejected. Discord gateway requires a long-lived WebSocket connection (gateway `IDENTIFY` + `READY` per dry-run design §1 step 1); serverless cold-start + execution-time-limit model conflicts with maintaining the gateway connection for halt-on-anomaly responsiveness.
 - **Scheduled task (cron-style):** rejected. Halt-on-anomaly requires immediate state machine response; cron's discrete-firing model can leave halted state ambiguous between fires; idempotency log races become harder.
-- **Single-instance long-running daemon:** **selected**. Long-lived gateway connection; deterministic state machine; clean halt → log → exit lifecycle; matches Hermes spec single-instance discipline (line 154); maps cleanly to a Railway service.
+- **Single-instance long-running daemon:** **selected**. Long-lived gateway connection; deterministic state machine; clean halt → log → exit lifecycle; matches Relay spec single-instance discipline (line 154); maps cleanly to a Railway service.
 
 **State machine (high-level):**
 
@@ -199,28 +199,28 @@ This design is derivative of the existing canonical Hermes safety-policy + hando
 
 ### Specific runtime version + library version recommendation
 
-- **Node.js:** version 20 LTS or 22 LTS (whichever is current LTS at implementation time). NOT the same Node version as `agent-avila-dashboard` (which runs Node 24 per `.nvmrc`) — Hermes runs separately and has independent version policy.
-- **discord.js:** version 14.x (current major as of design time). Pin to exact patch version in `package-lock.json` of the Hermes repo; never use `^` or `~` semver ranges in production.
+- **Node.js:** version 20 LTS or 22 LTS (whichever is current LTS at implementation time). NOT the same Node version as `agent-avila-dashboard` (which runs Node 24 per `.nvmrc`) — Relay runs separately and has independent version policy.
+- **discord.js:** version 14.x (current major as of design time). Pin to exact patch version in `package-lock.json` of the Relay repo; never use `^` or `~` semver ranges in production.
 - **Other dependencies (minimum set):**
   - `ajv` (JSON Schema validation) — pinned exact version
   - `pino` (structured JSON logging) — pinned exact version
   - `better-sqlite3` (idempotency store; alternative: file-based JSONL) — pinned exact version
-  - No other dependencies. No HTTP frameworks (Express/Fastify) — Hermes does not expose any HTTP server. No additional Discord libraries. No LLM SDKs. No `dotenv` (env vars come from Railway, not from `.env` files).
+  - No other dependencies. No HTTP frameworks (Express/Fastify) — Relay does not expose any HTTP server. No additional Discord libraries. No LLM SDKs. No `dotenv` (env vars come from Railway, not from `.env` files).
 
 ### Forbidden dependencies (defense-in-depth)
 
-The Hermes runtime MUST NOT depend on any of the following packages, even transitively:
+The Relay runtime MUST NOT depend on any of the following packages, even transitively:
 
 - **Exchange / trading clients (R7, R8):** `kraken-api`, `node-kraken-api`, `ccxt`, `coinbase*`, `binance*`, any other exchange or trading API client.
 - **Database libraries (R9):** `pg`, `mysql`, `mongoose`, `sequelize`, `prisma`, `knex`, any other DB ORM/driver.
 - **Cloud-provider SDK families:** `aws-sdk` (v2 monolith), `@aws-sdk/*` (v3 modular), `@google-cloud/*`, `google-auth-library`, `@azure/*`, plus any cloud-provider CLI wrapped as an npm package.
 - **Source-control / CI/CD / deploy SDKs:** `@octokit/*`, GitHub Actions client packages, Railway client SDKs or CLIs, CircleCI / Travis / GitLab client packages.
-- **Env loading from disk:** `dotenv`, `dotenv-expand`, `dotenv-cli` — Hermes does NOT load `.env` files; env vars come from Railway secret store directly.
+- **Env loading from disk:** `dotenv`, `dotenv-expand`, `dotenv-cli` — Relay does NOT load `.env` files; env vars come from Railway secret store directly.
 - **Browser automation:** `puppeteer`, `playwright` (no use case; halt-on-anomaly target).
 - **Outbound non-Discord communication:** `nodemailer`, `twilio`, `@sendgrid/*`, etc. (R7, R10).
 - **LLM SDKs:** `openai`, `@anthropic-ai/sdk`, `@google/generative-ai`, any other LLM provider SDK (R12).
 
-**Enforcement:** the Hermes repo's `package.json` is reviewed by Codex at every implementation phase commit; an automated pre-commit / CI check can grep `package.json` and `package-lock.json` for forbidden package names and reject the commit if any appear.
+**Enforcement:** the Relay repo's `package.json` is reviewed by Codex at every implementation phase commit; an automated pre-commit / CI check can grep `package.json` and `package-lock.json` for forbidden package names and reject the commit if any appear.
 
 **Maps to requirements:** R7, R8, R9, R10, R11, R12, R20, R21.
 
@@ -234,18 +234,18 @@ The Hermes runtime MUST NOT depend on any of the following packages, even transi
 
 | Location | Pros | Cons | Verdict |
 |---|---|---|---|
-| **Separate repo `relentlessvic/agent-avila-hermes`** | Hermes container has no git checkout of trading-runtime files (per Hermes spec line 145 — "Hermes does not have a git checkout"); strongest code-level isolation; independent deploy pipeline; independent commit history; independent review cadence; trivially auditable that Hermes never imports trading-runtime code | Operator manages a second repo; second `.gitignore`, second README, second package.json | **Selected** |
-| `hermes/` directory in `relentlessvic/agent-avila` | Single repo; convenient; one PR for any cross-cutting docs change | **REJECTED**: Hermes container deployed from `relentlessvic/agent-avila` would have a git checkout of `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `position.json`, `.env*` (R12). Even if Railway build skips them, the source repo connection violates "no git checkout of trading runtime files." | Rejected |
-| Monorepo with explicit `.gitignore` filters | Theoretically possible | Discord application + Railway deploy still ties `agent-avila-hermes` Railway service back to the `agent-avila` repo; auditability gets harder; one `git pull` exposes trading code to the Hermes host | Rejected |
-| Subtree split | Possible but adds tooling complexity; doesn't solve the core "Hermes container has trading-runtime files in its image build context" problem | Rejected |
+| **Separate repo `relentlessvic/agent-avila-hermes`** | Relay container has no git checkout of trading-runtime files (per Relay spec line 145 — "Relay does not have a git checkout"); strongest code-level isolation; independent deploy pipeline; independent commit history; independent review cadence; trivially auditable that Relay never imports trading-runtime code | Operator manages a second repo; second `.gitignore`, second README, second package.json | **Selected** |
+| `hermes/` directory in `relentlessvic/agent-avila` | Single repo; convenient; one PR for any cross-cutting docs change | **REJECTED**: Relay container deployed from `relentlessvic/agent-avila` would have a git checkout of `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `position.json`, `.env*` (R12). Even if Railway build skips them, the source repo connection violates "no git checkout of trading runtime files." | Rejected |
+| Monorepo with explicit `.gitignore` filters | Theoretically possible | Discord application + Railway deploy still ties `agent-avila-hermes` Railway service back to the `agent-avila` repo; auditability gets harder; one `git pull` exposes trading code to the Relay host | Rejected |
+| Subtree split | Possible but adds tooling complexity; doesn't solve the core "Relay container has trading-runtime files in its image build context" problem | Rejected |
 
-**Selected: separate repo `relentlessvic/agent-avila-hermes`.** This is the strongest physical isolation. The Hermes container's git checkout (if any) is the Hermes repo only; trading-runtime files are simply not present in any code path Hermes can reach.
+**Selected: separate repo `relentlessvic/agent-avila-hermes`.** This is the strongest physical isolation. The Relay container's git checkout (if any) is the Relay repo only; trading-runtime files are simply not present in any code path Relay can reach.
 
 ### Repository structure (proposed for the future implementation phase)
 
 ```
 relentlessvic/agent-avila-hermes/
-├── README.md                       (canonical Hermes runtime README; non-secret)
+├── README.md                       (canonical Relay runtime README; non-secret)
 ├── LICENSE                         (operator preference)
 ├── .gitignore                      (excludes node_modules, *.log, *.local, .env*, /tmp)
 ├── package.json                    (minimal deps; NO trading deps; NO LLM SDKs)
@@ -271,7 +271,7 @@ relentlessvic/agent-avila-hermes/
 │   ├── halt.js                     (halt-on-anomaly state machine; log + exit; no auto-resume)
 │   ├── store/
 │   │   ├── source-of-truth.js      (read-only message-store reader)
-│   │   ├── publish-log.js          (Hermes-private append-only publish log)
+│   │   ├── publish-log.js          (Relay-private append-only publish log)
 │   │   └── dry-run-log.js          (would_have_published log writer)
 │   └── log.js                      (structured JSON logger; pino; secret redaction)
 ├── schemas/
@@ -283,7 +283,7 @@ relentlessvic/agent-avila-hermes/
 ├── Dockerfile                      (Node 20/22 LTS Alpine; non-root user; minimal layers)
 ├── railway.json                    (Railway service config; no shared env with agent-avila-dashboard)
 └── docs/
-    └── ARCHITECTURE.md             (architecture overview; cross-references back to canonical Hermes spec)
+    └── ARCHITECTURE.md             (architecture overview; cross-references back to canonical Relay spec)
 ```
 
 **Forbidden in this repo (forever):**
@@ -303,7 +303,7 @@ relentlessvic/agent-avila-hermes/
 
 ## §7 — Deployability
 
-**Hermes deploys from `relentlessvic/agent-avila-hermes` to the existing `agent-avila-hermes` Railway service** (provisioned in Stage 5 Step 7.1; populated with `DISCORD_BOT_TOKEN` in Step 7.2).
+**Relay deploys from `relentlessvic/agent-avila-hermes` to the existing `agent-avila-hermes` Railway service** (provisioned in Stage 5 Step 7.1; populated with `DISCORD_BOT_TOKEN` in Step 7.2).
 
 ### Build process
 
@@ -314,34 +314,34 @@ relentlessvic/agent-avila-hermes/
    - Add a non-root non-privileged user (`USER node`).
    - `COPY package.json package-lock.json ./` then `RUN npm ci --production --ignore-scripts` (no devDependencies; no postinstall hooks).
    - `COPY src/ ./src/` and `COPY schemas/ ./schemas/`.
-   - `EXPOSE` no ports (Hermes is one-way publisher; no HTTP server).
+   - `EXPOSE` no ports (Relay is one-way publisher; no HTTP server).
    - `CMD ["node", "src/index.js"]`.
 4. Railway deploys the image to the `agent-avila-hermes` service.
-5. Service boots Hermes process; reads `DISCORD_BOT_TOKEN` env var; performs gateway IDENTIFY + READY; enters READY state.
+5. Service boots Relay process; reads `DISCORD_BOT_TOKEN` env var; performs gateway IDENTIFY + READY; enters READY state.
 
 ### Independent deploy pipeline (separation from `agent-avila-dashboard`)
 
-| Surface | `agent-avila-dashboard` (trading runtime) | `agent-avila-hermes` (Hermes) |
+| Surface | `agent-avila-dashboard` (trading runtime) | `agent-avila-hermes` (Relay) |
 |---|---|---|
 | GitHub repo | `relentlessvic/agent-avila` | `relentlessvic/agent-avila-hermes` |
 | Railway service id | `agent-avila-dashboard` (or operator-chosen equivalent) | `agent-avila-hermes` |
-| Railway env scope | trading env (`DATABASE_URL`, `KRAKEN_API_KEY`, `KRAKEN_API_SECRET`, `MANUAL_LIVE_ARMED`, etc.) | Hermes env (`DISCORD_BOT_TOKEN`, plus any logging/store-path env from §8) |
-| Build trigger | trading repo push | Hermes repo push |
-| Build pipeline | Nixpacks v1.41.0 + Node 24 (per current Migration 008 deployment context) | Docker (custom Dockerfile in Hermes repo) + Node 20/22 LTS |
-| Deploy commit SHA | trading repo HEAD | Hermes repo HEAD |
-| Deploy concurrency | independent — can deploy trading runtime without redeploying Hermes and vice versa | independent |
+| Railway env scope | trading env (`DATABASE_URL`, `KRAKEN_API_KEY`, `KRAKEN_API_SECRET`, `MANUAL_LIVE_ARMED`, etc.) | Relay env (`DISCORD_BOT_TOKEN`, plus any logging/store-path env from §8) |
+| Build trigger | trading repo push | Relay repo push |
+| Build pipeline | Nixpacks v1.41.0 + Node 24 (per current Migration 008 deployment context) | Docker (custom Dockerfile in Relay repo) + Node 20/22 LTS |
+| Deploy commit SHA | trading repo HEAD | Relay repo HEAD |
+| Deploy concurrency | independent — can deploy trading runtime without redeploying Relay and vice versa | independent |
 
-**Cross-deploy isolation guarantee:** the two Railway services share Railway's project-level account but no env vars, no code, no deploy pipeline, no source repo. A push to `relentlessvic/agent-avila` does NOT trigger Hermes redeploy; a push to `relentlessvic/agent-avila-hermes` does NOT trigger trading-runtime redeploy.
+**Cross-deploy isolation guarantee:** the two Railway services share Railway's project-level account but no env vars, no code, no deploy pipeline, no source repo. A push to `relentlessvic/agent-avila` does NOT trigger Relay redeploy; a push to `relentlessvic/agent-avila-hermes` does NOT trigger trading-runtime redeploy.
 
 ### Deployment trigger (operator-controlled)
 
-The Hermes Railway service's GitHub-tracked deploy can be configured (operator preference):
+The Relay Railway service's GitHub-tracked deploy can be configured (operator preference):
 
-- **Auto-deploy on push to `main`:** convenient but means every Hermes commit deploys. Recommended only after the runtime is stable (post-Stage-7 dry-run + post-Stage-8 draft-only-mode passes).
+- **Auto-deploy on push to `main`:** convenient but means every Relay commit deploys. Recommended only after the runtime is stable (post-Stage-7 dry-run + post-Stage-8 draft-only-mode passes).
 - **Manual deploy via `railway up`:** safer; each deploy is an explicit operator action. Recommended for the first ~3–5 deployment cycles.
 - **GitHub-tracked deploy with manual approval gate:** middle ground; commit lands on `main` but Railway pauses until operator approves the deploy in dashboard. Recommended pattern for the implementation phase.
 
-**Each deploy of the Hermes runtime is a separately operator-approved action** per `orchestrator/APPROVAL-GATES.md` Gate 5 (deploy gate) + Gate 10 (automation install/upgrade if Hermes capability changes between deploys). Not authorized by this design phase.
+**Each deploy of the Relay runtime is a separately operator-approved action** per `orchestrator/APPROVAL-GATES.md` Gate 5 (deploy gate) + Gate 10 (automation install/upgrade if Relay capability changes between deploys). Not authorized by this design phase.
 
 **Maps to requirements:** R20, R21.
 
@@ -349,25 +349,25 @@ The Hermes Railway service's GitHub-tracked deploy can be configured (operator p
 
 ## §8 — Allowed environment variables (full enumeration)
 
-Hermes runtime reads exactly these env vars — and no others — from the Railway service's secret/env store. Any boot-time presence of an env var not in this allow-list (or absence of a required one) → halt class "forbidden env var present" or "required env var missing".
+Relay runtime reads exactly these env vars — and no others — from the Railway service's secret/env store. Any boot-time presence of an env var not in this allow-list (or absence of a required one) → halt class "forbidden env var present" or "required env var missing".
 
 | Env var | Type | Source | Purpose | Validation rules |
 |---|---|---|---|---|
-| `DISCORD_BOT_TOKEN` | secret | Railway secret variable (already populated in Stage 5 Step 7.2) | Authenticate Hermes to Discord gateway | Must be non-empty; must match Discord bot token format (regex check); never logged in plain text |
+| `DISCORD_BOT_TOKEN` | secret | Railway secret variable (already populated in Stage 5 Step 7.2) | Authenticate Relay to Discord gateway | Must be non-empty; must match Discord bot token format (regex check); never logged in plain text |
 | `HERMES_MODE` | non-secret | Railway env variable (operator-set) | `production` \| `dry_run` | Must be exactly one of the two values; halt on any other value |
 | `LOG_LEVEL` | non-secret | Railway env variable (operator-set) | `debug` \| `info` \| `warn` \| `error` | Must be one of four; defaults to `info` |
 | `LOG_DESTINATION` | non-secret | Railway env variable (operator-set) | `stdout` \| `file:/path/to/log` (host-side path) | Must match one of two formats; halt on invalid |
-| `MESSAGE_STORE_PATH` | non-secret | Railway env variable (operator-set) | Path to the source-of-truth append-only message store (read-only by Hermes) | Must be an absolute filesystem path; must exist; must be readable by the Hermes process user; halt on missing/unreadable |
-| `PUBLISH_LOG_PATH` | non-secret | Railway env variable (operator-set) | Path to the Hermes-private append-only publish log (write-only-append by Hermes) | Must be an absolute filesystem path; must be writable; must be append-only (Hermes never seeks/truncates); halt on missing/unwritable |
+| `MESSAGE_STORE_PATH` | non-secret | Railway env variable (operator-set) | Path to the source-of-truth append-only message store (read-only by Relay) | Must be an absolute filesystem path; must exist; must be readable by the Relay process user; halt on missing/unreadable |
+| `PUBLISH_LOG_PATH` | non-secret | Railway env variable (operator-set) | Path to the Relay-private append-only publish log (write-only-append by Relay) | Must be an absolute filesystem path; must be writable; must be append-only (Relay never seeks/truncates); halt on missing/unwritable |
 | `DRY_RUN_LOG_PATH` | non-secret | Railway env variable (operator-set; required when `HERMES_MODE=dry_run`) | Path to the dry-run `would_have_published` log; SEPARATE from `PUBLISH_LOG_PATH` | Must be an absolute filesystem path; must be different from `PUBLISH_LOG_PATH`; halt on collision |
-| `CEILING_PAUSE_SIGNAL_PATH` | non-secret | Railway env variable (operator-set) | Path to a controlled signal file that indicates CEILING-PAUSE state (`ACTIVE` / `BROKEN`) | Must be readable; must contain exactly `ACTIVE` or `BROKEN`; halt on `ACTIVE` per Hermes spec line 149 |
-| `HERMES_VERSION` | non-secret | Railway env variable (set by build/CI; non-secret) | The Hermes runtime version identifier (e.g., `1.0.0` or git commit SHA short form) | Logged at boot; not validated beyond "non-empty" |
+| `CEILING_PAUSE_SIGNAL_PATH` | non-secret | Railway env variable (operator-set) | Path to a controlled signal file that indicates CEILING-PAUSE state (`ACTIVE` / `BROKEN`) | Must be readable; must contain exactly `ACTIVE` or `BROKEN`; halt on `ACTIVE` per Relay spec line 149 |
+| `HERMES_VERSION` | non-secret | Railway env variable (set by build/CI; non-secret) | The Relay runtime version identifier (e.g., `1.0.0` or git commit SHA short form) | Logged at boot; not validated beyond "non-empty" |
 
 **Total: 9 allowed env vars.** Seven are non-secret. One is the bot token (secret). One is build-time identifier (non-secret).
 
 ### Boot-time env var validation
 
-At process boot, Hermes runs an explicit env-var validation step (in `src/config.js`):
+At process boot, Relay runs an explicit env-var validation step (in `src/config.js`):
 
 1. Verify all 8 baseline required env vars are present (or 9 if `HERMES_MODE=dry_run` requires `DRY_RUN_LOG_PATH`).
 2. Validate each var's format per the rules above.
@@ -390,23 +390,23 @@ At process boot, Hermes runs an explicit env-var validation step (in `src/config
 
 ## §9 — Forbidden environment variables (full enumeration)
 
-Hermes MUST NOT have any of the following env vars present at runtime. Their presence at boot triggers halt-on-anomaly class "forbidden env var present at boot".
+Relay MUST NOT have any of the following env vars present at runtime. Their presence at boot triggers halt-on-anomaly class "forbidden env var present at boot".
 
 | Forbidden env var | Reason |
 |---|---|
-| `DATABASE_URL` | Production DB credential (R9); Hermes has zero DB access |
+| `DATABASE_URL` | Production DB credential (R9); Relay has zero DB access |
 | `DATABASE_PUBLIC_URL` | Same as above |
 | `POSTGRES_*` (any var starting with `POSTGRES_`) | DB credential variants |
 | `PGUSER`, `PGPASSWORD`, `PGHOST`, `PGPORT`, `PGDATABASE` | libpq env vars |
 | `KRAKEN_API_KEY` | Trading API credential (R8) |
 | `KRAKEN_API_SECRET` | Trading API credential (R8) |
 | `KRAKEN_*` (any var starting with `KRAKEN_`) | Trading API variants |
-| `MANUAL_LIVE_ARMED` | Live-trading arm flag (R11); Hermes has zero trading authority |
+| `MANUAL_LIVE_ARMED` | Live-trading arm flag (R11); Relay has zero trading authority |
 | `BOT_*` (any var related to trading bot) | Dashboard/trading runtime credential (R10) |
 | `DASHBOARD_*` | Dashboard runtime credential (R10) |
 | `GITHUB_TOKEN` | GitHub API credential beyond what Railway needs |
 | `RAILWAY_TOKEN` (beyond what Railway service uses for self-management) | Railway control-plane credential |
-| `CI`, `CIRCLE_*`, `TRAVIS_*`, `GITHUB_ACTIONS`, `GITLAB_CI` | CI/CD context (Hermes runs in production, not CI) |
+| `CI`, `CIRCLE_*`, `TRAVIS_*`, `GITHUB_ACTIONS`, `GITLAB_CI` | CI/CD context (Relay runs in production, not CI) |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `GEMINI_API_KEY` | LLM API credentials |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Cloud provider credentials |
 | `GCP_*`, `GOOGLE_APPLICATION_CREDENTIALS` | Google Cloud credentials |
@@ -416,8 +416,8 @@ Hermes MUST NOT have any of the following env vars present at runtime. Their pre
 
 ### Enforcement
 
-1. **Railway-side env scope:** the `agent-avila-hermes` Railway service has its own env scope. None of the trading-runtime env vars are inherited by default (per Railway's per-service env model). Operator verifies at install time (Stage 5 Step 14) that no trading vars leak into the Hermes service.
-2. **Boot-time runtime check:** Hermes startup code (in `src/config.js`) iterates over `process.env` and flags any var matching the forbidden list. Halt-on-anomaly if any forbidden var is present.
+1. **Railway-side env scope:** the `agent-avila-hermes` Railway service has its own env scope. None of the trading-runtime env vars are inherited by default (per Railway's per-service env model). Operator verifies at install time (Stage 5 Step 14) that no trading vars leak into the Relay service.
+2. **Boot-time runtime check:** Relay startup code (in `src/config.js`) iterates over `process.env` and flags any var matching the forbidden list. Halt-on-anomaly if any forbidden var is present.
 3. **Codex review at implementation phase:** Codex code review verifies that the runtime never reads from any forbidden env var path even if one were accidentally set.
 
 **Maps to requirements:** R7, R8, R9, R10, R11, R12, R21.
@@ -430,8 +430,8 @@ Hermes MUST NOT have any of the following env vars present at runtime. Their pre
 
 | Endpoint class | Specific hostname(s) | Purpose |
 |---|---|---|
-| Discord gateway | `gateway.discord.gg` (and any Discord-published gateway endpoint at deploy time; resolved via Discord's `Get Gateway Bot` REST endpoint at boot) | Hermes gateway IDENTIFY + READY (one-way; receives no message events) |
-| Discord REST API | `discord.com` (specifically `discord.com/api/v10/...` REST paths) | Hermes `Send Message` calls when `HERMES_MODE=production`; `View Channels` channel-list inspection (read-only metadata, NOT message content) |
+| Discord gateway | `gateway.discord.gg` (and any Discord-published gateway endpoint at deploy time; resolved via Discord's `Get Gateway Bot` REST endpoint at boot) | Relay gateway IDENTIFY + READY (one-way; receives no message events) |
+| Discord REST API | `discord.com` (specifically `discord.com/api/v10/...` REST paths) | Relay `Send Message` calls when `HERMES_MODE=production`; `View Channels` channel-list inspection (read-only metadata, NOT message content) |
 | DNS resolver | Operator-configured (Railway-provided default) | Resolve Discord hostnames |
 | TLS / certificate-authority validation | Operator-configured CA bundle | Verify Discord TLS certificates |
 
@@ -450,7 +450,7 @@ Hermes MUST NOT have any of the following env vars present at runtime. Their pre
 
 **Layer 1 — Railway-side firewall / network policy.** Per Stage 5 preconditions §6 and the operator's Stage 5 approval (`ENFORCEMENT_LAYER = Railway-side firewall / network policy`), Railway's network-policy / private-networking config restricts the `agent-avila-hermes` service's egress to Discord API endpoints only. Any non-allow-listed egress attempt is dropped at the Railway/network layer.
 
-**Layer 2 — Runtime-side HTTP client allowlist hooks.** Hermes wraps its HTTP client (the one `discord.js` uses internally) with an allowlist hook. Before any outbound HTTP request, the runtime checks the destination hostname against the allowed list:
+**Layer 2 — Runtime-side HTTP client allowlist hooks.** Relay wraps its HTTP client (the one `discord.js` uses internally) with an allowlist hook. Before any outbound HTTP request, the runtime checks the destination hostname against the allowed list:
 
 ```
 allowedHostnames = ['gateway.discord.gg', 'discord.com', /* any Discord-published variants */]
@@ -458,41 +458,41 @@ allowedHostnames = ['gateway.discord.gg', 'discord.com', /* any Discord-publishe
 
 Any request to a non-allowed hostname → halt-on-anomaly class "non-allow-listed egress attempt" → log + exit. The runtime intercept is BEFORE `discord.js` makes the actual HTTP call; it cannot leak even if an upstream library bug somehow tried to call a different endpoint.
 
-**Layer 3 (defense in depth, optional) — outbound-DNS observation.** Hermes can be configured to log every DNS lookup (via `dns.lookup` instrumentation). Any lookup for a non-allow-listed hostname → halt. This catches subtle code paths that bypass Layer 2.
+**Layer 3 (defense in depth, optional) — outbound-DNS observation.** Relay can be configured to log every DNS lookup (via `dns.lookup` instrumentation). Any lookup for a non-allow-listed hostname → halt. This catches subtle code paths that bypass Layer 2.
 
 ### Verification at deployment time (future Stage 5 resumption work)
 
 - Operator verifies the Railway-side firewall config is in place.
-- Operator runs a smoke-test (Stage 5 Step 18) that includes attempting to reach a forbidden endpoint (e.g., `agent-avila-dashboard`'s public URL or Kraken's public API) and verifies Hermes halts cleanly.
+- Operator runs a smoke-test (Stage 5 Step 18) that includes attempting to reach a forbidden endpoint (e.g., `agent-avila-dashboard`'s public URL or Kraken's public API) and verifies Relay halts cleanly.
 - Operator inspects the runtime config's `allowedHostnames` list to confirm it's hard-coded and matches the canonical Discord endpoints.
 
 **Maps to requirements:** R8, R9, R10, R11, R12, R15, R21.
 
 ---
 
-## §11 — Message ingress (how Hermes receives messages without reading Discord)
+## §11 — Message ingress (how Relay receives messages without reading Discord)
 
-**Recommendation: file-based append-only source-of-truth message store on the Hermes host.**
+**Recommendation: file-based append-only source-of-truth message store on the Relay host.**
 
-### How Hermes gets messages to publish (without reading Discord)
+### How Relay gets messages to publish (without reading Discord)
 
 The operator (Victor) drafts a message via the orchestrator (Claude). The drafted message gets:
 1. Codex pre-publish sanity-check PASS (per `COMM-HUB-RULES.md` per-message gate).
 2. Operator in-session per-message authorization (Stage 9) or class authorization (Stage 10a/10b with 7 documented bounds).
-3. Persisted into the Hermes source-of-truth message store as a JSON file with all metadata.
+3. Persisted into the Relay source-of-truth message store as a JSON file with all metadata.
 
-Hermes polls or watches the source-of-truth message store and pulls newly-added messages. **Hermes never reads Discord** to know what to publish. The source-of-truth is the canonical list of "what Hermes should publish next"; Hermes only consumes from there.
+Relay polls or watches the source-of-truth message store and pulls newly-added messages. **Relay never reads Discord** to know what to publish. The source-of-truth is the canonical list of "what Relay should publish next"; Relay only consumes from there.
 
 ### Source-of-truth message store — implementation options
 
 | Option | Pros | Cons | Verdict |
 |---|---|---|---|
-| **A. Append-only directory of JSON files (one file per message)** | Simplest; trivially auditable (each file is a complete record); easy to operator-edit (write a JSON file, save); easy to back up; matches "append-only" discipline (operator never edits a file in place; new messages = new files); idempotency via filename = `message_id` | Polling overhead; race conditions if operator writes while Hermes reads (mitigated by atomic-write pattern: write to `.tmp` then rename) | **Selected** |
+| **A. Append-only directory of JSON files (one file per message)** | Simplest; trivially auditable (each file is a complete record); easy to operator-edit (write a JSON file, save); easy to back up; matches "append-only" discipline (operator never edits a file in place; new messages = new files); idempotency via filename = `message_id` | Polling overhead; race conditions if operator writes while Relay reads (mitigated by atomic-write pattern: write to `.tmp` then rename) | **Selected** |
 | B. SQLite database with append-only table | Strong typing; transactions; easy queries | More implementation complexity; SQLite file is binary (less auditable than JSON files); tooling overhead | Rejected |
 | C. JSONL append-only file (one line per message) | Single file; easy to tail | Concurrent-write races require file locking; harder to operator-edit one message; harder to track which messages have been processed | Rejected |
-| D. Git-tracked file in Hermes repo | Built-in audit trail (git log) | Hermes container would need git access; ties Hermes to GitHub deploy cycle for every new message; halt-on-anomaly during git fetch; operationally awkward | Rejected |
+| D. Git-tracked file in Relay repo | Built-in audit trail (git log) | Relay container would need git access; ties Relay to GitHub deploy cycle for every new message; halt-on-anomaly during git fetch; operationally awkward | Rejected |
 | E. External message queue (RabbitMQ / Redis / etc.) | Built for ingress | Adds another hosted service; increases attack surface; halt-on-anomaly across two services is more complex; overkill for current scale | Rejected for v1 |
-| F. Discord-side store (forbidden) | n/a | **VIOLATES R2, R3** — Hermes would have to read Discord, which is forbidden | **REJECTED — forbidden by design requirements** |
+| F. Discord-side store (forbidden) | n/a | **VIOLATES R2, R3** — Relay would have to read Discord, which is forbidden | **REJECTED — forbidden by design requirements** |
 
 **Selected: Option A — directory of JSON files.**
 
@@ -500,17 +500,17 @@ Hermes polls or watches the source-of-truth message store and pulls newly-added 
 
 ```
 $MESSAGE_STORE_PATH/
-├── pending/                                  (messages Hermes hasn't yet processed)
+├── pending/                                  (messages Relay hasn't yet processed)
 │   ├── 2026-05-06T10-30-00Z-msg-001.json
 │   ├── 2026-05-06T10-31-00Z-msg-002.json
 │   └── ...
-├── processed/                                (messages Hermes has processed; Hermes moves files here after publish or halt)
+├── processed/                                (messages Relay has processed; Relay moves files here after publish or halt)
 │   ├── 2026-05-06T10-25-00Z-msg-000.json
 │   └── ...
 └── README.md                                 (describes the schema; non-secret)
 ```
 
-Hermes process flow:
+Relay process flow:
 1. Periodically poll `$MESSAGE_STORE_PATH/pending/` for new files.
 2. For each new file: read the JSON, run the 11-gate verification, publish (or dry-run-log) or halt.
 3. After processing: atomically move the file to `$MESSAGE_STORE_PATH/processed/`.
@@ -522,15 +522,15 @@ Operator writes a JSON file matching the schema (§12) to the `pending/` directo
 
 If the operator decides not to publish a pending message, the operator removes it from `pending/` (e.g., moves it to a separate `cancelled/` directory). The operator does NOT edit the file in place.
 
-### Hermes' read access
+### Relay' read access
 
-Hermes' filesystem permissions on `$MESSAGE_STORE_PATH`:
+Relay' filesystem permissions on `$MESSAGE_STORE_PATH`:
 - **Read** access on `$MESSAGE_STORE_PATH/pending/`.
 - **Move** access (rename within filesystem) from `$MESSAGE_STORE_PATH/pending/` to `$MESSAGE_STORE_PATH/processed/`.
 - **No** write access in `$MESSAGE_STORE_PATH/pending/` (cannot create new files there — only the operator adds messages).
 - **Append** access to `$PUBLISH_LOG_PATH` and `$DRY_RUN_LOG_PATH` (write-only-append; never seek/truncate).
 
-This filesystem permission set means: Hermes cannot inject its own messages, cannot tamper with pending messages, cannot delete processed messages without leaving a trace. The source-of-truth is operator-controlled.
+This filesystem permission set means: Relay cannot inject its own messages, cannot tamper with pending messages, cannot delete processed messages without leaving a trace. The source-of-truth is operator-controlled.
 
 **Maps to requirements:** R1, R2, R3, R4, R17.
 
@@ -538,14 +538,14 @@ This filesystem permission set means: Hermes cannot inject its own messages, can
 
 ## §12 — Message format / schema
 
-**Strict JSON Schema enforced at message-ingest and pre-publish time.** Hermes rejects (halts) on any schema mismatch.
+**Strict JSON Schema enforced at message-ingest and pre-publish time.** Relay rejects (halts) on any schema mismatch.
 
 ### Schema (informal description; the formal schema lives in `schemas/hermes-message.schema.json` in the implementation phase)
 
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Hermes Message",
+  "title": "Relay Message",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -630,7 +630,7 @@ This filesystem permission set means: Hermes cannot inject its own messages, can
           "enum": ["UTC_DATE_AT_PUBLISH_TIME", "UTC_TIME_AT_PUBLISH_TIME", "PHASE_ID", "COMMIT_SHA"]
         }
       },
-      "description": "Map of allowed-placeholder names (in body) to substitution sources. Hermes rejects bodies with placeholders not in this map."
+      "description": "Map of allowed-placeholder names (in body) to substitution sources. Relay rejects bodies with placeholders not in this map."
     },
     "halt_on_condition_flags": {
       "type": "object",
@@ -642,7 +642,7 @@ This filesystem permission set means: Hermes cannot inject its own messages, can
     },
     "dry_run": {
       "type": "boolean",
-      "description": "If true, Hermes routes through the dry-run path even if HERMES_MODE=production. If HERMES_MODE=dry_run and dry_run=false, halt class 'dry_run flag mismatch'."
+      "description": "If true, Relay routes through the dry-run path even if HERMES_MODE=production. If HERMES_MODE=dry_run and dry_run=false, halt class 'dry_run flag mismatch'."
     }
   }
 }
@@ -650,7 +650,7 @@ This filesystem permission set means: Hermes cannot inject its own messages, can
 
 ### Schema enforcement points
 
-1. **At message ingest** (when Hermes reads a file from `$MESSAGE_STORE_PATH/pending/`): validate against the schema. Halt class "schema mismatch" if invalid.
+1. **At message ingest** (when Relay reads a file from `$MESSAGE_STORE_PATH/pending/`): validate against the schema. Halt class "schema mismatch" if invalid.
 2. **At publish time** (re-validate immediately before the publish branch): verify nothing has changed since ingest. Halt if validation fails.
 
 **Maps to requirements:** R5, R6, R12, R13, R14, R17, R19.
@@ -659,7 +659,7 @@ This filesystem permission set means: Hermes cannot inject its own messages, can
 
 ## §13 — Per-message validation (full pre-publish gate sequence)
 
-Before any publish (real or dry-run), Hermes runs **11 verification gates** in order. Any single gate failure → halt-on-anomaly → no publish, no `would_have_published` log entry, exit process.
+Before any publish (real or dry-run), Relay runs **11 verification gates** in order. Any single gate failure → halt-on-anomaly → no publish, no `would_have_published` log entry, exit process.
 
 | # | Gate | What is verified | Halt class on failure |
 |---|---|---|---|
@@ -668,16 +668,16 @@ Before any publish (real or dry-run), Hermes runs **11 verification gates** in o
 | 3 | Codex PASS metadata | `codex_pass_verdict_ref.verdict` = `"PASS"`; `review_id` non-empty; `reviewed_at` not stale beyond a configurable threshold (e.g., 30 days) | "missing or stale Codex PASS metadata" |
 | 4 | Operator authorization | `operator_authorization.approver` = `"Victor"`; `approved_at` not stale; `approval_session_ref` non-empty; OR (Stage 10a/10b only) `class_ref` valid + `bounds` complete with all 7 documented bounds | "missing, expired, exhausted, or out-of-scope operator authorization" |
 | 5 | Idempotency | `message_id` not already in `$PUBLISH_LOG_PATH` with `outcome=success`; `message_id` not currently being processed (in-process lock) | "idempotency-key mismatch / collision / reuse / unverifiable" |
-| 6 | CEILING-PAUSE | Read `$CEILING_PAUSE_SIGNAL_PATH`; content must be `ACTIVE` (not `BROKEN`); `halt_on_condition_flags.ceiling_pause_must_be_active === true` | "CEILING-PAUSE state ACTIVE detected" (per Hermes spec line 149 — "halts during it") |
+| 6 | CEILING-PAUSE | Read `$CEILING_PAUSE_SIGNAL_PATH`; content must be `ACTIVE` (not `BROKEN`); `halt_on_condition_flags.ceiling_pause_must_be_active === true` | "CEILING-PAUSE state ACTIVE detected" (per Relay spec line 149 — "halts during it") |
 | 7 | Allow-listed-placeholder substitution | Every placeholder pattern (e.g., `<UTC_DATE>`) in `body` is present in `allowed_placeholder_map`; substitute using the substitution sources (current UTC date/time, etc.); reject any placeholder NOT in the map | "allow-listed-placeholder violation" |
 | 8 | Character / rate limit | Post-substitution `body` ≤ 2000 chars (Discord limit); also ≤ per-channel rate cap (5 messages per phase for `#status`, etc.) | "character-limit exceeded" or "rate-limit hit" |
-| 9 | Network allow-list / egress-anomaly verification | Verify the runtime-side allowlist hook is active and intact (Layer 2 of §10); confirm the most recent egress event log shows only Discord-API hostnames; if any non-allow-listed egress is recorded since last check or if the hook itself is missing, fail. | "network anomaly (egress to non-allow-listed endpoint)" (per Hermes spec line 148 canonical halt class 6) |
+| 9 | Network allow-list / egress-anomaly verification | Verify the runtime-side allowlist hook is active and intact (Layer 2 of §10); confirm the most recent egress event log shows only Discord-API hostnames; if any non-allow-listed egress is recorded since last check or if the hook itself is missing, fail. | "network anomaly (egress to non-allow-listed endpoint)" (per Relay spec line 148 canonical halt class 6) |
 | 10 | Forbidden-content scan | Body does not contain any pattern from `orchestrator/HANDOFF-RULES.md` + `orchestrator/COMM-HUB-RULES.md` forbidden lists (no secrets, no env values, no Kraken/DB/Railway data, no `MANUAL_LIVE_ARMED`, no `position.json` fragments, no approval-like language not from Victor, etc.) | "forbidden-content scan trip" |
 | 11 | `dry_run` flag consistency | If `HERMES_MODE=dry_run`, the message MUST have `dry_run=true`; if `HERMES_MODE=production`, message MAY have either value but `dry_run=true` routes through the dry-run path | "dry_run flag mismatch" |
 
 ### Gate-9 (network anomaly) rationale
 
-The canonical Hermes spec lists "network anomaly (egress to non-allow-listed endpoint)" as halt class 6 at line 148. Layer 2 enforcement (runtime-side HTTP client allowlist hook) is described in §10, but a per-message verification gate makes the check explicit at every publish attempt — defense-in-depth. The gate inspects the runtime-side egress event log (a small in-memory ring buffer of recent outbound HTTP destinations); any non-allow-listed entry since the last successful publish triggers halt class 6 before the current message can be published.
+The canonical Relay spec lists "network anomaly (egress to non-allow-listed endpoint)" as halt class 6 at line 148. Layer 2 enforcement (runtime-side HTTP client allowlist hook) is described in §10, but a per-message verification gate makes the check explicit at every publish attempt — defense-in-depth. The gate inspects the runtime-side egress event log (a small in-memory ring buffer of recent outbound HTTP destinations); any non-allow-listed entry since the last successful publish triggers halt class 6 before the current message can be published.
 
 ### Order rationale
 
@@ -694,7 +694,7 @@ Gates run in the order above because:
 
 ### After all 11 gates PASS
 
-Hermes routes:
+Relay routes:
 - If `HERMES_MODE=production` AND `dry_run=false`: real `Send Message` API call. On success: append `outcome=success` to `$PUBLISH_LOG_PATH` with `message_id` + `channel_id` + timestamp; move file to `$MESSAGE_STORE_PATH/processed/`. On failure (network anomaly, Discord rate limit, etc.): halt class "publish-attempt-failed".
 - If `HERMES_MODE=dry_run` OR `dry_run=true`: write `would_have_published` entry to `$DRY_RUN_LOG_PATH` with the full message. Move file to `$MESSAGE_STORE_PATH/processed/`. Do NOT write to `$PUBLISH_LOG_PATH` (that's reserved for real publishes only).
 
@@ -704,7 +704,7 @@ Hermes routes:
 
 ## §14 — Idempotency mechanism
 
-**Hermes-private append-only publish log + orchestrator-side `message_id` keys. NO Discord-side reads for deduplication.**
+**Relay-private append-only publish log + orchestrator-side `message_id` keys. NO Discord-side reads for deduplication.**
 
 ### Mechanism
 
@@ -720,28 +720,28 @@ Hermes routes:
      "hermes_version": "..."
    }
    ```
-3. Before each publish, Hermes reads the entire publish log and builds an in-memory index of `message_id` → outcome.
+3. Before each publish, Relay reads the entire publish log and builds an in-memory index of `message_id` → outcome.
 4. If the current message's `message_id` exists in the index with `outcome=success` → halt class "idempotency: duplicate publish attempt".
 5. After successful publish, append the new record.
 
 ### Why this beats alternatives
 
-- **No Discord-side reads.** Hermes never calls `Get Channel Messages` or any Discord-side read endpoint. The Hermes-private log is the sole source of truth for "have we already published this?". This satisfies R2, R3, R4.
+- **No Discord-side reads.** Relay never calls `Get Channel Messages` or any Discord-side read endpoint. The Relay-private log is the sole source of truth for "have we already published this?". This satisfies R2, R3, R4.
 - **Operator-auditable.** The publish log is plain JSONL on the host filesystem; the operator can `cat` it to see every publish attempt.
-- **No concurrent-write races.** Hermes is single-instance; only one process appends at a time. If a future change introduces concurrency, append-with-O_APPEND atomic semantics hold for line-sized writes.
-- **Halt-on-anomaly compatible.** If the publish-log file is missing, unreadable, or corrupted at boot, halt class "publish log unverifiable" fires; operator must restore before Hermes can resume.
+- **No concurrent-write races.** Relay is single-instance; only one process appends at a time. If a future change introduces concurrency, append-with-O_APPEND atomic semantics hold for line-sized writes.
+- **Halt-on-anomaly compatible.** If the publish-log file is missing, unreadable, or corrupted at boot, halt class "publish log unverifiable" fires; operator must restore before Relay can resume.
 
 ### What if `message_id` collisions occur
 
 Two cases:
-- **Operator-generated collision (operator error):** if the operator generates a duplicate `message_id` for two different messages, Hermes halts on the second one. The operator must rename the second message and re-add it.
-- **Process-restart with same `message_id` mid-publish:** if Hermes crashed during a publish (between Send Message API call and log append), a restart sees the prior `message_id` not in the log and tries to re-publish. **Mitigation:** Hermes uses Discord's idempotency hint via the `nonce` field on the Send Message API call. If Discord recognizes the same `nonce` within a short window, it dedupes server-side.
+- **Operator-generated collision (operator error):** if the operator generates a duplicate `message_id` for two different messages, Relay halts on the second one. The operator must rename the second message and re-add it.
+- **Process-restart with same `message_id` mid-publish:** if Relay crashed during a publish (between Send Message API call and log append), a restart sees the prior `message_id` not in the log and tries to re-publish. **Mitigation:** Relay uses Discord's idempotency hint via the `nonce` field on the Send Message API call. If Discord recognizes the same `nonce` within a short window, it dedupes server-side.
 
 ### Verification at runtime
 
-- `$PUBLISH_LOG_PATH` write permissions: append-only (Hermes process user has `O_APPEND` only; not `O_TRUNC` or `O_RDWR`).
+- `$PUBLISH_LOG_PATH` write permissions: append-only (Relay process user has `O_APPEND` only; not `O_TRUNC` or `O_RDWR`).
 - File integrity check at boot: read the entire log; verify each line is valid JSON; halt on corruption.
-- `message_id` uniqueness check: at message-ingest time (when operator drops a file into `$MESSAGE_STORE_PATH/pending/`), Hermes verifies the `message_id` is not already in the publish log AND not already in another pending file.
+- `message_id` uniqueness check: at message-ingest time (when operator drops a file into `$MESSAGE_STORE_PATH/pending/`), Relay verifies the `message_id` is not already in the publish log AND not already in another pending file.
 
 **Maps to requirements:** R1, R2, R3, R16.
 
@@ -763,7 +763,7 @@ Per the corrected halt model in `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-D
 6. Network anomaly (egress to non-allow-listed endpoint)
 7. Idempotency-key mismatch / collision / reuse / unverifiable
 8. CEILING-PAUSE state ACTIVE
-9. Concurrent-Hermes-instance detected
+9. Concurrent-Relay-instance detected
 10. Class-authorization bounds violation (Stage 10a/10b — incl. forbidden-content scan trip via bound 7)
 
 ### Layer 2: 9 dry-run-specific halt classes (from `COMM-HUB-HERMES-DRY-RUN-DESIGN.md`)
@@ -782,25 +782,25 @@ Per the corrected halt model in `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-D
 
 20. **Forbidden env var present at boot.** Any env var matching the §9 forbidden-list pattern is detected at boot. Halt + log + exit.
 21. **Required env var missing at boot.** Any of the 8 baseline required env vars from §8 is absent or invalid format (or 9 if `HERMES_MODE=dry_run` requires `DRY_RUN_LOG_PATH`). Halt + log + exit.
-22. **Filesystem isolation violation.** Hermes filesystem unexpectedly contains `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `package.json` of trading runtime, `.env*`, `position.json`, or any file from `relentlessvic/agent-avila` (R12). Detected via boot-time `find` + halt.
+22. **Filesystem isolation violation.** Relay filesystem unexpectedly contains `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `package.json` of trading runtime, `.env*`, `position.json`, or any file from `relentlessvic/agent-avila` (R12). Detected via boot-time `find` + halt.
 23. **Network allowlist hook bypass.** An outbound HTTP request reaches the allowlist hook to a hostname not in the allow-list. Halt + log + exit + immediate token-revocation recommendation.
 24. **Source-of-truth message store unreadable / unmounted.** `$MESSAGE_STORE_PATH` does not exist or is not readable. Halt at boot.
 25. **Publish log unverifiable.** `$PUBLISH_LOG_PATH` corrupt JSON, unreadable, or partially written. Halt at boot.
 26. **Schema validation library missing.** Required dependencies (Ajv) failed to load. Halt at boot.
-27. **Process privilege violation.** Hermes detected running as root or with elevated capabilities. Halt at boot per non-root requirement (Stage 5 install checklist Step 14).
-28. **`git rev-parse HEAD` returns non-error inside the Hermes container** (would indicate a git checkout exists, violating Hermes spec line 145). Halt at boot.
+27. **Process privilege violation.** Relay detected running as root or with elevated capabilities. Halt at boot per non-root requirement (Stage 5 install checklist Step 14).
+28. **`git rev-parse HEAD` returns non-error inside the Relay container** (would indicate a git checkout exists, violating Relay spec line 145). Halt at boot.
 
 ### Halt behavior (uniform across all classes)
 
 1. Log the halt to `$PUBLISH_LOG_PATH` (or `$DRY_RUN_LOG_PATH` if dry-run) with `outcome=halt:<halt-class-id>` + timestamp + minimal context (no token; redacted message body if forbidden-content was the cause).
 2. Log a structured halt record to stdout (for Railway logs).
 3. Process exits with non-zero exit code corresponding to halt class category (e.g., 1 = config; 2 = verification; 3 = runtime; 4 = severe).
-4. Container does NOT auto-restart. Railway deployment policy is configured at deploy time to NOT restart the Hermes service on non-zero exit.
+4. Container does NOT auto-restart. Railway deployment policy is configured at deploy time to NOT restart the Relay service on non-zero exit.
 5. Operator must manually restart the process (after diagnosing the halt cause). Restart resets the state machine to BOOT.
 
-### Auto-resume forbidden (per Hermes spec line 51, 149)
+### Auto-resume forbidden (per Relay spec line 51, 149)
 
-Hermes never auto-resumes after a halt. Even if the underlying anomaly resolves, Hermes does not detect the resolution; the process is exited and stays exited until operator action.
+Relay never auto-resumes after a halt. Even if the underlying anomaly resolves, Relay does not detect the resolution; the process is exited and stays exited until operator action.
 
 **Maps to requirements:** R15, R21.
 
@@ -848,7 +848,7 @@ Operator can `cat` / `tail` / `grep` log files directly. The redaction rules ens
 
 ### Log entries the operator should monitor
 
-- Boot success: confirms Hermes running.
+- Boot success: confirms Relay running.
 - Halt events: confirms halt-on-anomaly fires correctly; investigate root cause.
 - Publish events: confirms messages are landing as expected.
 - Network egress events (if Layer 3 logging enabled): confirms allowlist holds.
@@ -884,15 +884,15 @@ When `HERMES_MODE=dry_run`:
 
 This was canonically defined in the dry-run design §1. Reproduced for the runtime design:
 
-1. Boot Hermes process with `HERMES_MODE=dry_run`.
+1. Boot Relay process with `HERMES_MODE=dry_run`.
 2. Verify env-var validation passes.
 3. Discord gateway IDENTIFY + READY (read-only authentication; no message events listened to).
 4. Channel-list inspection: list 3 allowed channels by id; verify 4 forbidden channels are NOT in the bot's visible-channel list.
 5. Operator drops the 13 test fixtures into `$MESSAGE_STORE_PATH/pending/`.
-6. Hermes processes each:
+6. Relay processes each:
    - 3 sample messages → would_have_published entries.
    - 10 anomaly-injection cases → halt entries (one per case).
-7. After all 13 processed (or first halt), Hermes exits.
+7. After all 13 processed (or first halt), Relay exits.
 8. Operator captures Stage 7 evidence per dry-run design §6 (no real Discord post; dry-run log content; halt log content; etc.).
 
 ### Mode flag safety
@@ -910,7 +910,7 @@ This was canonically defined in the dry-run design §1. Reproduced for the runti
 
 This final section is the safety binding for the entire design. Each subsection answers a specific operator deliverable question.
 
-### 18.1 — Isolation proof: Hermes cannot read Discord
+### 18.1 — Isolation proof: Relay cannot read Discord
 
 Three layers of proof:
 
@@ -921,34 +921,34 @@ Three layers of proof:
 - The bot's Privileged Gateway Intents are all OFF (per Stage 5 Step 6: Presence OFF, Server Members OFF, Message Content OFF).
 
 **Layer B — Code-level proof.**
-- Hermes runtime never imports any `discord.js` method that calls `Get Channel Messages`, `Get Reactions`, or any read-content endpoint.
+- Relay runtime never imports any `discord.js` method that calls `Get Channel Messages`, `Get Reactions`, or any read-content endpoint.
 - Codex code review (at implementation phase) verifies the runtime contains zero references to: `MessageManager.fetch`, `ChannelManager.fetch().messages`, `Reaction*`, `MessageContextMenu*`, `ThreadManager.fetchActive`, etc.
-- Static analysis: a CI check greps the Hermes repo source for the literal strings `messages.fetch`, `getChannelMessages`, `READ_MESSAGE_HISTORY` and rejects the commit if any appear.
+- Static analysis: a CI check greps the Relay repo source for the literal strings `messages.fetch`, `getChannelMessages`, `READ_MESSAGE_HISTORY` and rejects the commit if any appear.
 
 **Layer C — Runtime-level halt.**
-- If Hermes runtime ever calls a Discord-side read-content endpoint (despite Layers A and B), Discord returns a permission error (because Read Message History is denied at every layer). The runtime treats this as halt class 16 ("attempt to call Discord-side read-content endpoint"). The halt log captures the call site for debugging.
+- If Relay runtime ever calls a Discord-side read-content endpoint (despite Layers A and B), Discord returns a permission error (because Read Message History is denied at every layer). The runtime treats this as halt class 16 ("attempt to call Discord-side read-content endpoint"). The halt log captures the call site for debugging.
 
-### 18.2 — Isolation proof: Hermes cannot touch trading systems
+### 18.2 — Isolation proof: Relay cannot touch trading systems
 
 Three layers of proof:
 
 **Layer A — Filesystem-level proof.**
-- Hermes container has no git checkout of the `relentlessvic/agent-avila` trading repo (per §6 — separate repo).
-- Hermes container has no `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `package.json` of trading runtime, `.env*`, `position.json`, or any trading file in its filesystem.
+- Relay container has no git checkout of the `relentlessvic/agent-avila` trading repo (per §6 — separate repo).
+- Relay container has no `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `package.json` of trading runtime, `.env*`, `position.json`, or any trading file in its filesystem.
 - Boot-time check (halt class 22): `find /` for trading-runtime filenames and abort if any are found.
 
 **Layer B — Env-var-level proof.**
-- Hermes container has no `DATABASE_URL`, `KRAKEN_API_KEY`, `KRAKEN_API_SECRET`, `MANUAL_LIVE_ARMED`, or any forbidden env (per §9).
+- Relay container has no `DATABASE_URL`, `KRAKEN_API_KEY`, `KRAKEN_API_SECRET`, `MANUAL_LIVE_ARMED`, or any forbidden env (per §9).
 - Boot-time check (halt class 20): iterate `process.env` and abort if any forbidden var pattern matches.
 
 **Layer C — Network-level proof.**
-- Hermes egress is restricted to Discord API only (per §10).
+- Relay egress is restricted to Discord API only (per §10).
 - Layer 1: Railway-side firewall blocks non-Discord egress at the network layer.
 - Layer 2: Runtime-side allowlist hook blocks at the HTTP-client layer.
 - Layer 3 (optional): DNS observation logs for additional defense.
 - Halt class 23 if any layer detects a non-allow-listed egress attempt.
 
-**Combined proof:** even if Hermes somehow acquired a Kraken API URL, it has no credentials (Layer B fails); even if it had credentials, the network can't reach (Layer C fails); even if both were broken, no trading-runtime files exist on its filesystem (Layer A fails). Three independent isolation surfaces, all enforced at boot time and runtime.
+**Combined proof:** even if Relay somehow acquired a Kraken API URL, it has no credentials (Layer B fails); even if it had credentials, the network can't reach (Layer C fails); even if both were broken, no trading-runtime files exist on its filesystem (Layer A fails). Three independent isolation surfaces, all enforced at boot time and runtime.
 
 ### 18.3 — Files a future implementation phase would create or modify
 
@@ -970,7 +970,7 @@ Three layers of proof:
 
 ### 18.4 — Forbidden files (forever)
 
-These files are forbidden for Hermes to access, modify, or even contain in its filesystem at any point:
+These files are forbidden for Relay to access, modify, or even contain in its filesystem at any point:
 
 - `bot.js`, `dashboard.js`, `db.js` (trading runtime)
 - `migrations/` (trading-runtime migrations)
@@ -983,41 +983,41 @@ These files are forbidden for Hermes to access, modify, or even contain in its f
 - `position.json.snap.*` files
 - Deploy config of `agent-avila-dashboard`
 - The closed Migration 008 runbook (`orchestrator/handoffs/N-2-MIGRATION-008-PRODUCTION-PLAN.md`)
-- Any safety-policy doc in `relentlessvic/agent-avila` (Hermes does not modify the rules that govern it)
+- Any safety-policy doc in `relentlessvic/agent-avila` (Relay does not modify the rules that govern it)
 
 ### 18.5 — Codex review questions (suggested ~25 for runtime-design review)
 
 The Codex docs-only review at the end of this design phase should answer these questions:
 
-1. Does the runtime architecture (single-instance long-running daemon) align with Hermes spec single-instance discipline (line 154)?
+1. Does the runtime architecture (single-instance long-running daemon) align with Relay spec single-instance discipline (line 154)?
 2. Is Node.js + `discord.js` justified vs Python or other alternatives?
-3. Does the code location (separate repo `relentlessvic/agent-avila-hermes`) preserve trading-runtime isolation per Hermes spec line 145?
+3. Does the code location (separate repo `relentlessvic/agent-avila-hermes`) preserve trading-runtime isolation per Relay spec line 145?
 4. Are the 9 allowed env vars sufficient for runtime operation? Any missing required var?
 5. Are the forbidden env vars complete? Any common credential pattern missing from §9?
 6. Is the Railway-side firewall + runtime-side allowlist hook a complete enforcement of the Discord-API-only egress requirement?
 7. Does the file-based source-of-truth message store satisfy R2/R3/R4 (no Discord-side reads)?
 8. Is the message JSON Schema strict enough to reject malformed messages?
 9. Are the 11 verification gates ordered correctly and complete?
-10. Is the idempotency mechanism (Hermes-private append-only publish log + orchestrator-side keys) sufficient to guarantee no duplicate publishes?
+10. Is the idempotency mechanism (Relay-private append-only publish log + orchestrator-side keys) sufficient to guarantee no duplicate publishes?
 11. Are the 28 halt classes (10 canonical + 9 dry-run + 9 runtime-design-specific) complete? Any missing halt condition?
 12. Does the logging discipline (pino + redaction) guarantee no secrets in logs?
 13. Is the dry-run mode (`HERMES_MODE=dry_run` + `dry_run: true` flag) bulletproof against accidental real publishes?
 14. Does the 3-layer Discord-read isolation proof (permission + code + halt) provide defense in depth?
 15. Does the 3-layer trading-touch isolation proof (filesystem + env + network) provide defense in depth?
 16. Are forbidden dependencies (kraken-api, pg, dotenv, openai SDK, modern cloud SDK families, etc.) explicitly excluded?
-17. Does the Hermes runtime preserve trading-system isolation R21?
-18. Does the design preserve the canonical Hermes spec staged-path (Stages 5–10b) without short-circuiting any approval gate?
+17. Does the Relay runtime preserve trading-system isolation R21?
+18. Does the design preserve the canonical Relay spec staged-path (Stages 5–10b) without short-circuiting any approval gate?
 19. Does the design correctly state that runtime authoring requires its own separate phase + Codex review + Victor approval?
 20. Does the design correctly state that runtime deployment requires fresh Gate-10 approval at the then-current HEAD?
-21. Are all explicit non-authorizations consistent across the design (matches Hermes spec, install checklist, dry-run design, preconditions doc, partial-install record)?
+21. Are all explicit non-authorizations consistent across the design (matches Relay spec, install checklist, dry-run design, preconditions doc, partial-install record)?
 22. Is the rollback path (pre-step kill-runtime + 3-step DORMANT revert + optional 4th Discord application delete; repo archival out-of-canonical) complete and reversible?
 23. Are the file-scope rules (forbidden files; allowed implementation-phase files) consistent with R12?
-24. Does the design explicitly forbid Hermes from auto-restarting after halt?
+24. Does the design explicitly forbid Relay from auto-restarting after halt?
 25. Forbidden-content scan: does this design packet itself contain any forbidden content (no real bot tokens, no env values, no Kraken credentials, no `position.json` content, no production deploy commands, no approval-like language not from Victor)?
 
 ### 18.6 — Approval gates required before coding
 
-Before any Hermes runtime code is written:
+Before any Relay runtime code is written:
 
 1. **Codex docs-only review** of the design packet (completed; PASS verdict on all 25 questions after EDIT-1 through EDIT-5 corrections to §5, §8, §13, §18.8).
 2. **Victor explicit in-session approval** to open the codification phase (this `COMM-HUB-DOCS-G-HERMES-RUNTIME-DESIGN-SPEC` phase).
@@ -1030,7 +1030,7 @@ Only after gate 6 may any runtime code be written.
 
 ### 18.7 — Approval gates required before deployment
 
-Before any Hermes runtime is deployed to the `agent-avila-hermes` Railway service:
+Before any Relay runtime is deployed to the `agent-avila-hermes` Railway service:
 
 1. **Implementation phase complete** (per 18.6 gate 6+).
 2. **Implementation phase Codex code review PASS** on the new runtime code.
@@ -1042,27 +1042,27 @@ Before any Hermes runtime is deployed to the `agent-avila-hermes` Railway servic
 8. **Victor in-session Gate-10 approval** naming the exact resumption scope (Steps 14–21) at the resumption HEAD.
 9. **Victor in-session attestation of precondition 15** (account good standing — time-bound to resumption).
 
-Only after gate 9 may the Hermes runtime be deployed to Railway.
+Only after gate 9 may the Relay runtime be deployed to Railway.
 
 ### 18.8 — Rollback / deactivation path
 
-**Pre-step (always-available kill-runtime):** stop / kill any Hermes runtime currently running. Operator stops the `agent-avila-hermes` Railway service via Railway dashboard; the Hermes process exits; no further publishes possible. The bot's Discord-side membership remains intact at this stage; no DORMANT-revert has happened yet.
+**Pre-step (always-available kill-runtime):** stop / kill any Relay runtime currently running. Operator stops the `agent-avila-hermes` Railway service via Railway dashboard; the Relay process exits; no further publishes possible. The bot's Discord-side membership remains intact at this stage; no DORMANT-revert has happened yet.
 
 **Three-step DORMANT revert** (mirrors `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` §7 verbatim):
 
-1. **Reset the Discord bot token.** Discord developer portal → Application "Agent Avila Hermes" → Bot tab → Reset Token → confirm. The new token is discarded (operator does NOT save it). The previously-minted token (currently in Railway secret variable) becomes invalid; any future authentication attempt with it fails. This is the fastest single-step DORMANT-revert per the canonical install-checklist "Rollback / removal steps".
+1. **Reset the Discord bot token.** Discord developer portal → Application "Agent Avila Relay" → Bot tab → Reset Token → confirm. The new token is discarded (operator does NOT save it). The previously-minted token (currently in Railway secret variable) becomes invalid; any future authentication attempt with it fails. This is the fastest single-step DORMANT-revert per the canonical install-checklist "Rollback / removal steps".
 
-2. **Remove the Agent Avila Hermes bot from `Agent Avila Hub`.** Server Settings → Members → `Agent Avila Hermes` (bot row) → Kick Member → confirm. The bot is removed from the server immediately. The `System-Writer` role's allow / deny overrides remain on the 7 channels but apply to no member.
+2. **Remove the Agent Avila Relay bot from `Agent Avila Hub`.** Server Settings → Members → `Agent Avila Relay` (bot row) → Kick Member → confirm. The bot is removed from the server immediately. The `System-Writer` role's allow / deny overrides remain on the 7 channels but apply to no member.
 
 3. **Delete the `agent-avila-hermes` Railway service.** Railway dashboard → `agent-avila-hermes` service → Settings → Delete Service → confirm. The service shell is removed; the `DISCORD_BOT_TOKEN` secret variable is deleted with it.
 
-After the three steps above, Hermes is fully DORMANT in the same state as before Stage 5 began (zero members on `System-Writer`; no Railway service; no token anywhere).
+After the three steps above, Relay is fully DORMANT in the same state as before Stage 5 began (zero members on `System-Writer`; no Railway service; no token anywhere).
 
-**Optional 4th step:** delete the Discord application from the developer portal (Application → Delete App → confirm). This deletes the application identity itself; future Hermes installs would need a fresh application registration. This step is irreversible and is operator preference.
+**Optional 4th step:** delete the Discord application from the developer portal (Application → Delete App → confirm). This deletes the application identity itself; future Relay installs would need a fresh application registration. This step is irreversible and is operator preference.
 
 **Out of canonical Stage 5 rollback path:** any `relentlessvic/agent-avila-hermes` repository archival or deletion is separate from the canonical 3-step DORMANT revert and is operator preference. Repo archival/deletion is its own action, not part of the rollback path documented in `COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` §7.
 
-The rollback path is operator-side manual; no automation. Each step requires explicit Victor in-session approval if the operator opens a `COMM-HUB-HERMES-DEACTIVATE` phase per the canonical Hermes spec staged-path EOL row.
+The rollback path is operator-side manual; no automation. Each step requires explicit Victor in-session approval if the operator opens a `COMM-HUB-HERMES-DEACTIVATE` phase per the canonical Relay spec staged-path EOL row.
 
 **Maps to requirements:** R1 through R22 (rollback preserves all design requirements by reverting to DORMANT state).
 
@@ -1072,9 +1072,9 @@ The rollback path is operator-side manual; no automation. Each step requires exp
 
 This concludes §1–§18. The codified template:
 - Maps every operator-requirement (R1–R22) to specific design decisions.
-- Anchors every decision to the canonical Hermes safety-policy + handoff docs.
-- Preserves CEILING-PAUSE, autopilot DORMANT, Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`, N-3 CLOSED, Hermes shelved, approvers `{Victor}`.
+- Anchors every decision to the canonical Relay safety-policy + handoff docs.
+- Preserves CEILING-PAUSE, autopilot DORMANT, Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`, N-3 CLOSED, Relay shelved, approvers `{Victor}`.
 - Authorizes nothing beyond writing this docs-only template to disk.
 - Explicitly requires fresh Codex review + Victor approvals at every future codification, implementation, and deployment gate.
 
-**Writing this template does NOT install Hermes, register a Discord application, mint or rotate a Discord bot token, invite a bot to the server, grant any Discord permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, post to Discord, run a Stage 7 dry-run, take a production action, take a trading action, or break CEILING-PAUSE.** Hermes remains shelved (passive bot member of `Agent Avila Hub` with `System-Writer` role + canonical channel overrides; no runtime running; no posting capability). Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` was CONSUMED by the partial-install execution at HEAD `69b3790…` and remains CONSUMED — it cannot be reused for any future Stage 5 resumption. Stages 7 / 8 / 9 / 10a / 10b are separately gated. Hermes runtime authoring + repo creation + deployment are NOT authorized by this codification phase.
+**Writing this template does NOT install Relay, register a Discord application, mint or rotate a Discord bot token, invite a bot to the server, grant any Discord permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, post to Discord, run a Stage 7 dry-run, take a production action, take a trading action, or break CEILING-PAUSE.** Relay remains shelved (passive bot member of `Agent Avila Hub` with `System-Writer` role + canonical channel overrides; no runtime running; no posting capability). Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` was CONSUMED by the partial-install execution at HEAD `69b3790…` and remains CONSUMED — it cannot be reused for any future Stage 5 resumption. Stages 7 / 8 / 9 / 10a / 10b are separately gated. Relay runtime authoring + repo creation + deployment are NOT authorized by this codification phase.

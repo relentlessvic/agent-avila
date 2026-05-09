@@ -1,6 +1,6 @@
 # ARC-8-RUN-D — Autopilot Build Loop Record
 
-> **DOCS-ONLY ARTIFACT.** This document is the canonical SAFE-class record of the Phase 11 ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP READ-ONLY AUDIT (Mode 1) and is persisted by the RUN-D-DESIGN-SPEC phase (DOCS-ONLY, Mode 3). It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, Hermes runtime install, or DASH-6-LIVE-BOUNDARY-SMOKE. The next supervised cycle's master order remains operator-directed and is not defined by this record.
+> **DOCS-ONLY ARTIFACT.** This document is the canonical SAFE-class record of the Phase 11 ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP READ-ONLY AUDIT (Mode 1) and is persisted by the RUN-D-DESIGN-SPEC phase (DOCS-ONLY, Mode 3). It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, Relay runtime install, or DASH-6-LIVE-BOUNDARY-SMOKE. The next supervised cycle's master order remains operator-directed and is not defined by this record.
 >
 > **Canonical authority:** `orchestrator/NEXT-ACTION.md` and `orchestrator/NEXT-ACTION-SELECTOR.md` (per `HANDOFF-RULES.md`). If this document ever conflicts with either canonical source, the canonical source wins.
 >
@@ -35,9 +35,9 @@ This RUN-D-DESIGN-SPEC phase persists those four outputs as a SAFE-class informa
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, or autopilot runtime activation.
 - Any DASH-6-LIVE-BOUNDARY-SMOKE design or implementation work (deferred Mode 5; not authorized by this record).
 - Any next supervised cycle's master order definition.
-- Any Hermes Stage 5 Steps 14-21 resumption.
+- Any Relay Stage 5 Steps 14-21 resumption.
 - Any Migration 009+ design or application.
-- Any installation (MCP, scheduler, webhook, cron, Ruflo, Hermes runtime).
+- Any installation (MCP, scheduler, webhook, cron, Ruflo, Relay runtime).
 
 ## §2 — Loop A snapshot (canonical-source state)
 
@@ -77,7 +77,7 @@ Working tree clean except the pre-existing untracked carve-out (preserved across
 | `AUTOMATION-PERMISSIONS.md` tier mapping | ✅ Autopilot remains GREEN-tier (no widening) |
 | Migration 008 | ✅ APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 SUCCESS, 2026-05-04) |
 | N-3 | ✅ CLOSED |
-| Hermes | ✅ Shelved (Stage 5 Steps 1-13 done; 14-21 deferred; Stage 5 Gate-10 approval at `40f3137e…` CONSUMED) |
+| Relay | ✅ Shelved (Stage 5 Steps 1-13 done; 14-21 deferred; Stage 5 Gate-10 approval at `40f3137e…` CONSUMED) |
 | Autopilot runtime | ✅ DORMANT |
 | `MANUAL_LIVE_ARMED` | ✅ Unchanged (neither set nor unset during the cycle) |
 
@@ -116,7 +116,7 @@ Per `AUTOPILOT-RULES.md:215`, autopilot CANNOT self-select. The candidates below
 
 ### Candidates NOT proposed (deferred per design intent)
 
-- **Hermes Stage 5 Steps 14-21 resumption:** Requires fresh Gate-10 approval at then-current HEAD plus a Hermes runtime image that does not exist today. Operator-discretionary; not a natural follow-up.
+- **Relay Stage 5 Steps 14-21 resumption:** Requires fresh Gate-10 approval at then-current HEAD plus a Relay runtime image that does not exist today. Operator-discretionary; not a natural follow-up.
 - **Migration 009+:** Not designed; would need its own DESIGN-ONLY scoping phase.
 - **Lift to autopilot runtime activation:** HARD BLOCK; would require operator-directed safety-policy doc changes.
 
@@ -131,8 +131,8 @@ Per `AUTOPILOT-RULES.md:215`, autopilot CANNOT self-select. The candidates below
 | CEILING-PAUSE status preserved | ✅ PASS | Broken via ARC-8-UNPAUSE at `22ba4a7…`. No re-pause during the cycle. Future re-pause requires its own operator-directed phase. |
 | Set of approvers preserved | ✅ PASS | Every phase's commit message + closeout records confirm approvers remained exactly `{Victor}`. No AI self-approval, no Codex-PASS-as-approval, no scheduled-trigger-as-approval observed. |
 | Migration 008 APPLIED preserved | ✅ PASS | Applied at `189eb1be6ef6304d914671bdaedec44d389cf877` (Attempt 6 SUCCESS, 2026-05-04). N-3 CLOSED. No new migration applied during the cycle. |
-| Hermes shelved preserved | ✅ PASS | Stage 5 Steps 1-13 done; Steps 14-21 deferred. Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` remains CONSUMED. Hermes runtime DORMANT. |
-| Autopilot runtime DORMANT preserved | ✅ PASS | Autopilot remained GREEN-tier proposal-only throughout the cycle. No execution by autopilot. No background automation installed (no MCP, no scheduler, no webhook, no cron, no Ruflo, no Hermes runtime). |
+| Relay shelved preserved | ✅ PASS | Stage 5 Steps 1-13 done; Steps 14-21 deferred. Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` remains CONSUMED. Relay runtime DORMANT. |
+| Autopilot runtime DORMANT preserved | ✅ PASS | Autopilot remained GREEN-tier proposal-only throughout the cycle. No execution by autopilot. No background automation installed (no MCP, no scheduler, no webhook, no cron, no Ruflo, no Relay runtime). |
 | `MANUAL_LIVE_ARMED` unchanged | ✅ PASS | The variable was neither set nor unset during the cycle. No manual live trading action authorized or attempted. |
 
 ## §5 — Forward-looking 11-phase summary
@@ -185,7 +185,7 @@ Per `AUTOPILOT-RULES.md:215`, autopilot CANNOT self-select. The candidates below
 1. **DASH-6-LIVE-BOUNDARY-SMOKE** — D/E/F live-boundary smoke for SET_STOP_LOSS, SET_TAKE_PROFIT, SELL_ALL. Mode 5 by structural rule per Codex DASH-6 round-2 PATH-B-VIOLATION. Path 3 deferral chosen at design time. Not authorized by this record.
 2. **D-5.12e helper mutation cleanup** at `dashboard.js:682` — helper still embeds hash inside `attempted_payload`. Intentional given Migration 008 schema constraint (no separate `attempted_payload_hash` column). Any cleanup would require schema migration first (Mode 5 / HIGH-RISK).
 3. **SELL_ALL divergence-citing comment** at `dashboard.js:2336-2338` — deferred per D-5.12f §6 / D-5.12e.1 design §6.
-4. **Hermes Stage 5 Steps 14-21** — Hermes runtime image / process binary not yet existing. Would require fresh Gate-10 approval at then-current HEAD.
+4. **Relay Stage 5 Steps 14-21** — Relay runtime image / process binary not yet existing. Would require fresh Gate-10 approval at then-current HEAD.
 5. **Migration 009+** — not designed.
 6. **`position.json.snap.20260502T020154Z`** — pre-existing untracked carve-out preserved across all 11 phases; never committable.
 
@@ -215,7 +215,7 @@ The RUN-D source audit (Phase 11 Mode 1 READ-ONLY AUDIT, 2026-05-08) executed un
 - ✅ No `MANUAL_LIVE_ARMED` action during RUN-D
 - ✅ No live trading during RUN-D
 - ✅ No autopilot runtime activation during RUN-D
-- ✅ No Hermes / Relay resumption during RUN-D
+- ✅ No Relay / Relay resumption during RUN-D
 - ✅ No installation (MCP, scheduler, webhook, cron, Ruflo) during RUN-D
 - ✅ No Discord publishing during RUN-D
 - ✅ No next-cycle execution during RUN-D (Loop B output was proposal-only; autopilot did NOT self-select per `AUTOPILOT-RULES.md:215`)

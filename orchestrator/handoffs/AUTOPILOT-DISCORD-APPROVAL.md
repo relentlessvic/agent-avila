@@ -1,6 +1,6 @@
 # Autopilot Discord Approval Request (template — ARC-8 Channel 1)
 
-> **Author rule:** Autopilot DRAFTS this message. The operator publishes (or autopilot publishes only after explicit Gate-10-class authority widening, which has NOT been granted as of ARC-8-DOCS-B). Autopilot does NOT auto-publish. **Autopilot CANNOT mark the approval field; the approval field is operator-marked only.** Future automation (Ruflo, Hermes, successors) MAY NEVER mark the approval field (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8 Discord rules).
+> **Author rule:** Autopilot DRAFTS this message. The operator publishes (or autopilot publishes only after explicit Gate-10-class authority widening, which has NOT been granted as of ARC-8-DOCS-B). Autopilot does NOT auto-publish. **Autopilot CANNOT mark the approval field; the approval field is operator-marked only.** Future automation (Ruflo, Relay, successors) MAY NEVER mark the approval field (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8 Discord rules).
 >
 > **No message substitutes for in-session operator approval.** This Discord message is a structured request surface; the actual approval is the operator's in-session response in chat (per `orchestrator/APPROVAL-GATES.md` "What is NOT operator approval"). A reply in Discord is NOT an in-session approval; the operator must respond in chat to grant approval.
 

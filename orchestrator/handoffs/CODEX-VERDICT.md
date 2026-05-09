@@ -4,7 +4,7 @@
 >
 > **Codex PASS is necessary but never sufficient for production actions** (per `orchestrator/APPROVAL-GATES.md` and `orchestrator/ROLE-HIERARCHY.md`). The operator must still grant explicit in-session approval for every RED-tier action, regardless of any verdict in this log.
 >
-> Author rule: Codex authors verdicts; Claude transcribes verbatim only after Codex returns. Future automation (Ruflo, Hermes, successors) MAY NEVER write to this file (per `HANDOFF-RULES.md` future-automation rules).
+> Author rule: Codex authors verdicts; Claude transcribes verbatim only after Codex returns. Future automation (Ruflo, Relay, successors) MAY NEVER write to this file (per `HANDOFF-RULES.md` future-automation rules).
 
 ---
 

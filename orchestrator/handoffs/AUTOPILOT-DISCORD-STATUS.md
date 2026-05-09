@@ -1,6 +1,6 @@
 # Autopilot Discord Status (template — ARC-8 Channel 2)
 
-> **Author rule:** Autopilot DRAFTS this message. The operator publishes (or autopilot publishes only after explicit Gate-10-class authority widening, which has NOT been granted as of ARC-8-DOCS-B). Autopilot does NOT auto-publish. Future automation (Ruflo, Hermes, successors) MAY NEVER auto-publish (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8 Discord rules).
+> **Author rule:** Autopilot DRAFTS this message. The operator publishes (or autopilot publishes only after explicit Gate-10-class authority widening, which has NOT been granted as of ARC-8-DOCS-B). Autopilot does NOT auto-publish. Future automation (Ruflo, Relay, successors) MAY NEVER auto-publish (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8 Discord rules).
 >
 > **No message substitutes for any approval gate.** This message is a status surface; it does not approve, authorize, or trigger any action.
 

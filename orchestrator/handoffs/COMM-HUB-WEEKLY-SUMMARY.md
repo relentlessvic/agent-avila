@@ -1,10 +1,10 @@
 # Communication Hub Weekly Summary (template — COMM-HUB)
 
-> **Author rule:** Orchestrator (Claude) DRAFTS this summary in chat. The operator publishes it to `#summaries` (or future Hermes after Gate-10 install). Autopilot does NOT auto-publish at COMM-HUB-DOCS-A activation.
+> **Author rule:** Orchestrator (Claude) DRAFTS this summary in chat. The operator publishes it to `#summaries` (or future Relay after Gate-10 install). Autopilot does NOT auto-publish at COMM-HUB-DOCS-A activation.
 >
 > **No file is written, no commit, no push, no Discord publication results from drafting this summary.** The summary is conversation-only until the operator explicitly publishes it.
 
-Author: Orchestrator (Claude); future Hermes after Gate-10
+Author: Orchestrator (Claude); future Relay after Gate-10
 Channel: `#summaries`
 Cadence: Once per UTC week (operator-defined start day), or operator-on-demand
 Generated: `<UTC date>` covering window `<start UTC date>` to `<end UTC date>`
@@ -70,7 +70,7 @@ ARC-8 STATE:
 
 COMM-HUB STATE:
 - COMM-HUB-RULES.md: <committed at HEAD … | pending>
-- Hermes: DORMANT (no install authorized)
+- Relay: DORMANT (no install authorized)
 - Trading channels (Category C): DORMANT (no source authorized)
 
 HARD-LIMITS SANITY CHECK (weekly aggregate):

@@ -1,6 +1,6 @@
 # DASH-3 — Position Display Canonicalization Design
 
-> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Hermes runtime install. Every downstream DASH-3 sub-phase (DASH-3.B, DASH-3.C), the interleaved D-5.12f impl Phase 8 and D-5.12e.1 cleanup Phase 9, and Phase 11 ARC-8-RUN-D each remain separately gated.
+> **DOCS-ONLY ARTIFACT.** This document is a design record. It does NOT authorize any code phase, deploy, Kraken action, `MANUAL_LIVE_ARMED` toggle, migration application, production state mutation, autopilot runtime activation, or Relay runtime install. Every downstream DASH-3 sub-phase (DASH-3.B, DASH-3.C), the interleaved D-5.12f impl Phase 8 and D-5.12e.1 cleanup Phase 9, and Phase 11 ARC-8-RUN-D each remain separately gated.
 >
 > **Canonical authority:** `orchestrator/NEXT-ACTION.md` and `orchestrator/NEXT-ACTION-SELECTOR.md` (per `HANDOFF-RULES.md`). If this document ever conflicts with either canonical source, the canonical source wins.
 >
@@ -27,7 +27,7 @@ DASH-3-POSITION-DISPLAY-CANONICALIZATION-DESIGN-SPEC persists the Codex-PASS-ver
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, autopilot runtime activation.
 - Any DASH-3.B or DASH-3.C implementation. Each separately gated.
 - Any DASH-4, DASH-5, Phase 8, Phase 9, DASH-6, Phase 11 work. Each separately gated.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 
 ## §2 — Audit context
 
@@ -42,7 +42,7 @@ DASH-3-POSITION-DISPLAY-CANONICALIZATION-DESIGN-SPEC persists the Codex-PASS-ver
 - DASH-2.A CLOSED at `d6c77af3f203d1e17f6238eb53a7232592dd670d`.
 - DASH-2-A-CLOSEOUT-SYNC CLOSED at `dbdda33e9bb4608e7a19d225f872a73d7146db69`.
 - Phase-loop counter 0 of 3.
-- Autopilot DORMANT. Hermes shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
+- Autopilot DORMANT. Relay shelved. Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`. N-3 CLOSED. Approvers `{Victor}`.
 - Working tree clean except `position.json.snap.20260502T020154Z` pre-existing untracked carve-out.
 
 **`dashboard.js` classification:** RESTRICTED per `PROTECTED-FILES.md:53-73`. The DASH-2.A scoped lift was consumed at commit `d6c77af…` per `PROTECTED-FILES.md:59`. Any DASH-3.B or DASH-3.C implementation step requires a new operator-granted scoped lift.
@@ -208,7 +208,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 | `package.json`, `package-lock.json`, `.nvmrc` | RESTRICTED; no scoped lift granted in DASH-3. |
 | `.env*` | HARD BLOCK forever for automation. |
 | All safety-policy docs | HARD BLOCK throughout the DASH track. |
-| All Hermes templates / runtime | HARD BLOCK; Hermes stays shelved. |
+| All Relay templates / runtime | HARD BLOCK; Relay stays shelved. |
 | `tests/*.spec.js` | RESTRICTED; DASH-6 territory. |
 | `/api/trade` handler | RESTRICTED-not-lifted in DASH-3. |
 | Live SL/TP/SELL_ALL/BUY/OPEN_LONG handlers | RESTRICTED-not-lifted in DASH-3. **DASH-3 does NOT add DB writes for these.** |
@@ -245,6 +245,6 @@ DASH-3-POSITION-DISPLAY-CANONICALIZATION-DESIGN-SPEC explicitly does NOT authori
 - Any DASH-4, DASH-5, Phase 8, Phase 9, DASH-6, Phase 11 work. Each separately gated.
 - Any edit to `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.nvmrc`, `.env*`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
 - Any safety-policy doc edit.
-- Any Hermes runtime authoring / repo creation / deployment / install resumption.
+- Any Relay runtime authoring / repo creation / deployment / install resumption.
 - Any production action: Railway CLI, Railway env, Railway redeploy, Kraken action (live or otherwise), production DB query / mutation, migration application, `MANUAL_LIVE_ARMED` change, deploy, env / secret read or write, autopilot runtime activation, automation install / widening, Discord post, webhook / scheduler / MCP / cron / Ruflo install.
 - Any extraction or merger of the legacy `renderPosition` at `dashboard.js:5453`. Deferred indefinitely.

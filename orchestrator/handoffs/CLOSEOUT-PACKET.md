@@ -1,6 +1,6 @@
 # Closeout Packet (template)
 
-> **Author rule:** Claude DRAFTS this packet (the proposed status-doc updates). The operator approves the closeout in-session before any commit. Future automation (Ruflo, Hermes, successors) MAY NEVER mark the approval field (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
+> **Author rule:** Claude DRAFTS this packet (the proposed status-doc updates). The operator approves the closeout in-session before any commit. Future automation (Ruflo, Relay, successors) MAY NEVER mark the approval field (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
 
 Author: Claude (DRAFT until operator approves)
 Phase: `<name>` — Mode: `<mode>`

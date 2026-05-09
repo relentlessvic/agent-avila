@@ -30,6 +30,15 @@ Autopilot rules are at `orchestrator/AUTOPILOT-RULES.md` (ARC-8 — Controlled A
 
 Communication Hub rules are at `orchestrator/COMM-HUB-RULES.md` (Discord-centered control-room spec). The hub is operator-private, read-from-the-system-side / write-from-the-operator-side. Discord is a delivery channel for status and a draft surface for approval requests — never the approval channel itself. A Discord reply, emoji, or reaction is NEVER an approval. Only Victor's in-session chat instruction grants approval. No Discord bot, webhook, scheduler, or background automation is installed at COMM-HUB-DOCS-A; future installs require their own Gate-10 phases.
 
-## Hermes (future Discord auto-publisher; DORMANT)
+## Relay (future Discord auto-publisher; DORMANT)
 
-Hermes rules are at `orchestrator/COMM-HUB-HERMES-RULES.md` (canonical SAFE-class spec). Hermes is the planned future auto-publisher for `#status` / `#summaries` / `#system-health` only — never `#approvals`, never `#codex-warnings`, never Category C. Hermes is currently DORMANT (zero members, zero permissions). Hermes is a one-way publisher with no Discord read scope (no `Read Message History`); idempotency uses orchestrator-side keys plus Hermes-private append-only publish logs. Hermes has zero approval authority — only Victor's in-session chat instruction grants approval; per-message Victor approval is required through Stage 9, and bounded class authorization is allowed only at Stage 10a/10b with 7 documented bounds. Hermes activation follows a staged path (Stages 1–10b) with each stage gated by Codex review + explicit Victor approval; Stage 5 install is Gate 10 RED-tier per `orchestrator/APPROVAL-GATES.md`.
+Relay rules are at `orchestrator/COMM-HUB-HERMES-RULES.md` (canonical SAFE-class spec; the file retains its `HERMES` filename pending the COMM-HUB-RENAME-RELAY-FILES Phase B). Relay is the planned future auto-publisher for `#status` / `#summaries` / `#system-health` only — never `#approvals`, never `#codex-warnings`, never Category C. Relay is currently DORMANT (zero members, zero permissions). Relay is a one-way publisher with no Discord read scope (no `Read Message History`); idempotency uses orchestrator-side keys plus Relay-private append-only publish logs. Relay has zero approval authority — only Victor's in-session chat instruction grants approval; per-message Victor approval is required through Stage 9, and bounded class authorization is allowed only at Stage 10a/10b with 7 documented bounds. Relay activation follows a staged path (Stages 1–10b) with each stage gated by Codex review + explicit Victor approval; Stage 5 install is Gate 10 RED-tier per `orchestrator/APPROVAL-GATES.md`.
+
+## Naming convention — Relay vs. external Hermes Agent
+
+To avoid confusion with the external Nous Hermes Agent (an unrelated Nous/OpenRouter-hosted model/tool), Agent Avila uses these names:
+
+- **Relay** — internal Agent Avila Discord/project-update messenger. Currently DORMANT. Active forward-looking wording in this repo uses "Relay".
+- **external Hermes Agent (Nous/OpenRouter)** — the external Nous-hosted agent/tool. Reserved term; not currently referenced in this repo.
+
+Historical artifacts (phase names, file names, SHA-anchored facts, the Railway service name `agent-avila-hermes`) preserve the original "Hermes" wording because they record past state. The COMM-HUB-RENAME-RELAY-FILES Phase B will later rename the canonical-spec filename and other forward-looking SAFE-class filenames; until then, those filepaths retain the `HERMES` literal.

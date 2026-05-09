@@ -1,6 +1,6 @@
 # Communication Hub Codex Warning (template — COMM-HUB)
 
-> **Author rule:** Orchestrator (Claude) DRAFTS this warning when Codex returns a non-PASS verdict (FAIL / FAIL-WITH-CONDITIONS / REJECT / PASS WITH REQUIRED EDITS that exceed scope). The operator publishes it to `#codex-warnings`. Future Hermes auto-publish for `#codex-warnings` is NOT authorized — warnings stay operator-published forever.
+> **Author rule:** Orchestrator (Claude) DRAFTS this warning when Codex returns a non-PASS verdict (FAIL / FAIL-WITH-CONDITIONS / REJECT / PASS WITH REQUIRED EDITS that exceed scope). The operator publishes it to `#codex-warnings`. Future Relay auto-publish for `#codex-warnings` is NOT authorized — warnings stay operator-published forever.
 >
 > **No file is written, no commit, no push, no Discord publication results from drafting this warning.** The warning is conversation-only until the operator explicitly publishes it.
 >
@@ -71,5 +71,5 @@ Maximum 1 warning per Codex round. If a single round produces multiple findings,
 - Not an approval, not a commit, not a publication, not authorization for any RED-tier action.
 - Not authorization to override the Codex verdict (override requires explicit operator instruction acknowledging the verdict per `orchestrator/APPROVAL-GATES.md` "Operator override").
 - Not authorization to auto-recover.
-- Not authorization to install Hermes or any auto-publish role for `#codex-warnings`.
+- Not authorization to install Relay or any auto-publish role for `#codex-warnings`.
 - Not canonical over `orchestrator/handoffs/CODEX-VERDICT.md`.

@@ -2,7 +2,7 @@
 
 > **This template is populated ONLY when ARC-8-RUN-A is operator-approved and active.** ARC-8-DOCS-B (which writes this template) does NOT authorize ARC-8-RUN-A. ARC-8-RUN-A remains a separate future phase requiring separate operator approval.
 >
-> **Author rule:** Autopilot DRAFTS this report during ARC-8-RUN-A. The operator reviews the report in-session in chat. Future automation (Ruflo, Hermes, successors) MAY NEVER auto-execute (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8).
+> **Author rule:** Autopilot DRAFTS this report during ARC-8-RUN-A. The operator reviews the report in-session in chat. Future automation (Ruflo, Relay, successors) MAY NEVER auto-execute (per `orchestrator/HANDOFF-RULES.md` future-automation rules and `orchestrator/AUTOPILOT-RULES.md` ARC-8).
 >
 > **No commits, pushes, deploys, or production actions occur during a dry-run.** A dry-run exercises Loop A (Sense), Loop B (Decide), and Loop C (Draft) under live Codex observation. Loop D (Approve→Execute→Report) is SIMULATED — drafts produced but not committed or pushed; approval requests drafted but not surfaced as binding; execute steps NOT performed.
 

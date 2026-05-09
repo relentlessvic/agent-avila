@@ -1,6 +1,6 @@
 # Gemini Architecture Review Packet (template)
 
-> **Author rule:** This packet is written by the operator, who pastes Gemini's verbatim response into the body. Claude does NOT synthesize Gemini output. Future automation (Ruflo, Hermes, successors) MAY NEVER write to this file (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
+> **Author rule:** This packet is written by the operator, who pastes Gemini's verbatim response into the body. Claude does NOT synthesize Gemini output. Future automation (Ruflo, Relay, successors) MAY NEVER write to this file (per `orchestrator/HANDOFF-RULES.md` future-automation rules).
 >
 > **Advisory only.** Gemini's review is advisory. It does NOT gate Codex review and is NOT operator approval (per `orchestrator/ROLE-HIERARCHY.md` Director role).
 

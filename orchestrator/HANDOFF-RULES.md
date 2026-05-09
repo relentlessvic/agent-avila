@@ -66,7 +66,7 @@ A packet must NEVER contain any of the following. If automation or a reviewer de
 - Deploy triggers (`railway deploy`, `railway up`, `railway run` against production, deploy webhook URLs, CI/CD deploy commands).
 - Approval-like language not issued by Victor — e.g., "approved by Codex", "approved by ChatGPT", "approved by automation", "approved by clean tree", "approved by green tests". Only Victor approves; only an in-session instruction grants approval.
 - Instructions to install or invoke triggers, MCP servers, schedulers, webhooks, hooks, or live transport.
-- Instructions to widen automation authority (lift HARD BLOCKs in bulk, schedule new automation, add auto-allow patterns, install Ruflo / Hermes / successor).
+- Instructions to widen automation authority (lift HARD BLOCKs in bulk, schedule new automation, add auto-allow patterns, install Ruflo / Relay / successor).
 
 ## Append-only rule for verdict packets
 
@@ -87,11 +87,11 @@ Every packet must be consistent with the active phase mode (per `orchestrator/PH
 
 Packets must not contain RED-action instructions when the active phase mode is anything other than HIGH-RISK IMPLEMENTATION or PRODUCTION ACTION (and even then, only as references to operator-approved scope, never as auto-execution).
 
-## Future automation rules (Ruflo, Hermes, successors)
+## Future automation rules (Ruflo, Relay, successors)
 
 Per `orchestrator/AUTOMATION-PERMISSIONS.md` and `orchestrator/PROTECTED-FILES.md`, future automation layers are governance-only. Within the handoff packet system, this means:
 
-- **Read access (after explicit operator approval to install / activate the automation):** Ruflo, Hermes, and successors MAY read packets to surface state to the operator.
+- **Read access (after explicit operator approval to install / activate the automation):** Ruflo, Relay, and successors MAY read packets to surface state to the operator.
 - **Write access — broadly forbidden:** Future automation MAY NEVER write `CODEX-VERDICT.md` (Codex verdicts are reviewer output, transcribed only by Claude after Codex returns; append-only).
 - **Write access — broadly forbidden:** Future automation MAY NEVER write `GEMINI-ARCHITECTURE-REVIEW-PACKET.md` (Gemini output is operator-pasted).
 - **Write access — broadly forbidden:** Future automation MAY NEVER mark the approval field in `OPERATOR-APPROVAL-PACKET.md` or `COMMIT-PACKET.md`. Approval fields are operator-marked only.
@@ -108,7 +108,7 @@ Per `orchestrator/AUTOPILOT-RULES.md` ARC-8 section, the Controlled Autopilot Bu
 - **Codex review requests.** Autopilot uses the existing `CODEX-REVIEW-PACKET.md` template. Codex's verdict is transcribed into the append-only `CODEX-VERDICT.md` per the existing rule.
 - **Autopilot phase-candidate proposals.** Phase-candidate proposals from autopilot's Loop B are not packets in the formal sense; they are conversational surfaces to the operator. They obey the same forbidden-content rules above. They are append-only — autopilot cannot rewrite a prior proposal; a new proposal supersedes a prior one only after operator instruction.
 - **Discord summaries.** See `orchestrator/AUTOPILOT-RULES.md` ARC-8 "Discord channels and content rules". Discord summaries obey the forbidden-content rules above (no secrets, no `DATABASE_URL`, no env values, no runner output, no prod-DB content, no live Kraken endpoints, no `MANUAL_LIVE_ARMED` state, no `position.json` contents). Each Discord draft passes through a pre-publish Codex sanity check before posting. Autopilot does NOT auto-publish; the operator publishes.
-- **Approval-field rule.** Autopilot CANNOT mark the approval field in `OPERATOR-APPROVAL-PACKET.md`, `COMMIT-PACKET.md`, or any successor approval packet. This rule extends to any future automation layer (Ruflo, Hermes, successors). Approval fields are operator-marked only.
+- **Approval-field rule.** Autopilot CANNOT mark the approval field in `OPERATOR-APPROVAL-PACKET.md`, `COMMIT-PACKET.md`, or any successor approval packet. This rule extends to any future automation layer (Ruflo, Relay, successors). Approval fields are operator-marked only.
 - **Trigger rule.** Autopilot's own scheduling, internal tick, Loop A re-entry, or any internal "decision-to-advance" signal DOES NOT constitute operator approval. The existing "What is NOT operator approval" rules apply in full.
 
 ## COMM-HUB-packet conventions (COMM-HUB)
@@ -121,9 +121,9 @@ Per `orchestrator/COMM-HUB-RULES.md` (committed in COMM-HUB-DOCS-A as a SAFE-cla
 - `orchestrator/handoffs/COMM-HUB-CODEX-WARNING.md` — Codex non-PASS warning template for `#codex-warnings`.
 - `orchestrator/handoffs/COMM-HUB-SYSTEM-ALERT.md` — system alert template for `#system-health`.
 
-Each template inherits the Forbidden-content rules above verbatim. Pre-publish Codex sanity check is mandatory for every Discord draft per `orchestrator/AUTOPILOT-RULES.md` ARC-8 + `orchestrator/COMM-HUB-RULES.md`. Auto-publish is RED-tier and is NOT authorized at COMM-HUB-DOCS-A; future Hermes auto-publish is gated behind a separate Gate-10 install phase per `orchestrator/AUTOMATION-PERMISSIONS.md` future-automation rules and applies only to `#status` / `#summaries` / `#system-health` (NEVER `#approvals` or `#codex-warnings`).
+Each template inherits the Forbidden-content rules above verbatim. Pre-publish Codex sanity check is mandatory for every Discord draft per `orchestrator/AUTOPILOT-RULES.md` ARC-8 + `orchestrator/COMM-HUB-RULES.md`. Auto-publish is RED-tier and is NOT authorized at COMM-HUB-DOCS-A; future Relay auto-publish is gated behind a separate Gate-10 install phase per `orchestrator/AUTOMATION-PERMISSIONS.md` future-automation rules and applies only to `#status` / `#summaries` / `#system-health` (NEVER `#approvals` or `#codex-warnings`).
 
-**Hermes-handoff convention.** When Hermes is installed at a future stage, it consumes orchestrator-drafted message + metadata (idempotency key + Codex pre-publish PASS verdict reference + operator authorization metadata) from a controlled source — NOT from a Discord-side read. Hermes has no `Read Message History` permission and performs no Discord channel reads of any kind for idempotency, deduplication, monitoring, replies, reactions, audit, or input interpretation. Idempotency uses orchestrator-side keys plus Hermes-private append-only publish logs only. Per-message Victor approval is required through Stage 9 (including all `#status` messages); pre-authorized message classes are prohibited before Stage 10a; Stage 10a / 10b classes require Codex review and explicit Victor in-session approval naming all 7 bounds (channel, template, allowed event types, max count, expiration, revocation rule, forbidden-content constraints). Canonical Hermes spec: `orchestrator/COMM-HUB-HERMES-RULES.md` (SAFE-class). Where this convention diverges from the canonical Hermes spec, the canonical spec wins.
+**Relay-handoff convention.** When Relay is installed at a future stage, it consumes orchestrator-drafted message + metadata (idempotency key + Codex pre-publish PASS verdict reference + operator authorization metadata) from a controlled source — NOT from a Discord-side read. Relay has no `Read Message History` permission and performs no Discord channel reads of any kind for idempotency, deduplication, monitoring, replies, reactions, audit, or input interpretation. Idempotency uses orchestrator-side keys plus Relay-private append-only publish logs only. Per-message Victor approval is required through Stage 9 (including all `#status` messages); pre-authorized message classes are prohibited before Stage 10a; Stage 10a / 10b classes require Codex review and explicit Victor in-session approval naming all 7 bounds (channel, template, allowed event types, max count, expiration, revocation rule, forbidden-content constraints). Canonical Relay spec: `orchestrator/COMM-HUB-HERMES-RULES.md` (SAFE-class; filename retains `HERMES` literal pending COMM-HUB-RENAME-RELAY-FILES Phase B). Where this convention diverges from the canonical Relay spec, the canonical spec wins.
 
 A Discord reply, emoji, or reaction is NEVER an approval. Only Victor's in-session chat instruction grants approval (per `orchestrator/APPROVAL-GATES.md` "What is NOT operator approval").
 
