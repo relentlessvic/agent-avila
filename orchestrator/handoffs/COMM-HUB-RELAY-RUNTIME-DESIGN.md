@@ -1,6 +1,6 @@
 # Communication Hub — Relay Runtime Design (template — COMM-HUB)
 
-> **Author rule:** This file codifies the Codex-PASS-verified runtime design for Relay (the planned future Discord auto-publisher), produced as a conversation-only design packet during the `COMM-HUB-HERMES-RUNTIME-DESIGN` phase and Codex-PASS-verified after the EDIT-1 through EDIT-5 correction round on §5, §8, §13, and §18.8. **This document is NOT authorization to write Relay runtime code, create the `relentlessvic/agent-avila-hermes` repository, install Relay further, deploy a Relay runtime, register a Discord application, mint a Discord bot token, invite a bot to the server, grant any Discord permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, post to Discord, run a Stage 7 dry-run, take a production action, take a trading action, or break CEILING-PAUSE.** Stage 5 install Steps 14–21 resumption (`COMM-HUB-HERMES-INSTALL` resume) remains RED-tier Gate-10 per `orchestrator/APPROVAL-GATES.md` and requires a fresh Codex install-readiness review plus explicit Victor in-session Gate-10 approval at the then-current HEAD. Future codification of any subsequent design revisions, runtime authoring (`COMM-HUB-HERMES-RUNTIME-IMPLEMENT`), and runtime deployment are each their own separately-approved phases.
+> **Author rule:** This file codifies the Codex-PASS-verified runtime design for Relay (the planned future Discord auto-publisher), produced as a conversation-only design packet during the `COMM-HUB-HERMES-RUNTIME-DESIGN` phase and Codex-PASS-verified after the EDIT-1 through EDIT-5 correction round on §5, §8, §13, and §18.8. **This document is NOT authorization to write Relay runtime code, create the `relentlessvic/agent-avila-relay` repository, install Relay further, deploy a Relay runtime, register a Discord application, mint a Discord bot token, invite a bot to the server, grant any Discord permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, post to Discord, run a Stage 7 dry-run, take a production action, take a trading action, or break CEILING-PAUSE.** Stage 5 install Steps 14–21 resumption (`COMM-HUB-HERMES-INSTALL` resume) remains RED-tier Gate-10 per `orchestrator/APPROVAL-GATES.md` and requires a fresh Codex install-readiness review plus explicit Victor in-session Gate-10 approval at the then-current HEAD. Future codification of any subsequent design revisions, runtime authoring (`COMM-HUB-HERMES-RUNTIME-IMPLEMENT`), and runtime deployment are each their own separately-approved phases.
 >
 > **No Relay runtime, Relay repo, Discord bot capability change, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
 
@@ -228,23 +228,23 @@ The Relay runtime MUST NOT depend on any of the following packages, even transit
 
 ## §6 — Code location
 
-**Recommendation: separate operator-controlled GitHub repository `relentlessvic/agent-avila-hermes` (or operator-chosen equivalent name).**
+**Recommendation: separate operator-controlled GitHub repository `relentlessvic/agent-avila-relay` (or operator-chosen equivalent name).**
 
 ### Comparison of alternatives
 
 | Location | Pros | Cons | Verdict |
 |---|---|---|---|
-| **Separate repo `relentlessvic/agent-avila-hermes`** | Relay container has no git checkout of trading-runtime files (per Relay spec line 145 — "Relay does not have a git checkout"); strongest code-level isolation; independent deploy pipeline; independent commit history; independent review cadence; trivially auditable that Relay never imports trading-runtime code | Operator manages a second repo; second `.gitignore`, second README, second package.json | **Selected** |
+| **Separate repo `relentlessvic/agent-avila-relay`** | Relay container has no git checkout of trading-runtime files (per Relay spec line 145 — "Relay does not have a git checkout"); strongest code-level isolation; independent deploy pipeline; independent commit history; independent review cadence; trivially auditable that Relay never imports trading-runtime code | Operator manages a second repo; second `.gitignore`, second README, second package.json | **Selected** |
 | `hermes/` directory in `relentlessvic/agent-avila` | Single repo; convenient; one PR for any cross-cutting docs change | **REJECTED**: Relay container deployed from `relentlessvic/agent-avila` would have a git checkout of `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `position.json`, `.env*` (R12). Even if Railway build skips them, the source repo connection violates "no git checkout of trading runtime files." | Rejected |
 | Monorepo with explicit `.gitignore` filters | Theoretically possible | Discord application + Railway deploy still ties `agent-avila-relay` Railway service back to the `agent-avila` repo; auditability gets harder; one `git pull` exposes trading code to the Relay host | Rejected |
 | Subtree split | Possible but adds tooling complexity; doesn't solve the core "Relay container has trading-runtime files in its image build context" problem | Rejected |
 
-**Selected: separate repo `relentlessvic/agent-avila-hermes`.** This is the strongest physical isolation. The Relay container's git checkout (if any) is the Relay repo only; trading-runtime files are simply not present in any code path Relay can reach.
+**Selected: separate repo `relentlessvic/agent-avila-relay`.** This is the strongest physical isolation. The Relay container's git checkout (if any) is the Relay repo only; trading-runtime files are simply not present in any code path Relay can reach.
 
 ### Repository structure (proposed for the future implementation phase)
 
 ```
-relentlessvic/agent-avila-hermes/
+relentlessvic/agent-avila-relay/
 ├── README.md                       (canonical Relay runtime README; non-secret)
 ├── LICENSE                         (operator preference)
 ├── .gitignore                      (excludes node_modules, *.log, *.local, .env*, /tmp)
@@ -295,7 +295,7 @@ relentlessvic/agent-avila-hermes/
 
 ### Repo creation NOT authorized by this design phase
 
-**Important:** creating the new GitHub repo `relentlessvic/agent-avila-hermes` is itself an operator-side action that requires its own scope discussion. The future implementation phase would propose repo creation as part of its scope; this design phase only **recommends** the repo location and structure.
+**Important:** creating the new GitHub repo `relentlessvic/agent-avila-relay` is itself an operator-side action that requires its own scope discussion. The future implementation phase would propose repo creation as part of its scope; this design phase only **recommends** the repo location and structure.
 
 **Maps to requirements:** R12, R20, R21.
 
@@ -303,11 +303,11 @@ relentlessvic/agent-avila-hermes/
 
 ## §7 — Deployability
 
-**Relay deploys from `relentlessvic/agent-avila-hermes` to the existing `agent-avila-relay` Railway service** (provisioned in Stage 5 Step 7.1; populated with `DISCORD_BOT_TOKEN` in Step 7.2).
+**Relay deploys from `relentlessvic/agent-avila-relay` to the existing `agent-avila-relay` Railway service** (provisioned in Stage 5 Step 7.1; populated with `DISCORD_BOT_TOKEN` in Step 7.2).
 
 ### Build process
 
-1. Operator commits to `relentlessvic/agent-avila-hermes` repo `main` branch.
+1. Operator commits to `relentlessvic/agent-avila-relay` repo `main` branch.
 2. Railway-side GitHub-tracked deploy picks up the commit (operator-configurable; can also be manual `railway up`).
 3. Railway builds the Docker image per `Dockerfile`:
    - Base: `node:20-alpine` (or `node:22-alpine` per Node LTS) — Alpine for minimal attack surface.
@@ -323,7 +323,7 @@ relentlessvic/agent-avila-hermes/
 
 | Surface | `agent-avila-dashboard` (trading runtime) | `agent-avila-relay` (Relay) |
 |---|---|---|
-| GitHub repo | `relentlessvic/agent-avila` | `relentlessvic/agent-avila-hermes` |
+| GitHub repo | `relentlessvic/agent-avila` | `relentlessvic/agent-avila-relay` |
 | Railway service id | `agent-avila-dashboard` (or operator-chosen equivalent) | `agent-avila-relay` |
 | Railway env scope | trading env (`DATABASE_URL`, `KRAKEN_API_KEY`, `KRAKEN_API_SECRET`, `MANUAL_LIVE_ARMED`, etc.) | Relay env (`DISCORD_BOT_TOKEN`, plus any logging/store-path env from §8) |
 | Build trigger | trading repo push | Relay repo push |
@@ -331,7 +331,7 @@ relentlessvic/agent-avila-hermes/
 | Deploy commit SHA | trading repo HEAD | Relay repo HEAD |
 | Deploy concurrency | independent — can deploy trading runtime without redeploying Relay and vice versa | independent |
 
-**Cross-deploy isolation guarantee:** the two Railway services share Railway's project-level account but no env vars, no code, no deploy pipeline, no source repo. A push to `relentlessvic/agent-avila` does NOT trigger Relay redeploy; a push to `relentlessvic/agent-avila-hermes` does NOT trigger trading-runtime redeploy.
+**Cross-deploy isolation guarantee:** the two Railway services share Railway's project-level account but no env vars, no code, no deploy pipeline, no source repo. A push to `relentlessvic/agent-avila` does NOT trigger Relay redeploy; a push to `relentlessvic/agent-avila-relay` does NOT trigger trading-runtime redeploy.
 
 ### Deployment trigger (operator-controlled)
 
@@ -954,7 +954,7 @@ Three layers of proof:
 
 **Future `COMM-HUB-HERMES-RUNTIME-IMPLEMENT` phase scope:**
 
-- **CREATE: new repository `relentlessvic/agent-avila-hermes`** with the structure proposed in §6. Approximate file count: 25–35 source files (one entry point + 11 verification gate modules + halt + log + 3 store modules + 1 schema + tests + Docker + Railway config + README/LICENSE/etc.).
+- **CREATE: new repository `relentlessvic/agent-avila-relay`** with the structure proposed in §6. Approximate file count: 25–35 source files (one entry point + 11 verification gate modules + halt + log + 3 store modules + 1 schema + tests + Docker + Railway config + README/LICENSE/etc.).
 - **MODIFY: nothing in `relentlessvic/agent-avila`** — the trading runtime repo is NOT touched by the implementation phase.
 - **MODIFY: 3 status docs** (`STATUS.md`, `CHECKLIST.md`, `NEXT-ACTION.md`) in `relentlessvic/agent-avila` — closeout commit only after implementation phase completes; not modified during implementation work itself.
 
@@ -991,7 +991,7 @@ The Codex docs-only review at the end of this design phase should answer these q
 
 1. Does the runtime architecture (single-instance long-running daemon) align with Relay spec single-instance discipline (line 154)?
 2. Is Node.js + `discord.js` justified vs Python or other alternatives?
-3. Does the code location (separate repo `relentlessvic/agent-avila-hermes`) preserve trading-runtime isolation per Relay spec line 145?
+3. Does the code location (separate repo `relentlessvic/agent-avila-relay`) preserve trading-runtime isolation per Relay spec line 145?
 4. Are the 9 allowed env vars sufficient for runtime operation? Any missing required var?
 5. Are the forbidden env vars complete? Any common credential pattern missing from §9?
 6. Is the Railway-side firewall + runtime-side allowlist hook a complete enforcement of the Discord-API-only egress requirement?
@@ -1060,7 +1060,7 @@ After the three steps above, Relay is fully DORMANT in the same state as before 
 
 **Optional 4th step:** delete the Discord application from the developer portal (Application → Delete App → confirm). This deletes the application identity itself; future Relay installs would need a fresh application registration. This step is irreversible and is operator preference.
 
-**Out of canonical Stage 5 rollback path:** any `relentlessvic/agent-avila-hermes` repository archival or deletion is separate from the canonical 3-step DORMANT revert and is operator preference. Repo archival/deletion is its own action, not part of the rollback path documented in `COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` §7.
+**Out of canonical Stage 5 rollback path:** any `relentlessvic/agent-avila-relay` repository archival or deletion is separate from the canonical 3-step DORMANT revert and is operator preference. Repo archival/deletion is its own action, not part of the rollback path documented in `COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` §7.
 
 The rollback path is operator-side manual; no automation. Each step requires explicit Victor in-session approval if the operator opens a `COMM-HUB-HERMES-DEACTIVATE` phase per the canonical Relay spec staged-path EOL row.
 

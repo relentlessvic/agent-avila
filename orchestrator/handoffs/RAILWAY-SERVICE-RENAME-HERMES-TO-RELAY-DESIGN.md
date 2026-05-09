@@ -47,7 +47,7 @@ The Railway service named **`agent-avila-hermes`** (currently an empty service s
 **This service is NOT (operator-required distinction):**
 - The production dashboard service `agent-avila-dashboard` (separate service; not affected by this rename)
 - The Discord application or bot account (already renamed to "Agent Avila Relay" on the Discord side at the COMM-HUB-RENAME-RELAY-CONTENT Phase A timeframe)
-- A GitHub repository (the repo `relentlessvic/agent-avila-hermes` was deferred and never created)
+- A GitHub repository (the repo `relentlessvic/agent-avila-relay` was deferred and never created)
 - The future Relay runtime (the runtime image / process binary does not yet exist; runtime authoring + Stages 14-21 install resumption remain separately gated)
 
 ## §3 — Affected and unaffected surfaces
@@ -61,7 +61,7 @@ The Railway service named **`agent-avila-hermes`** (currently an empty service s
 | List of secret variables | NO | Variable names (`DISCORD_BOT_TOKEN`) and values preserved. |
 | Build / deploy logs label | YES (cosmetic) | Logs from the renamed service show the new name going forward; pre-rename logs retain the old service-name label as historical record. |
 | Project linkage | NO | The service stays in the same Railway project. |
-| GitHub repo linkage | N/A | The service is not currently linked to a GitHub repo (no Relay runtime image exists). When Relay runtime is later authored at the deferred `relentlessvic/agent-avila-hermes` (or renamed equivalent) repo, that linkage will be set up at that future phase. |
+| GitHub repo linkage | N/A | The service is not currently linked to a GitHub repo (no Relay runtime image exists). When Relay runtime is later authored at the deferred `relentlessvic/agent-avila-relay` (or renamed equivalent) repo, that linkage will be set up at that future phase. |
 | Discord application name | NO | "Agent Avila Relay" Discord app was renamed at Phase A timeframe; Discord side already aligned. |
 | Discord bot token validity | NO | Token is independent of Railway service name. Token remains valid post-rename. |
 | `agent-avila-dashboard` production service | NO | Different service; unaffected by rename. |
