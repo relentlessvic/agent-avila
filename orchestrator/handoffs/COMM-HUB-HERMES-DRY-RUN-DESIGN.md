@@ -46,7 +46,7 @@ CEILING-PAUSE remains active and is not broken by writing this design or by foll
 
 ## §1 — What a Relay dry-run is
 
-A Relay dry-run is a **controlled, operator-initiated, end-to-end test of the Relay runtime pipeline that exercises every code path EXCEPT the actual Discord `Send Message` API call**. The Relay process boots in a special **`HERMES_MODE=dry_run`** configuration that:
+A Relay dry-run is a **controlled, operator-initiated, end-to-end test of the Relay runtime pipeline that exercises every code path EXCEPT the actual Discord `Send Message` API call**. The Relay process boots in a special **`RELAY_MODE=dry_run`** configuration that:
 
 1. Authenticates to the Discord gateway (read-only `IDENTIFY` opcode; **does NOT post**; authentication is verified by receiving a `READY` event with the bot's identity).
 2. Resolves the 3 allowed channel ids via the `View Channels` permission (read-only channel-list inspection; **does NOT call `Get Channel Messages` or any read-history endpoint**).
@@ -79,7 +79,7 @@ A dry-run is also a single-shot operator-initiated event: each dry-run requires 
 | Allow-listed-placeholder substitution | YES (real) | Real substitution (e.g., `<UTC date>` → `2026-05-05T19:00:00Z`) |
 | Character-limit check | YES (real) | Real length check (≤2000 Discord chars; per channel rate caps) |
 | Forbidden-content scan | YES (real) | Real scan against `orchestrator/HANDOFF-RULES.md` + `orchestrator/COMM-HUB-RULES.md` forbidden lists |
-| Discord `Send Message` API call | **NO — REPLACED with `would_have_published` log write** | Branch on `HERMES_MODE=dry_run`; no Discord-side state change |
+| Discord `Send Message` API call | **NO — REPLACED with `would_have_published` log write** | Branch on `RELAY_MODE=dry_run`; no Discord-side state change |
 | Relay-private append-only publish log write | NO during dry-run | The real publish log is NOT written to during dry-run; dry-run log is separate |
 | Dry-run "would-have-published" log write | YES (dry-run-specific) | Append-only operator-readable file with idempotency key, channel id, timestamp, intended message body, "DRY-RUN" marker |
 | Halt-on-anomaly | YES (real, including injected anomalies) | Halt logs go to a dry-run halt log, separate from real-mode halt logs |
@@ -129,7 +129,7 @@ ARC-8: HERMES-DRY-RUN-001 PHASE_OPENED
 Mode: DOCS-ONLY.
 Phase: COMM-HUB-HERMES-DRY-RUN (Stage 7 test fixture; not a real phase).
 Time: <UTC date> at <UTC time>.
-This is a dry-run test message. It will NOT be published. Relay is in HERMES_MODE=dry_run; the publish call is replaced with a would_have_published log write. CEILING-PAUSE remains active. Autopilot runtime remains DORMANT. Relay remains within its capability allow-list (Send Messages + View Channels for #status, #summaries, #system-health only; no Read Message History; no approval authority; no trading authority). A reply, emoji, or reaction is NEVER an approval — only Victor's explicit in-session chat instruction grants approval.
+This is a dry-run test message. It will NOT be published. Relay is in RELAY_MODE=dry_run; the publish call is replaced with a would_have_published log write. CEILING-PAUSE remains active. Autopilot runtime remains DORMANT. Relay remains within its capability allow-list (Send Messages + View Channels for #status, #summaries, #system-health only; no Read Message History; no approval authority; no trading authority). A reply, emoji, or reaction is NEVER an approval — only Victor's explicit in-session chat instruction grants approval.
 ```
 
 Char count target: ≤500 (well under the 2000-char Discord limit and the 5-messages-per-phase rate cap).
@@ -165,7 +165,7 @@ Detected: simulated working-tree drift (synthetic; not real).
 Time: <UTC date> at <UTC time>.
 Affected surface: none (test fixture).
 Recommended action: none (test fixture).
-Reminder: this dry-run alert exercises the #system-health publish path under HERMES_MODE=dry_run. The publish call is replaced with a would_have_published log write. CEILING-PAUSE active and not broken; autopilot runtime DORMANT; Relay remains within its capability allow-list. A reply, emoji, or reaction is NEVER an approval — only Victor's explicit in-session chat instruction grants approval.
+Reminder: this dry-run alert exercises the #system-health publish path under RELAY_MODE=dry_run. The publish call is replaced with a would_have_published log write. CEILING-PAUSE active and not broken; autopilot runtime DORMANT; Relay remains within its capability allow-list. A reply, emoji, or reaction is NEVER an approval — only Victor's explicit in-session chat instruction grants approval.
 ```
 
 ### Sample anomaly-injection test messages (deliberately malformed)
@@ -182,7 +182,7 @@ To verify halt-on-anomaly behavior, the operator injects ONE-AT-A-TIME the follo
 | ANOMALY-006 | Character-limit overflow (body length > 2000 chars) | Halt before publish |
 | ANOMALY-007 | CEILING-PAUSE state ACTIVE signal present | Halt before publish |
 | ANOMALY-008 | Forbidden-content trip (e.g., body contains literal text `KRAKEN_API_KEY=` — synthetic test only; not a real key) | Halt before publish |
-| ANOMALY-009 | `dry_run: true` flag missing while running in `HERMES_MODE=dry_run` | Halt before publish (defense-in-depth; if Relay is in dry-run mode, every test message must carry the flag) |
+| ANOMALY-009 | `dry_run: true` flag missing while running in `RELAY_MODE=dry_run` | Halt before publish (defense-in-depth; if Relay is in dry-run mode, every test message must carry the flag) |
 | ANOMALY-010 | Allow-listed-placeholder violation (un-allow-listed placeholder in body) | Halt before publish |
 
 Each anomaly is captured in the dry-run halt log with timestamp, anomaly id, and root-cause field.
@@ -280,7 +280,7 @@ Canonical halt classes:
 
 ### Dry-run-specific halts (9 additional)
 
-1. `HERMES_MODE` is missing or set to a value other than `dry_run` while the operator expected dry-run.
+1. `RELAY_MODE` is missing or set to a value other than `dry_run` while the operator expected dry-run.
 2. A test message lacks the `dry_run: true` metadata flag while Relay is in dry-run mode.
 3. The dry-run branch decision is bypassed (i.e., the publish path reaches the real `Send Message` call) — **IMMEDIATE HALT + ABORT** with operator notification + recommendation to revoke the bot token.
 4. Dry-run log write failure (file-system error, permission error, lock contention).
