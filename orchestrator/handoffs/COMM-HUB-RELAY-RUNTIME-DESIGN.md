@@ -33,7 +33,7 @@ Canonical references:
 
 **Future implementation (not authorized by this codification phase):** runtime authoring (writing actual Relay process code — Node.js modules, Discord client integration, halt-on-anomaly state machine, idempotency store, etc.) is a separate substantive implementation phase. Implementation is NOT a DOCS-ONLY phase; it would be SAFE IMPLEMENTATION or HIGH-RISK IMPLEMENTATION tier per `orchestrator/PHASE-MODES.md`. Implementation requires its own design + Codex code review + Victor approval cascade with fresh approvals.
 
-**Future deployment (not authorized by this codification phase):** deploying the Relay runtime to the existing `agent-avila-hermes` Railway service is yet another separately-approved phase, equivalent to Stage 5 resumption (Steps 14–21). Requires fresh Gate-10 approval at the then-current HEAD.
+**Future deployment (not authorized by this codification phase):** deploying the Relay runtime to the existing `agent-avila-relay` Railway service is yet another separately-approved phase, equivalent to Stage 5 resumption (Steps 14–21). Requires fresh Gate-10 approval at the then-current HEAD.
 
 **Hard limits this design preserves:**
 
@@ -88,7 +88,7 @@ This design is derivative of the existing canonical Relay safety-policy + handof
 | `orchestrator/COMM-HUB-RELAY-RULES.md` | `96f56a4…` | SAFE-class Relay spec; 13 anti-execution boundaries; capability allow-list; staged activation path |
 | `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` | `e18f220…` | 21-step install checklist; partial-completed at Steps 1–13; Steps 14–21 deferred |
 | `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` | `f58451a…` | Stage 4 dry-run design; 19 halt classes; sample test fixtures |
-| `orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md` | `40f3137…` | Stage 5 preconditions 12–15 (host class A — Separate Railway service `agent-avila-hermes`; Discord API egress only; token-storage discipline; account good-standing) |
+| `orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md` | `40f3137…` | Stage 5 preconditions 12–15 (host class A — Separate Railway service `agent-avila-relay`; Discord API egress only; token-storage discipline; account good-standing) |
 | `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` | `69b3790…` | Stage 5 partial-install record; Steps 1–13 done; Steps 14–21 deferred; CONSUMED Gate-10 approval |
 | `orchestrator/COMM-HUB-RULES.md` | `728f979…` | Communication Hub rulebook; per-message Codex pre-publish discipline |
 | `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` | `728f979…` | Channel/role/permission canonical matrix |
@@ -236,7 +236,7 @@ The Relay runtime MUST NOT depend on any of the following packages, even transit
 |---|---|---|---|
 | **Separate repo `relentlessvic/agent-avila-hermes`** | Relay container has no git checkout of trading-runtime files (per Relay spec line 145 — "Relay does not have a git checkout"); strongest code-level isolation; independent deploy pipeline; independent commit history; independent review cadence; trivially auditable that Relay never imports trading-runtime code | Operator manages a second repo; second `.gitignore`, second README, second package.json | **Selected** |
 | `hermes/` directory in `relentlessvic/agent-avila` | Single repo; convenient; one PR for any cross-cutting docs change | **REJECTED**: Relay container deployed from `relentlessvic/agent-avila` would have a git checkout of `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `position.json`, `.env*` (R12). Even if Railway build skips them, the source repo connection violates "no git checkout of trading runtime files." | Rejected |
-| Monorepo with explicit `.gitignore` filters | Theoretically possible | Discord application + Railway deploy still ties `agent-avila-hermes` Railway service back to the `agent-avila` repo; auditability gets harder; one `git pull` exposes trading code to the Relay host | Rejected |
+| Monorepo with explicit `.gitignore` filters | Theoretically possible | Discord application + Railway deploy still ties `agent-avila-relay` Railway service back to the `agent-avila` repo; auditability gets harder; one `git pull` exposes trading code to the Relay host | Rejected |
 | Subtree split | Possible but adds tooling complexity; doesn't solve the core "Relay container has trading-runtime files in its image build context" problem | Rejected |
 
 **Selected: separate repo `relentlessvic/agent-avila-hermes`.** This is the strongest physical isolation. The Relay container's git checkout (if any) is the Relay repo only; trading-runtime files are simply not present in any code path Relay can reach.
@@ -303,7 +303,7 @@ relentlessvic/agent-avila-hermes/
 
 ## §7 — Deployability
 
-**Relay deploys from `relentlessvic/agent-avila-hermes` to the existing `agent-avila-hermes` Railway service** (provisioned in Stage 5 Step 7.1; populated with `DISCORD_BOT_TOKEN` in Step 7.2).
+**Relay deploys from `relentlessvic/agent-avila-hermes` to the existing `agent-avila-relay` Railway service** (provisioned in Stage 5 Step 7.1; populated with `DISCORD_BOT_TOKEN` in Step 7.2).
 
 ### Build process
 
@@ -316,15 +316,15 @@ relentlessvic/agent-avila-hermes/
    - `COPY src/ ./src/` and `COPY schemas/ ./schemas/`.
    - `EXPOSE` no ports (Relay is one-way publisher; no HTTP server).
    - `CMD ["node", "src/index.js"]`.
-4. Railway deploys the image to the `agent-avila-hermes` service.
+4. Railway deploys the image to the `agent-avila-relay` service.
 5. Service boots Relay process; reads `DISCORD_BOT_TOKEN` env var; performs gateway IDENTIFY + READY; enters READY state.
 
 ### Independent deploy pipeline (separation from `agent-avila-dashboard`)
 
-| Surface | `agent-avila-dashboard` (trading runtime) | `agent-avila-hermes` (Relay) |
+| Surface | `agent-avila-dashboard` (trading runtime) | `agent-avila-relay` (Relay) |
 |---|---|---|
 | GitHub repo | `relentlessvic/agent-avila` | `relentlessvic/agent-avila-hermes` |
-| Railway service id | `agent-avila-dashboard` (or operator-chosen equivalent) | `agent-avila-hermes` |
+| Railway service id | `agent-avila-dashboard` (or operator-chosen equivalent) | `agent-avila-relay` |
 | Railway env scope | trading env (`DATABASE_URL`, `KRAKEN_API_KEY`, `KRAKEN_API_SECRET`, `MANUAL_LIVE_ARMED`, etc.) | Relay env (`DISCORD_BOT_TOKEN`, plus any logging/store-path env from §8) |
 | Build trigger | trading repo push | Relay repo push |
 | Build pipeline | Nixpacks v1.41.0 + Node 24 (per current Migration 008 deployment context) | Docker (custom Dockerfile in Relay repo) + Node 20/22 LTS |
@@ -416,7 +416,7 @@ Relay MUST NOT have any of the following env vars present at runtime. Their pres
 
 ### Enforcement
 
-1. **Railway-side env scope:** the `agent-avila-hermes` Railway service has its own env scope. None of the trading-runtime env vars are inherited by default (per Railway's per-service env model). Operator verifies at install time (Stage 5 Step 14) that no trading vars leak into the Relay service.
+1. **Railway-side env scope:** the `agent-avila-relay` Railway service has its own env scope. None of the trading-runtime env vars are inherited by default (per Railway's per-service env model). Operator verifies at install time (Stage 5 Step 14) that no trading vars leak into the Relay service.
 2. **Boot-time runtime check:** Relay startup code (in `src/config.js`) iterates over `process.env` and flags any var matching the forbidden list. Halt-on-anomaly if any forbidden var is present.
 3. **Codex review at implementation phase:** Codex code review verifies that the runtime never reads from any forbidden env var path even if one were accidentally set.
 
@@ -448,7 +448,7 @@ Relay MUST NOT have any of the following env vars present at runtime. Their pres
 
 ### Enforcement layers (defense-in-depth, three layers)
 
-**Layer 1 — Railway-side firewall / network policy.** Per Stage 5 preconditions §6 and the operator's Stage 5 approval (`ENFORCEMENT_LAYER = Railway-side firewall / network policy`), Railway's network-policy / private-networking config restricts the `agent-avila-hermes` service's egress to Discord API endpoints only. Any non-allow-listed egress attempt is dropped at the Railway/network layer.
+**Layer 1 — Railway-side firewall / network policy.** Per Stage 5 preconditions §6 and the operator's Stage 5 approval (`ENFORCEMENT_LAYER = Railway-side firewall / network policy`), Railway's network-policy / private-networking config restricts the `agent-avila-relay` service's egress to Discord API endpoints only. Any non-allow-listed egress attempt is dropped at the Railway/network layer.
 
 **Layer 2 — Runtime-side HTTP client allowlist hooks.** Relay wraps its HTTP client (the one `discord.js` uses internally) with an allowlist hook. Before any outbound HTTP request, the runtime checks the destination hostname against the allowed list:
 
@@ -960,7 +960,7 @@ Three layers of proof:
 
 **Future `COMM-HUB-HERMES-RUNTIME-DEPLOY` (or named-equivalent Stage 5 resumption) phase scope:**
 
-- **MODIFY: Railway-side `agent-avila-hermes` service config** — add image deployment, set env vars per §8, configure firewall per §10, configure non-restart-on-exit policy.
+- **MODIFY: Railway-side `agent-avila-relay` service config** — add image deployment, set env vars per §8, configure firewall per §10, configure non-restart-on-exit policy.
 - **MODIFY: 3 status docs** — closeout commit recording the deployment.
 - **NO modification to `relentlessvic/agent-avila` repo files beyond status docs.**
 - **NO modification to `agent-avila-dashboard` Railway service.**
@@ -1030,7 +1030,7 @@ Only after gate 6 may any runtime code be written.
 
 ### 18.7 — Approval gates required before deployment
 
-Before any Relay runtime is deployed to the `agent-avila-hermes` Railway service:
+Before any Relay runtime is deployed to the `agent-avila-relay` Railway service:
 
 1. **Implementation phase complete** (per 18.6 gate 6+).
 2. **Implementation phase Codex code review PASS** on the new runtime code.
@@ -1046,7 +1046,7 @@ Only after gate 9 may the Relay runtime be deployed to Railway.
 
 ### 18.8 — Rollback / deactivation path
 
-**Pre-step (always-available kill-runtime):** stop / kill any Relay runtime currently running. Operator stops the `agent-avila-hermes` Railway service via Railway dashboard; the Relay process exits; no further publishes possible. The bot's Discord-side membership remains intact at this stage; no DORMANT-revert has happened yet.
+**Pre-step (always-available kill-runtime):** stop / kill any Relay runtime currently running. Operator stops the `agent-avila-relay` Railway service via Railway dashboard; the Relay process exits; no further publishes possible. The bot's Discord-side membership remains intact at this stage; no DORMANT-revert has happened yet.
 
 **Three-step DORMANT revert** (mirrors `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` §7 verbatim):
 
@@ -1054,7 +1054,7 @@ Only after gate 9 may the Relay runtime be deployed to Railway.
 
 2. **Remove the Agent Avila Relay bot from `Agent Avila Hub`.** Server Settings → Members → `Agent Avila Relay` (bot row) → Kick Member → confirm. The bot is removed from the server immediately. The `System-Writer` role's allow / deny overrides remain on the 7 channels but apply to no member.
 
-3. **Delete the `agent-avila-hermes` Railway service.** Railway dashboard → `agent-avila-hermes` service → Settings → Delete Service → confirm. The service shell is removed; the `DISCORD_BOT_TOKEN` secret variable is deleted with it.
+3. **Delete the `agent-avila-relay` Railway service.** Railway dashboard → `agent-avila-relay` service → Settings → Delete Service → confirm. The service shell is removed; the `DISCORD_BOT_TOKEN` secret variable is deleted with it.
 
 After the three steps above, Relay is fully DORMANT in the same state as before Stage 5 began (zero members on `System-Writer`; no Railway service; no token anywhere).
 

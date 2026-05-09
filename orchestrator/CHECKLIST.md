@@ -1696,18 +1696,55 @@ RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN was Phase 1 of the RAILWAY-SERVICE
 - [x] Phase 1: Codex DESIGN-ONLY review round-1 clean PASS on all 17 gates; verdict: "PASS — safe to request operator approval to either open Phase 2 SPEC or proceed to a separately gated operator-manual Railway rename phase."
 - [x] Phase 1: closed — conversation-only; no commit by the design phase itself.
 
-## RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN-SPEC — Phase 2 — In Progress
+## RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN-SPEC — Phase 2 — Closed at `3880d64269e69fca4a4b858dd22ef13bfdbe3627`
 
 RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN-SPEC is Phase 2 of the RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-CYCLE. DOCS-ONLY (Mode 3) operator-directed phase that persists the Phase 1 design as a permanent SAFE-class handoff record at `orchestrator/handoffs/RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md`. Mirrors RUN-D-DESIGN-SPEC and CYCLE-2-CLOSEOUT-SPEC patterns. Scope: 4-file commit (1 new SAFE-class record + 3 status doc updates). Design HEAD baseline `eff4dd22b9b9af038c7ae45de301e60b3f45af98`. Actual Railway rename (Phase 3; operator-led manual via Railway dashboard) remains separately gated; optional post-rename documentation cleanup (Phase 4) remains separately gated.
 
-- [ ] Phase 2: new SAFE-class handoff record drafted at `orchestrator/handoffs/RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md` (17 sections covering phase scope, renamed object identification, affected/unaffected surfaces, risks, pre-rename + post-rename operator checklists, rollback path, preservation list, manual-by-Victor recommendation, doc-reference handling, Codex review history, recommended phase structure, file-system delta, out-of-scope non-authorizations, preservation invariants, references SHA ledger, change history).
-- [ ] Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS + Phase 1 CLOSED conversation-only.
-- [ ] Phase 2: STATUS.md phase table extended with 2 new rows (Phase 2 IN PROGRESS + Phase 1 CLOSED).
-- [ ] Phase 2: STATUS.md Closeout Note prepended with new entries.
-- [ ] Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS embedding Phase 1 closure.
-- [ ] Phase 2: NEXT-ACTION.md phase chain extended with ARC-9-AUTOPILOT-VALIDATION-SPEC closure + Phase 1 + Phase 2 (current — ...) marker.
-- [ ] Phase 2: CHECKLIST.md new sections added for Phase 1 closed + Phase 2 in progress.
-- [ ] Phase 2: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config / safety-policy doc / memory file touched.
-- [ ] Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS -> required edits applied -> re-review until clean PASS.
-- [ ] Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
-- [ ] Phase 2: closed at `<SHA TBD>`; Phase 1 design persisted; future Phase 3 operator-manual rename remains separately gated.
+- [x] Phase 2: new SAFE-class handoff record drafted at `orchestrator/handoffs/RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md` (17 sections covering phase scope, renamed object identification, affected/unaffected surfaces, risks, pre-rename + post-rename operator checklists, rollback path, preservation list, manual-by-Victor recommendation, doc-reference handling, Codex review history, recommended phase structure, file-system delta, out-of-scope non-authorizations, preservation invariants, references SHA ledger, change history).
+- [x] Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS + Phase 1 CLOSED conversation-only.
+- [x] Phase 2: STATUS.md phase table extended with 2 new rows (Phase 2 IN PROGRESS + Phase 1 CLOSED).
+- [x] Phase 2: STATUS.md Closeout Note prepended with new entries.
+- [x] Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS embedding Phase 1 closure.
+- [x] Phase 2: NEXT-ACTION.md phase chain extended with ARC-9-AUTOPILOT-VALIDATION-SPEC closure + Phase 1 + Phase 2 (current — ...) marker.
+- [x] Phase 2: CHECKLIST.md new sections added for Phase 1 closed + Phase 2 in progress.
+- [x] Phase 2: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config / safety-policy doc / memory file touched.
+- [x] Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS -> required edits applied -> re-review until clean PASS. (Codex round-1 PASS WITH REQUIRED EDITS on Gate 19 stale ARC-9-SPEC IN PROGRESS markers; operator-approved Path 1 verbatim required edits applied — STATUS.md row + CHECKLIST.md header flipped to CLOSED at `eff4dd22…` plus 11 ARC-9 [ ] items flipped to [x]; round-2 clean PASS on all 22 gates.)
+- [x] Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [x] Phase 2: closed at `3880d64269e69fca4a4b858dd22ef13bfdbe3627`; Phase 1 design persisted; future Phase 3 operator-manual rename remains separately gated.
+
+## RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-MANUAL — Phase 3 — Closed (operator-manual / no commit)
+
+RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-MANUAL is Phase 3 of the RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-CYCLE. OPERATOR-MANUAL / INFRASTRUCTURE ACTION phase. Conversation-only; no commit by the rename phase itself; the rename is a Railway-side dashboard action performed by Victor outside the docs-only edit surface, equivalent in pattern to COMM-HUB-INSTALL-DISCORD (Discord server creation) and COMM-HUB-FIRST-MESSAGE (manual Discord post). Followed the pre-rename / post-rename operator checklists codified in `orchestrator/handoffs/RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md` §5–§6.
+
+- [x] Phase 3: pre-rename checklist (§5 of design) executed by operator — service-state confirmed (empty shell with `DISCORD_BOT_TOKEN` per Stage 5 Partial Install Record at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935`), production `agent-avila-dashboard` separation confirmed, Discord application alignment confirmed, operator alias audit completed, pre-rename evidence captured.
+- [x] Phase 3: Railway service display name renamed from `agent-avila-hermes` to `agent-avila-relay` via Railway dashboard by Victor on 2026-05-08.
+- [x] Phase 3: post-rename checklist (§6 of design) executed by operator — 9-of-9 PASS:
+  - [x] Phase 3.6.1: new display name confirmed `agent-avila-relay`.
+  - [x] Phase 3.6.2: service ID unchanged.
+  - [x] Phase 3.6.3: Railway secret variable `DISCORD_BOT_TOKEN` preserved verbatim across the rename (per Railway's "rename does not change variables" guarantee).
+  - [x] Phase 3.6.4: deployment URL re-resolved as expected (legacy URL no longer needed; service is empty shell).
+  - [x] Phase 3.6.5: production `agent-avila-dashboard` health unaffected (separate service; rename does not affect it).
+  - [x] Phase 3.6.6: Discord bot validity preserved (token unchanged → bot session unaffected; bot remains passive member of `Agent Avila Hub` with `System-Writer` role).
+  - [x] Phase 3.6.7: post-rename evidence captured (Railway dashboard now shows `agent-avila-relay`).
+  - [x] Phase 3.6.8: doc-update scope decision — operator decided to proceed with Phase 4 docs cleanup as separately-gated next phase.
+  - [x] Phase 3.6.9: rollback path remains available (Railway rename is reversible in under 5 minutes; no data loss; Discord side unaffected).
+- [x] Phase 3: pre-authorizes nothing downstream; Stage 5 Steps 14-21 install resumption / Relay runtime authoring / Relay runtime deployment / `relentlessvic/agent-avila-hermes` GitHub repo creation / external Hermes Agent setup / Autopilot activation / Discord posting via Relay / scheduler / cron / webhook / MCP / Discord bot activation / background automation each remain separately gated.
+- [x] Phase 3: preservation invariant verified — Migration 008 applied; N-3 closed; Relay dormant; Autopilot dormant; approvers exactly {Victor}; no live trading authorized.
+- [x] Phase 3: closed — operator-manual / no commit by the rename phase itself.
+
+## RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-POST-RENAME-DOCS-CLEANUP — Phase 4 — In Progress
+
+RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-POST-RENAME-DOCS-CLEANUP is Phase 4 of the RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-CYCLE. DOCS-ONLY (Mode 3) operator-directed phase that selectively updates forward-looking documentation references so the repo reflects the new current Railway service name `agent-avila-relay` while preserving historical / SHA-anchored references verbatim. Cleanup HEAD baseline `3880d64269e69fca4a4b858dd22ef13bfdbe3627`. Scope: 6 files (CLAUDE.md, orchestrator/COMM-HUB-RELAY-RULES.md, orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-DESIGN.md, orchestrator/STATUS.md, orchestrator/CHECKLIST.md, orchestrator/NEXT-ACTION.md). Operator-approved scope is Tier 1 (3 current-state preserve-list refs) + Tier 2 (Relay runtime deploy-target wording, 14 bare service refs in COMM-HUB-RELAY-RUNTIME-DESIGN.md) + status-doc updates. Tier 3 historical records preserved verbatim per operator decision 3a (CHECKLIST.md L457 deferred Step 14 + L543/L568/L592 closeout-journal forward-looking text; CYCLE-2-CLOSEOUT.md L176/L207 deferred-items list + §13 candidate (e)). All 33 `relentlessvic/agent-avila-hermes` GitHub repo references EXCLUDED per operator decision 4 and remain a separate operator-decision item.
+
+- [x] Phase 4: read-only audit produced — 93 total `agent-avila-hermes` occurrences across 9 .md files identified, split into 60 bare Railway service references + 33 `relentlessvic/agent-avila-hermes` GitHub repo references, per-file categorization (historical/SHA-anchored preserve vs current-state/forward-looking update vs unclear) reported, allowed file list proposed.
+- [x] Phase 4: operator approved Tier 1 + Tier 2 + status-doc updates; Tier 3 (option 3a) preserve historical fidelity; GitHub repo refs EXCLUDED; allowed-file list confirmed (6 files).
+- [x] Phase 4: CLAUDE.md L44 naming-convention statement updated — past-tense "originally `agent-avila-hermes` … manually renamed by Victor to `agent-avila-relay` on 2026-05-08 during the operator-led RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-MANUAL Phase 3"; current Railway service display name `agent-avila-relay`; original "Hermes" wording preserved for historical artifacts (phase names, file names, SHA-anchored facts).
+- [x] Phase 4: orchestrator/COMM-HUB-RELAY-RULES.md L53 preserve-list entry updated — past-tense "Original Railway service name `agent-avila-hermes` … preserved as historical fact; manually renamed by Victor to `agent-avila-relay` on 2026-05-08 during Phase 3 (no commit; docs cleanup deferred to Phase 4); current display name `agent-avila-relay`; both literals preserved verbatim in historical / SHA-anchored references."
+- [x] Phase 4: orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-DESIGN.md updated — 14 bare `agent-avila-hermes` Railway service deploy-target references replaced with `agent-avila-relay` via negative-lookbehind regex `(?<!relentlessvic/)agent-avila-hermes`; 13 `relentlessvic/agent-avila-hermes` GitHub repo references preserved verbatim; replacement count verified (14 added, 14 removed; 0 bare bare-service refs remain).
+- [x] Phase 4: orchestrator/STATUS.md updated — preamble L3 lead-clause flipped from "DESIGN-SPEC in progress" to "POST-RENAME-DOCS-CLEANUP in progress"; phase table extended with new Phase 4 IN PROGRESS row + new Phase 3 CLOSED row; Phase 2 SPEC row flipped from IN PROGRESS to CLOSED at `3880d64269e69fca4a4b858dd22ef13bfdbe3627`; Closeout Note lead clause prepended with Phase 4 / Phase 3 / Phase 2 closures; closeout-note current-state mention "the new `agent-avila-hermes` service" updated to past-tense (originally `agent-avila-hermes`, renamed to `agent-avila-relay` on 2026-05-08).
+- [x] Phase 4: orchestrator/CHECKLIST.md updated — Phase 2 SPEC section header flipped from "In Progress" to "Closed at `3880d64269e69fca4a4b858dd22ef13bfdbe3627`"; 11 [ ] items in Phase 2 section flipped to [x]; new Phase 3 section + Phase 4 section appended; Tier 3 historical lines (L457/L543/L568/L592) NOT touched.
+- [x] Phase 4: orchestrator/NEXT-ACTION.md updated — Right Now block flipped from "DESIGN-SPEC IN PROGRESS" to "POST-RENAME-DOCS-CLEANUP IN PROGRESS" with embedded Phase 3 CLOSED / Phase 2 SPEC CLOSED at `3880d642…` clauses.
+- [x] Phase 4: scope discipline — 6 files only; no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config / safety-policy doc / memory file / Tier 3 historical record / SAFE-class record (`COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md`, `RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md`) / `relentlessvic/agent-avila-hermes` GitHub repo reference touched; carve-out `position.json.snap.20260502T020154Z` preserved untracked; no commit by Phase 4 yet (stopped before commit per operator directive).
+- [ ] Phase 4: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS -> required edits applied -> re-review until clean PASS.
+- [ ] Phase 4: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [ ] Phase 4: closed at `<SHA TBD>`; current Railway service name `agent-avila-relay` reflected in forward-looking documentation; historical / SHA-anchored references preserved.
