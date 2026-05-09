@@ -1635,3 +1635,40 @@ CYCLE-2-CLOSEOUT-SPEC is Cycle 2 Phase 6 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESI
 - [x] Phase 6: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
 - [x] Phase 6: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
 - [x] Phase 6: closed at `fe474d2d6b6d97a89b454d1dea1f9fd02ca20814`; Cycle 2 substantively complete and persisted.
+
+## ARC-9-AUTOPILOT-VALIDATION-AUDIT — ARC-9 Phase 1 — Closed (conversation-only READ-ONLY AUDIT)
+
+ARC-9-AUTOPILOT-VALIDATION-AUDIT was Phase 1 of ARC-9-AUTOPILOT-VALIDATION-CYCLE. READ-ONLY AUDIT (Mode 1) conversation-only phase that validated the dormant Autopilot framework before any activation, scheduler, webhook, MCP, cron, runtime loop, or autonomous execution is allowed. No commit by the audit phase itself. 16/16 PASS verdict.
+
+- [x] Phase 1: three-way SHA consistency verified at `4602745703fd697d5cd6014e6b21654468ac9c46`.
+- [x] Phase 1: working tree clean except carve-out (`?? position.json.snap.20260502T020154Z`).
+- [x] Phase 1: Cycle 2 complete and persisted; PROJECT-MEMORY-STALE-DOC-CLEANUP-B closed.
+- [x] Phase 1: no active operational phase before opening ARC-9.
+- [x] Phase 1: Relay runtime DORMANT verified.
+- [x] Phase 1: Autopilot runtime DORMANT verified.
+- [x] Phase 1: canonical source inventory inspected (8 safety-policy docs + most-recent prior framework certification at Phase 11 RUN-D §4).
+- [x] Phase 1: Autopilot authority map confirmed (GREEN: read/sense/propose/draft SAFE/Codex-trigger/approval-packet-draft/Discord-summary-draft; YELLOW: requires Codex review before commit; RED: commit/push/deploy/runner-invocation/env-change/MANUAL_LIVE_ARMED-change/Kraken-touching action all require explicit scoped Victor approval).
+- [x] Phase 1: 16 forbidden-action checks PASS (cannot approve phases / upgrade phase modes / commit / push / deploy / run Railway / query or mutate production DB / run migrations / touch env files / touch MANUAL_LIVE_ARMED / place or manage trades / edit protected files without approval / activate Relay / activate itself / call external Hermes Agent setup / execute DASH-6 implementation).
+- [x] Phase 1: stale-wording sweep returned 0 hits ("Autopilot active" / "autopilot runtime activation authorized" / "autopilot may self-execute" / "autopilot can self-execute" all 0).
+- [x] Phase 1: pre-existing historical references (AUTOPILOT-RULES.md:273 ARC-8 change history; AUTOMATION-PERMISSIONS.md:260 ARC-6 change history; cosmetic lowercase "autopilot DORMANT" in 4 older handoff records) preserved as non-stale historical content.
+- [x] Phase 1: Option A (pure validation only) selected; Options B (test harness) and C (manual checklist) deferred separately gated.
+- [x] Phase 1: framework readiness carried forward from Phase 11 RUN-D §4 (all 8 framework integrity checks PASS).
+- [x] Phase 1: preservation invariants explicit (Migration 008 applied; N-3 closed; Relay dormant; Autopilot dormant; approvers exactly {Victor}; no live trading authorized).
+- [x] Phase 1: 16/16 PASS verdict; recommendation: GO on Phase 2 SPEC.
+- [x] Phase 1: closed — conversation-only; no commit by the audit phase itself.
+
+## ARC-9-AUTOPILOT-VALIDATION-SPEC — ARC-9 Phase 2 — In Progress
+
+ARC-9-AUTOPILOT-VALIDATION-SPEC is Phase 2 of ARC-9-AUTOPILOT-VALIDATION-CYCLE. DOCS-ONLY (Mode 3) operator-directed phase that persists the Phase 1 audit as a permanent SAFE-class handoff record at `orchestrator/handoffs/ARC-9-AUTOPILOT-VALIDATION.md`. Mirrors RUN-D-DESIGN-SPEC and CYCLE-2-CLOSEOUT-SPEC patterns. Scope: 4-file commit (1 new SAFE-class record + 3 status doc updates). Audit HEAD baseline `4602745703fd697d5cd6014e6b21654468ac9c46`. ARC-9 substantively complete after this commit; Autopilot remains DORMANT.
+
+- [ ] Phase 2: new SAFE-class handoff record drafted at `orchestrator/handoffs/ARC-9-AUTOPILOT-VALIDATION.md` (12 sections covering phase scope, Phase 1 audit findings, Autopilot authority map, 16 forbidden-action PASS checks, stale-wording sweep results, Option A/B/C decision, file-system delta, phase chain forward, out-of-scope non-authorizations, preservation invariants, references SHA ledger, change history).
+- [ ] Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS + Phase 1 CLOSED conversation-only.
+- [ ] Phase 2: STATUS.md phase table extended with 2 new rows (Phase 2 IN PROGRESS + Phase 1 CLOSED).
+- [ ] Phase 2: STATUS.md Closeout Note prepended with new entries.
+- [ ] Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS embedding Phase 1 closure.
+- [ ] Phase 2: NEXT-ACTION.md phase chain extended with PROJECT-MEMORY-STALE-DOC-CLEANUP-B + ARC-9 Phase 1 + ARC-9 Phase 2 (current — ...) marker.
+- [ ] Phase 2: CHECKLIST.md new sections added for Phase 1 closed + Phase 2 in progress.
+- [ ] Phase 2: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config / safety-policy doc touched; memory-file edits remain separate.
+- [ ] Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [ ] Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [ ] Phase 2: closed at `<SHA TBD>`; ARC-9 substantively complete and persisted.
