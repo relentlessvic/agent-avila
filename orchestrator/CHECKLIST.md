@@ -1657,18 +1657,57 @@ ARC-9-AUTOPILOT-VALIDATION-AUDIT was Phase 1 of ARC-9-AUTOPILOT-VALIDATION-CYCLE
 - [x] Phase 1: 16/16 PASS verdict; recommendation: GO on Phase 2 SPEC.
 - [x] Phase 1: closed — conversation-only; no commit by the audit phase itself.
 
-## ARC-9-AUTOPILOT-VALIDATION-SPEC — ARC-9 Phase 2 — In Progress
+## ARC-9-AUTOPILOT-VALIDATION-SPEC — ARC-9 Phase 2 — Closed at `eff4dd22b9b9af038c7ae45de301e60b3f45af98`
 
 ARC-9-AUTOPILOT-VALIDATION-SPEC is Phase 2 of ARC-9-AUTOPILOT-VALIDATION-CYCLE. DOCS-ONLY (Mode 3) operator-directed phase that persists the Phase 1 audit as a permanent SAFE-class handoff record at `orchestrator/handoffs/ARC-9-AUTOPILOT-VALIDATION.md`. Mirrors RUN-D-DESIGN-SPEC and CYCLE-2-CLOSEOUT-SPEC patterns. Scope: 4-file commit (1 new SAFE-class record + 3 status doc updates). Audit HEAD baseline `4602745703fd697d5cd6014e6b21654468ac9c46`. ARC-9 substantively complete after this commit; Autopilot remains DORMANT.
 
-- [ ] Phase 2: new SAFE-class handoff record drafted at `orchestrator/handoffs/ARC-9-AUTOPILOT-VALIDATION.md` (12 sections covering phase scope, Phase 1 audit findings, Autopilot authority map, 16 forbidden-action PASS checks, stale-wording sweep results, Option A/B/C decision, file-system delta, phase chain forward, out-of-scope non-authorizations, preservation invariants, references SHA ledger, change history).
+- [x] Phase 2: new SAFE-class handoff record drafted at `orchestrator/handoffs/ARC-9-AUTOPILOT-VALIDATION.md` (12 sections covering phase scope, Phase 1 audit findings, Autopilot authority map, 16 forbidden-action PASS checks, stale-wording sweep results, Option A/B/C decision, file-system delta, phase chain forward, out-of-scope non-authorizations, preservation invariants, references SHA ledger, change history).
+- [x] Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS + Phase 1 CLOSED conversation-only.
+- [x] Phase 2: STATUS.md phase table extended with 2 new rows (Phase 2 IN PROGRESS + Phase 1 CLOSED).
+- [x] Phase 2: STATUS.md Closeout Note prepended with new entries.
+- [x] Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS embedding Phase 1 closure.
+- [x] Phase 2: NEXT-ACTION.md phase chain extended with PROJECT-MEMORY-STALE-DOC-CLEANUP-B + ARC-9 Phase 1 + ARC-9 Phase 2 (current — ...) marker.
+- [x] Phase 2: CHECKLIST.md new sections added for Phase 1 closed + Phase 2 in progress.
+- [x] Phase 2: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config / safety-policy doc touched; memory-file edits remain separate.
+- [x] Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [x] Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [x] Phase 2: closed at `eff4dd22b9b9af038c7ae45de301e60b3f45af98`; ARC-9 substantively complete and persisted.
+
+## RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN — Phase 1 — Closed (conversation-only DESIGN-ONLY)
+
+RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN was Phase 1 of the RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-CYCLE (operator-led infrastructure track). DESIGN-ONLY (Mode 1) conversation-only phase that produced the safe rename plan for the future operator-led Railway service rename from `agent-avila-hermes` to `agent-avila-relay`. No commit by the design phase itself. Codex DESIGN-ONLY round-1 clean PASS on all 17 gates.
+
+- [x] Phase 1: three-way SHA consistency verified at `eff4dd22b9b9af038c7ae45de301e60b3f45af98`.
+- [x] Phase 1: working tree clean except carve-out (`?? position.json.snap.20260502T020154Z`).
+- [x] Phase 1: ARC-9 closed and persisted; Autopilot DORMANT; Relay runtime DORMANT verified.
+- [x] Phase 1: renamed object correctly identified — Railway service `agent-avila-hermes` -> `agent-avila-relay`.
+- [x] Phase 1: service distinguished from `agent-avila-dashboard` (production dashboard service; separate; unaffected), Discord application / bot account (already "Agent Avila Relay"; unaffected), GitHub repository (`relentlessvic/agent-avila-hermes` deferred and never created), future Relay runtime (does not exist).
+- [x] Phase 1: Railway-side assumptions match Stage 5 Partial Install Record at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` (empty service shell holding `DISCORD_BOT_TOKEN`; separate from production dashboard; no Relay runtime; Discord app already "Agent Avila Relay").
+- [x] Phase 1: affected/unaffected surfaces enumerated (display name affected; URL likely affected; service ID unaffected; secret variables unaffected; Discord token unaffected; production dashboard unaffected; production DB / Migration 008 unaffected).
+- [x] Phase 1: risks identified and rated LOW overall (no production-side dependency; service is empty; token preserved; production dashboard unaffected).
+- [x] Phase 1: pre-rename operator checklist drafted (5 items: service state confirmation; production dashboard separation; Discord application alignment; operator alias audit; pre-rename evidence capture).
+- [x] Phase 1: post-rename operator checklist drafted (7 items: new name confirmation; secret preservation; URL update; production dashboard health; Discord bot validity; post-rename evidence capture; doc update scope decision).
+- [x] Phase 1: rollback path drafted (Railway rename is reversible; under 5 minutes; no data loss; Discord side unaffected).
+- [x] Phase 1: recommendation that Victor manually perform the Railway UI rename (not Claude/automation) explicitly recorded with citations to AUTOPILOT-RULES.md, AUTOMATION-PERMISSIONS.md, APPROVAL-GATES.md Gate 10.
+- [x] Phase 1: recommended future phase structure (Phase 2 SPEC docs-only persistence; Phase 3 operator-manual Railway rename; Phase 4 optional post-rename closeout/docs update) — each separately gated.
+- [x] Phase 1: proposed SPEC path `orchestrator/handoffs/RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md` (mirrors established SAFE-class handoff record naming pattern).
+- [x] Phase 1: preservation invariants explicit (Migration 008 applied; N-3 closed; Relay dormant; Autopilot dormant; approvers exactly {Victor}; no live trading authorized).
+- [x] Phase 1: 13 forbidden-category non-authorizations enumerated (Railway commands / deploy / DB / migrations / tests / live trading / MANUAL_LIVE_ARMED / Autopilot / Relay / external Hermes Agent / Stage 5 Steps 14-21 / schedulers/cron/webhooks/MCP/Discord bot activation / background automation / memory-file edits).
+- [x] Phase 1: Codex DESIGN-ONLY review round-1 clean PASS on all 17 gates; verdict: "PASS — safe to request operator approval to either open Phase 2 SPEC or proceed to a separately gated operator-manual Railway rename phase."
+- [x] Phase 1: closed — conversation-only; no commit by the design phase itself.
+
+## RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN-SPEC — Phase 2 — In Progress
+
+RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN-SPEC is Phase 2 of the RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-CYCLE. DOCS-ONLY (Mode 3) operator-directed phase that persists the Phase 1 design as a permanent SAFE-class handoff record at `orchestrator/handoffs/RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md`. Mirrors RUN-D-DESIGN-SPEC and CYCLE-2-CLOSEOUT-SPEC patterns. Scope: 4-file commit (1 new SAFE-class record + 3 status doc updates). Design HEAD baseline `eff4dd22b9b9af038c7ae45de301e60b3f45af98`. Actual Railway rename (Phase 3; operator-led manual via Railway dashboard) remains separately gated; optional post-rename documentation cleanup (Phase 4) remains separately gated.
+
+- [ ] Phase 2: new SAFE-class handoff record drafted at `orchestrator/handoffs/RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-DESIGN.md` (17 sections covering phase scope, renamed object identification, affected/unaffected surfaces, risks, pre-rename + post-rename operator checklists, rollback path, preservation list, manual-by-Victor recommendation, doc-reference handling, Codex review history, recommended phase structure, file-system delta, out-of-scope non-authorizations, preservation invariants, references SHA ledger, change history).
 - [ ] Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS + Phase 1 CLOSED conversation-only.
 - [ ] Phase 2: STATUS.md phase table extended with 2 new rows (Phase 2 IN PROGRESS + Phase 1 CLOSED).
 - [ ] Phase 2: STATUS.md Closeout Note prepended with new entries.
 - [ ] Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS embedding Phase 1 closure.
-- [ ] Phase 2: NEXT-ACTION.md phase chain extended with PROJECT-MEMORY-STALE-DOC-CLEANUP-B + ARC-9 Phase 1 + ARC-9 Phase 2 (current — ...) marker.
+- [ ] Phase 2: NEXT-ACTION.md phase chain extended with ARC-9-AUTOPILOT-VALIDATION-SPEC closure + Phase 1 + Phase 2 (current — ...) marker.
 - [ ] Phase 2: CHECKLIST.md new sections added for Phase 1 closed + Phase 2 in progress.
-- [ ] Phase 2: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config / safety-policy doc touched; memory-file edits remain separate.
-- [ ] Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [ ] Phase 2: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config / safety-policy doc / memory file touched.
+- [ ] Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS -> required edits applied -> re-review until clean PASS.
 - [ ] Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
-- [ ] Phase 2: closed at `<SHA TBD>`; ARC-9 substantively complete and persisted.
+- [ ] Phase 2: closed at `<SHA TBD>`; Phase 1 design persisted; future Phase 3 operator-manual rename remains separately gated.
