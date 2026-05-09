@@ -1504,3 +1504,64 @@ All N-2x phases through COMM-HUB-DOCS-G-HERMES-RUNTIME-DESIGN-SPEC are CLOSED (o
 - [ ] Do not query the production database.
 - [ ] Do not read or write env or secrets.
 - [ ] Do not change runtime code, migrations, scripts, package files, lockfiles, Node version files, deployment config, `position.json`, `MANUAL_LIVE_ARMED`, live Kraken paths, or safety-policy docs as part of this sync.
+
+## RUN-D-DESIGN-SPEC — Closed at `aaf169e783415a160daf774db761d34aa705867c`
+
+RUN-D-DESIGN-SPEC was the DOCS-ONLY (Mode 3) operator-directed phase that persisted the completed Phase 11 ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP READ-ONLY AUDIT (Mode 1, conversation-only, executed 2026-05-08 at HEAD `355b0f96728c08670e5c6943b2eb5b476a5817ce`) as a permanent SAFE-class handoff record. Closes the post-CEILING-PAUSE 11-phase master order substantively.
+
+- [x] RUN-D-DESIGN-SPEC: 4-file commit (1 new SAFE-class record + 3 status doc updates) — +289 / -21.
+- [x] RUN-D-DESIGN-SPEC: Codex DOCS-ONLY review round-1 PASS WITH REQUIRED EDITS on A6/A11/A12/C3 — round-2 clean PASS on all 47 checks (A1-A14, B1-B5, C1-C8, D1-D8, E1-E7, S1-S15).
+- [x] RUN-D-DESIGN-SPEC: pushed to origin/main; three-way SHA consistency PASS verified post-push.
+- [x] RUN-D-DESIGN-SPEC: closed at `aaf169e783415a160daf774db761d34aa705867c`; post-CEILING-PAUSE 11-phase master order substantively complete and persisted.
+
+## COMM-HUB-RENAME-RELAY-CONTENT Phase A — Closed at `5541fb6f92d84028ac762b1c54ff32808868d2a9`
+
+COMM-HUB-RENAME-RELAY-CONTENT Phase A was the DOCS-ONLY (Mode 3) operator-directed Phase A of the split rename initiative. Renamed the internal Avila Discord/project-update messenger active forward-looking wording from "Hermes" to "Relay" across 41 .md docs to disambiguate from the external Nous Hermes Agent (Nous/OpenRouter). Filename rename was deferred to Cycle 2 Phase 1 (COMM-HUB-RENAME-RELAY-FILES) and is now closed.
+
+- [x] Phase A: 41-doc rename Hermes → Relay across active forward-looking wording.
+- [x] Phase A: naming-convention subsections added in CLAUDE.md + canonical Relay spec (then at orchestrator/COMM-HUB-HERMES-RULES.md pending Phase B).
+- [x] Phase A: 2 historical handoff naming-convention notes added (preserved filenames; rename deferred to Phase B).
+- [x] Phase A: phase identifiers preserved (uppercase HERMES literals).
+- [x] Phase A: old filenames preserved (filename rename deferred to Phase B).
+- [x] Phase A: SHA-anchored historical statements preserved.
+- [x] Phase A: Railway service literal `agent-avila-hermes` preserved (+2 from naming-convention citations).
+- [x] Phase A: stats +1032 / -993 across 41 files.
+- [x] Phase A: Codex DOCS-ONLY round-1 PASS WITH REQUIRED EDITS on G6 (misread of pre-existing install procedure as new install instructions) → round-2 clarification clean PASS.
+- [x] Phase A: pushed to origin/main; three-way SHA consistency PASS verified post-push.
+- [x] Phase A: closed at `5541fb6f92d84028ac762b1c54ff32808868d2a9`.
+
+## COMM-HUB-RENAME-RELAY-FILES — Cycle 2 Phase 1 — Closed at `82310b52452cd799eb26ea43e64f936bd3baa974`
+
+COMM-HUB-RENAME-RELAY-FILES was Cycle 2 Phase 1 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DOCS-ONLY (Mode 3) atomic file rename phase that completed the Hermes → Relay rename initiative for the 4 forward-looking SAFE-class files. The 2 historical handoff filenames remain preserved permanently as historical artifacts.
+
+- [x] Cycle 2 Phase 1: 4 atomic R092/R094/R096/R097 file renames via `git mv` (blame preserved).
+- [x] Cycle 2 Phase 1: cross-reference path updates across 19 additional .md docs (precise .md-suffixed sed patterns; phase identifiers untouched).
+- [x] Cycle 2 Phase 1: PROTECTED-FILES.md row 41 path update from orchestrator/COMM-HUB-HERMES-RULES.md to orchestrator/COMM-HUB-RELAY-RULES.md + Phase B caveat removed.
+- [x] Cycle 2 Phase 1: filename-note paragraph removed in canonical Relay spec.
+- [x] Cycle 2 Phase 1: naming-convention "Filenames retained pending Phase B" preserve-list rewritten to "Filenames renamed in Cycle 2 Phase 1" with old→new path ledger.
+- [x] Cycle 2 Phase 1: "Phase B handoff" subsection rewritten to past tense.
+- [x] Cycle 2 Phase 1: 2 historical handoff naming-convention notes updated to past tense.
+- [x] Cycle 2 Phase 1: 23 files in commit (4 renames + 19 modifications); +128 / -130.
+- [x] Cycle 2 Phase 1: 2 historical Hermes filenames preserved verbatim and still exist on disk.
+- [x] Cycle 2 Phase 1: phase identifiers preserved (uppercase HERMES literals committed to git history).
+- [x] Cycle 2 Phase 1: SHA-anchored historical statements preserved verbatim.
+- [x] Cycle 2 Phase 1: Railway service literal `agent-avila-hermes` preserved at 67 occurrences.
+- [x] Cycle 2 Phase 1: Codex DOCS-ONLY review round-1 clean PASS on all 35 checks (A1-A4 atomic rename, B1-B6 cross-reference, C1-C9 phase ID preservation, D1 Railway literal, E1-E3 PROTECTED-FILES.md row 41, F1-F4 filename-note + naming-convention, G1-G8 forbidden-content, H1-H11 scope, I1-I9 invariants).
+- [x] Cycle 2 Phase 1: pushed to origin/main; fast-forward `5541fb6..82310b5 main -> main`; three-way SHA consistency PASS verified post-push.
+- [x] Cycle 2 Phase 1: closed at `82310b52452cd799eb26ea43e64f936bd3baa974`.
+
+## COMM-HUB-RENAME-RELAY-FILES-CLOSEOUT-SYNC — Cycle 2 Phase 2 — In Progress
+
+COMM-HUB-RENAME-RELAY-FILES-CLOSEOUT-SYNC is Cycle 2 Phase 2 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DOCS-ONLY (Mode 3) operator-directed phase rolling in three stale-tail closures (RUN-D-DESIGN-SPEC at `aaf169e783415a160daf774db761d34aa705867c`; Phase A at `5541fb6f92d84028ac762b1c54ff32808868d2a9`; Phase 1 at `82310b52452cd799eb26ea43e64f936bd3baa974`) into the journal docs. Scope: 3 status doc files only.
+
+- [ ] Cycle 2 Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS with 3 stale-tail closures rolled in.
+- [ ] Cycle 2 Phase 2: STATUS.md phase table extended with 4 new rows (Phase 2 IN PROGRESS + Phase 1 / Phase A / RUN-D-DESIGN-SPEC CLOSED).
+- [ ] Cycle 2 Phase 2: STATUS.md Closeout Note prepended with new entries for the 3 closures.
+- [ ] Cycle 2 Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS.
+- [ ] Cycle 2 Phase 2: NEXT-ACTION.md chain summary extended through Cycle 2 Phase 1.
+- [ ] Cycle 2 Phase 2: NEXT-ACTION.md phase chain extended with new SHAs (RUN-D / Phase A / Phase 1) + new (current — Phase 2) marker.
+- [ ] Cycle 2 Phase 2: CHECKLIST.md new sections added for RUN-D-DESIGN-SPEC closed + Phase A closed + Cycle 2 Phase 1 closed + Phase 2 in progress.
+- [ ] Cycle 2 Phase 2: scope discipline — 3 status doc files only; no other handoff record / runtime / test / migration / script / package / env / position / deploy-config touched; memory-file edits remain separate.
+- [ ] Cycle 2 Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [ ] Cycle 2 Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [ ] Cycle 2 Phase 2: closed at `<SHA TBD>`.
