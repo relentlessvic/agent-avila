@@ -1565,3 +1565,37 @@ COMM-HUB-RENAME-RELAY-FILES-CLOSEOUT-SYNC is Cycle 2 Phase 2 of CYCLE-2-CLEANUP-
 - [ ] Cycle 2 Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
 - [ ] Cycle 2 Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
 - [ ] Cycle 2 Phase 2: closed at `<SHA TBD>`.
+
+## DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN — Cycle 2 Phase 3 — Closed (conversation-only DESIGN-ONLY)
+
+DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN was Cycle 2 Phase 3 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DESIGN-ONLY (Mode 0/1) conversation-only phase that produced the test plan for DASH-6.D / DASH-6.E / DASH-6.F live-boundary smoke. No commit by the design phase itself; Codex round-2 verdict: "PASS — safe to request operator approval to advance to Phase 4 SPEC."
+
+- [x] Phase 3: DESIGN-ONLY conversation-only output produced.
+- [x] Phase 3: PATH-B-VIOLATION resolved via Path 1 — Mode 5 future IMPL explicitly accepted up front.
+- [x] Phase 3: 5-layer mocking architecture specified (env isolation; server-side Kraken interception; browser-context Kraken interception; DB redirection; position.json redirection).
+- [x] Phase 3: per-sub-phase test assertion plan covering DASH-6.D live SET_STOP_LOSS, DASH-6.E live SET_TAKE_PROFIT, DASH-6.F live SELL_ALL — both fail-closed state (MANUAL_LIVE_ARMED unset) and mocked-armed state.
+- [x] Phase 3: emergency_audit_log persistence + _redactAttemptedPayload regex coverage + DB-first behavior + M2 byte-stability assertions specified.
+- [x] Phase 3: forbidden live paths enumerated (real Kraken HTTP request; real production DB query/mutation; real position.json write; real MANUAL_LIVE_ARMED env mutation; real Railway/deploy/migration).
+- [x] Phase 3: carve-out preservation explicit (position.json.snap.20260502T020154Z MUST NOT be touched).
+- [x] Phase 3: approval gate matrix specified for future IMPL (Gate 7 YES; Gates 9 / 10 / 14 NO; Codex IMPL HIGH-RISK review YES; operator first-run test execution authorization YES).
+- [x] Phase 3: operator-confirmed Option A combined sub-phase default (single tests/dash-6-live-boundary.spec.js).
+- [x] Phase 3: playwright.config.js modification NOT pre-authorized; operator-decision flag at IMPL packet draft time.
+- [x] Phase 3: Codex DESIGN-ONLY review round-1 PASS WITH REQUIRED EDITS on Gate 10 (preservation invariants not explicit) → round-2 clean PASS on all 10 gates after verbatim §12 invariants block addition.
+- [x] Phase 3: preservation invariants explicit (Migration 008 applied; N-3 closed; Relay dormant; Autopilot dormant; approvers exactly {Victor}; no live trading authorized).
+- [x] Phase 3: closed — conversation-only; no commit by the design phase itself.
+
+## DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN-SPEC — Cycle 2 Phase 4 — In Progress
+
+DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN-SPEC is Cycle 2 Phase 4 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DOCS-ONLY (Mode 3) operator-directed phase persisting the Codex-cleared Cycle 2 Phase 3 design as a permanent SAFE-class handoff record at `orchestrator/handoffs/DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN.md`. Mirrors DASH-1 / DASH-3 / DASH-4 / DASH-5 design-spec codification pattern. Scope: 4-file commit (1 new SAFE-class record + 3 status doc updates). Design HEAD baseline `c9c44e8fb09b572073d84770a72e2b564c586262`.
+
+- [ ] Phase 4: new SAFE-class handoff record drafted at orchestrator/handoffs/DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN.md with full design content (§1 phase scope, §2 PATH-B-VIOLATION resolution, §3 sub-phase scope, §4 5-layer mocking architecture, §5 per-sub-phase test assertion plan, §6 safety boundaries, §7 approval gate matrix, §8 file-system delta, §9 Codex review history, §10 out of scope, §11 phase chain forward, §12 preservation invariants, §13 risk notes, §14 references, §15 change history).
+- [ ] Phase 4: STATUS.md preamble flipped to record Phase 4 IN PROGRESS + Phase 3 CLOSED.
+- [ ] Phase 4: STATUS.md phase table extended with 2 new rows (Phase 4 IN PROGRESS + Phase 3 CLOSED).
+- [ ] Phase 4: STATUS.md Closeout Note prepended with new entries.
+- [ ] Phase 4: NEXT-ACTION.md Right Now block flipped to record Phase 4 IN PROGRESS.
+- [ ] Phase 4: NEXT-ACTION.md phase chain extended with Phase 3 + Phase 4 + new (current — Phase 4) marker.
+- [ ] Phase 4: CHECKLIST.md new sections added for Phase 3 closed + Phase 4 in progress.
+- [ ] Phase 4: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / env / position / deploy-config / playwright config touched; memory-file edits remain separate.
+- [ ] Phase 4: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [ ] Phase 4: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [ ] Phase 4: closed at `<SHA TBD>`.
