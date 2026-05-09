@@ -1344,24 +1344,24 @@ ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP was Phase 11 of the post-CEILING-PAUSE 11-phase
 - [x] ARC-8-RUN-D: classified as operator-directed; not autopilot-driven; did NOT advance autopilot phase-loop counter; did NOT break CEILING-PAUSE (CEILING-PAUSE remains broken via ARC-8-UNPAUSE).
 - [x] ARC-8-RUN-D: no deploy / Railway / Kraken / production DB / migrations / env changes / `MANUAL_LIVE_ARMED` change / live trading execution / autopilot activation / Relay resumption / DASH-6-LIVE-BOUNDARY-SMOKE / next-cycle execution was authorized by this audit — purely conversation-only proposal output.
 
-## RUN-D-DESIGN-SPEC — In Progress
+## RUN-D-DESIGN-SPEC — Closed at `aaf169e783415a160daf774db761d34aa705867c`
 
 RUN-D-DESIGN-SPEC is a DOCS-ONLY (Mode 3 per `orchestrator/PHASE-MODES.md`) operator-directed phase persisting the Phase 11 ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP audit (Mode 1 READ-ONLY AUDIT, conversation-only) as a permanent SAFE-class handoff record at `orchestrator/handoffs/ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP-RECORD.md`. Mirrors the DASH-1-READ-STATE-AUDIT-SPEC pattern at `dcf453a…` and the ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN-SPEC pattern at `b7ce42f…`. Scope: 4 files (1 new SAFE-class handoff record + 3 status doc updates: `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, `orchestrator/NEXT-ACTION.md`). No safety-policy doc modified. No runtime / test / script / migration / package / env / position.json / deploy-config file touched.
 
 This phase exists because Phase 11 ARC-8-RUN-D was conversation-only by operator-explicit Structure A choice — RUN-D-DESIGN-SPEC persists the audit's findings so future supervised cycles can cite them.
 
-- [ ] RUN-D-DESIGN-SPEC: STATUS.md updated — preamble flip with new phase as IN PROGRESS prepended ahead of the prior DASH-6-CLOSEOUT-SYNC closure clause; ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP recorded as CLOSED (conversation-only audit; source phase produced four outputs preserved in the new SAFE-class record); DASH-6-CLOSEOUT-SYNC recorded as CLOSED at `355b0f96728c08670e5c6943b2eb5b476a5817ce`; CEILING-PAUSE / autopilot DORMANT / Relay shelved / Migration 008 APPLIED / N-3 CLOSED / approvers `{Victor}` preserved; phase table updated with new ARC-8-RUN-D row + new RUN-D-DESIGN-SPEC row + flipped DASH-6-CLOSEOUT-SYNC row from IN PROGRESS to CLOSED at `355b0f9…`; Closeout Note updated to record RUN-D-DESIGN-SPEC in progress + ARC-8-RUN-D closure + DASH-6-CLOSEOUT-SYNC closure.
-- [ ] RUN-D-DESIGN-SPEC: CHECKLIST.md updated — `## DASH-6-CLOSEOUT-SYNC` section header flipped from `Final lane closeout — DASH-6-CLOSEOUT-SYNC — In Progress` to `Final lane closeout — DASH-6-CLOSEOUT-SYNC — Closed at \`355b0f96728c08670e5c6943b2eb5b476a5817ce\``; 13 [ ] items flipped to [x]; final item body updated to record Codex DOCS-ONLY review round-1 clean PASS history + commit + push + three-way SHA consistency PASS verified post-push; new `## ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP — Closed (conversation-only audit)` section opening with full ARC-8-RUN-D source-audit facts (Phase 11; Mode 1 READ-ONLY AUDIT; Structure A; Codex DESIGN-ONLY round-1 PASS on all 47 checks including meta-goal H1-H4 endorsed; four output sections; 10 safety invariants preserved; selector rules 1-10 strict-order evaluation; 3 Loop B candidate proposals proposal-only; framework readiness certification with 8 invariants; forward-looking 11-phase ledger with SHAs); new `## RUN-D-DESIGN-SPEC` section opening this codification phase.
-- [ ] RUN-D-DESIGN-SPEC: NEXT-ACTION.md updated — Right Now block prepended with new RUN-D-DESIGN-SPEC clause embedding ARC-8-RUN-D closure + DASH-6-CLOSEOUT-SYNC closure; phase chain extended with DASH-6-CLOSEOUT-SYNC closure at `355b0f9…` + ARC-8-RUN-D closure (conversation-only audit) + RUN-D-DESIGN-SPEC current.
-- [ ] RUN-D-DESIGN-SPEC: scope confirmed exactly 4 files (1 new SAFE-class handoff record at `orchestrator/handoffs/ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP-RECORD.md` + 3 status doc updates at `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, `orchestrator/NEXT-ACTION.md`); no `dashboard.js` / `bot.js` / `db.js` / `migrations/` / `scripts/` / `tests/` / `package*` / `playwright.config.js` / `.nvmrc` / `.env*` / `position.json` / `position.json.snap.20260502T020154Z` / `trades.csv` / deploy-config touched; no safety-policy doc touched; no other handoff record modified.
-- [ ] RUN-D-DESIGN-SPEC: DASH-6-LIVE-BOUNDARY-SMOKE remains DEFERRED (Mode 5 by structural rule per Codex DASH-6 round-2 PATH-B-VIOLATION; Path 3 deferral chosen at design time); next supervised cycle's master order remains operator-directed and is not pre-authorized by this codification.
-- [ ] RUN-D-DESIGN-SPEC: Relay runtime authoring NOT authorized; Relay repo creation NOT authorized; Relay runtime deployment NOT authorized; Relay Stage 5 install resumption (Steps 14–21) NOT authorized; Relay remains in shelved state preserved.
-- [ ] RUN-D-DESIGN-SPEC: Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` remains CONSUMED; cannot be reused; preserved.
-- [ ] RUN-D-DESIGN-SPEC: phase-mode binding verified — DOCS-ONLY only contains the new SAFE-class record codifying the conversation-only Phase 11 audit + status doc updates; no "approved" markers for downstream phases; no RED-action instructions; no live-trading-path mutations; no runtime / source / test / migration / script / package / lockfile / env / `.nvmrc` / `position.json` / deploy-config / safety-policy / handoff-template / prompt-template file touched.
-- [ ] RUN-D-DESIGN-SPEC: forbidden-content compliance verified — no secrets, env values, prod-DB content, live Kraken endpoints, live order IDs, live position data, live SL/TP/SELL_ALL values, live balance figures, deploy commands, migration-apply commands, MCP / scheduler / webhook installs, Relay runtime install, automation-authority widening, or approval-like language not from operator; full compliance with `orchestrator/HANDOFF-RULES.md` "Forbidden content" list.
-- [ ] RUN-D-DESIGN-SPEC: classified as operator-directed manual; not autopilot-driven; does NOT advance autopilot phase-loop counter; does NOT break CEILING-PAUSE (CEILING-PAUSE remains broken via ARC-8-UNPAUSE).
-- [ ] RUN-D-DESIGN-SPEC: Migration 008 remains APPLIED at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` preserved; N-3 remains closed preserved; set of approvers remains exactly `{Victor}` preserved; autopilot runtime DORMANT preserved; working tree clean except pre-existing untracked position.json.snap.20260502T020154Z; snap remains untracked, unstaged, and unmodified.
-- [ ] RUN-D-DESIGN-SPEC: no deploy / Railway / Kraken / production DB / migrations / env changes / `MANUAL_LIVE_ARMED` change / live trading execution / autopilot activation / Relay resumption / DASH-6-LIVE-BOUNDARY-SMOKE / next-cycle execution work was authorized by this codification — purely descriptive persistence of the Phase 11 audit.
+- [x] RUN-D-DESIGN-SPEC: STATUS.md updated — preamble flip with new phase as IN PROGRESS prepended ahead of the prior DASH-6-CLOSEOUT-SYNC closure clause; ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP recorded as CLOSED (conversation-only audit; source phase produced four outputs preserved in the new SAFE-class record); DASH-6-CLOSEOUT-SYNC recorded as CLOSED at `355b0f96728c08670e5c6943b2eb5b476a5817ce`; CEILING-PAUSE / autopilot DORMANT / Relay shelved / Migration 008 APPLIED / N-3 CLOSED / approvers `{Victor}` preserved; phase table updated with new ARC-8-RUN-D row + new RUN-D-DESIGN-SPEC row + flipped DASH-6-CLOSEOUT-SYNC row from IN PROGRESS to CLOSED at `355b0f9…`; Closeout Note updated to record RUN-D-DESIGN-SPEC in progress + ARC-8-RUN-D closure + DASH-6-CLOSEOUT-SYNC closure.
+- [x] RUN-D-DESIGN-SPEC: CHECKLIST.md updated — `## DASH-6-CLOSEOUT-SYNC` section header flipped from `Final lane closeout — DASH-6-CLOSEOUT-SYNC — Closed at `aaf169e783415a160daf774db761d34aa705867c`` to `Final lane closeout — DASH-6-CLOSEOUT-SYNC — Closed at \`355b0f96728c08670e5c6943b2eb5b476a5817ce\``; 13 [ ] items flipped to [x]; final item body updated to record Codex DOCS-ONLY review round-1 clean PASS history + commit + push + three-way SHA consistency PASS verified post-push; new `## ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP — Closed (conversation-only audit)` section opening with full ARC-8-RUN-D source-audit facts (Phase 11; Mode 1 READ-ONLY AUDIT; Structure A; Codex DESIGN-ONLY round-1 PASS on all 47 checks including meta-goal H1-H4 endorsed; four output sections; 10 safety invariants preserved; selector rules 1-10 strict-order evaluation; 3 Loop B candidate proposals proposal-only; framework readiness certification with 8 invariants; forward-looking 11-phase ledger with SHAs); new `## RUN-D-DESIGN-SPEC` section opening this codification phase.
+- [x] RUN-D-DESIGN-SPEC: NEXT-ACTION.md updated — Right Now block prepended with new RUN-D-DESIGN-SPEC clause embedding ARC-8-RUN-D closure + DASH-6-CLOSEOUT-SYNC closure; phase chain extended with DASH-6-CLOSEOUT-SYNC closure at `355b0f9…` + ARC-8-RUN-D closure (conversation-only audit) + RUN-D-DESIGN-SPEC current.
+- [x] RUN-D-DESIGN-SPEC: scope confirmed exactly 4 files (1 new SAFE-class handoff record at `orchestrator/handoffs/ARC-8-RUN-D-AUTOPILOT-BUILD-LOOP-RECORD.md` + 3 status doc updates at `orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, `orchestrator/NEXT-ACTION.md`); no `dashboard.js` / `bot.js` / `db.js` / `migrations/` / `scripts/` / `tests/` / `package*` / `playwright.config.js` / `.nvmrc` / `.env*` / `position.json` / `position.json.snap.20260502T020154Z` / `trades.csv` / deploy-config touched; no safety-policy doc touched; no other handoff record modified.
+- [x] RUN-D-DESIGN-SPEC: DASH-6-LIVE-BOUNDARY-SMOKE remains DEFERRED (Mode 5 by structural rule per Codex DASH-6 round-2 PATH-B-VIOLATION; Path 3 deferral chosen at design time); next supervised cycle's master order remains operator-directed and is not pre-authorized by this codification.
+- [x] RUN-D-DESIGN-SPEC: Relay runtime authoring NOT authorized; Relay repo creation NOT authorized; Relay runtime deployment NOT authorized; Relay Stage 5 install resumption (Steps 14–21) NOT authorized; Relay remains in shelved state preserved.
+- [x] RUN-D-DESIGN-SPEC: Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` remains CONSUMED; cannot be reused; preserved.
+- [x] RUN-D-DESIGN-SPEC: phase-mode binding verified — DOCS-ONLY only contains the new SAFE-class record codifying the conversation-only Phase 11 audit + status doc updates; no "approved" markers for downstream phases; no RED-action instructions; no live-trading-path mutations; no runtime / source / test / migration / script / package / lockfile / env / `.nvmrc` / `position.json` / deploy-config / safety-policy / handoff-template / prompt-template file touched.
+- [x] RUN-D-DESIGN-SPEC: forbidden-content compliance verified — no secrets, env values, prod-DB content, live Kraken endpoints, live order IDs, live position data, live SL/TP/SELL_ALL values, live balance figures, deploy commands, migration-apply commands, MCP / scheduler / webhook installs, Relay runtime install, automation-authority widening, or approval-like language not from operator; full compliance with `orchestrator/HANDOFF-RULES.md` "Forbidden content" list.
+- [x] RUN-D-DESIGN-SPEC: classified as operator-directed manual; not autopilot-driven; does NOT advance autopilot phase-loop counter; does NOT break CEILING-PAUSE (CEILING-PAUSE remains broken via ARC-8-UNPAUSE).
+- [x] RUN-D-DESIGN-SPEC: Migration 008 remains APPLIED at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877` preserved; N-3 remains closed preserved; set of approvers remains exactly `{Victor}` preserved; autopilot runtime DORMANT preserved; working tree clean except pre-existing untracked position.json.snap.20260502T020154Z; snap remains untracked, unstaged, and unmodified.
+- [x] RUN-D-DESIGN-SPEC: no deploy / Railway / Kraken / production DB / migrations / env changes / `MANUAL_LIVE_ARMED` change / live trading execution / autopilot activation / Relay resumption / DASH-6-LIVE-BOUNDARY-SMOKE / next-cycle execution work was authorized by this codification — purely descriptive persistence of the Phase 11 audit.
 
 ## N-2x Migration 008 Runbook Track
 
@@ -1550,21 +1550,21 @@ COMM-HUB-RENAME-RELAY-FILES was Cycle 2 Phase 1 of CYCLE-2-CLEANUP-AND-LIVE-SAFE
 - [x] Cycle 2 Phase 1: pushed to origin/main; fast-forward `5541fb6..82310b5 main -> main`; three-way SHA consistency PASS verified post-push.
 - [x] Cycle 2 Phase 1: closed at `82310b52452cd799eb26ea43e64f936bd3baa974`.
 
-## COMM-HUB-RENAME-RELAY-FILES-CLOSEOUT-SYNC — Cycle 2 Phase 2 — In Progress
+## COMM-HUB-RENAME-RELAY-FILES-CLOSEOUT-SYNC — Cycle 2 Phase 2 — Closed at `c9c44e8fb09b572073d84770a72e2b564c586262`
 
 COMM-HUB-RENAME-RELAY-FILES-CLOSEOUT-SYNC is Cycle 2 Phase 2 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DOCS-ONLY (Mode 3) operator-directed phase rolling in three stale-tail closures (RUN-D-DESIGN-SPEC at `aaf169e783415a160daf774db761d34aa705867c`; Phase A at `5541fb6f92d84028ac762b1c54ff32808868d2a9`; Phase 1 at `82310b52452cd799eb26ea43e64f936bd3baa974`) into the journal docs. Scope: 3 status doc files only.
 
-- [ ] Cycle 2 Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS with 3 stale-tail closures rolled in.
-- [ ] Cycle 2 Phase 2: STATUS.md phase table extended with 4 new rows (Phase 2 IN PROGRESS + Phase 1 / Phase A / RUN-D-DESIGN-SPEC CLOSED).
-- [ ] Cycle 2 Phase 2: STATUS.md Closeout Note prepended with new entries for the 3 closures.
-- [ ] Cycle 2 Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS.
-- [ ] Cycle 2 Phase 2: NEXT-ACTION.md chain summary extended through Cycle 2 Phase 1.
-- [ ] Cycle 2 Phase 2: NEXT-ACTION.md phase chain extended with new SHAs (RUN-D / Phase A / Phase 1) + new (current — Phase 2) marker.
-- [ ] Cycle 2 Phase 2: CHECKLIST.md new sections added for RUN-D-DESIGN-SPEC closed + Phase A closed + Cycle 2 Phase 1 closed + Phase 2 in progress.
-- [ ] Cycle 2 Phase 2: scope discipline — 3 status doc files only; no other handoff record / runtime / test / migration / script / package / env / position / deploy-config touched; memory-file edits remain separate.
-- [ ] Cycle 2 Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
-- [ ] Cycle 2 Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
-- [ ] Cycle 2 Phase 2: closed at `<SHA TBD>`.
+- [x] Cycle 2 Phase 2: STATUS.md preamble flipped to record Phase 2 IN PROGRESS with 3 stale-tail closures rolled in.
+- [x] Cycle 2 Phase 2: STATUS.md phase table extended with 4 new rows (Phase 2 IN PROGRESS + Phase 1 / Phase A / RUN-D-DESIGN-SPEC CLOSED).
+- [x] Cycle 2 Phase 2: STATUS.md Closeout Note prepended with new entries for the 3 closures.
+- [x] Cycle 2 Phase 2: NEXT-ACTION.md Right Now block flipped to record Phase 2 IN PROGRESS.
+- [x] Cycle 2 Phase 2: NEXT-ACTION.md chain summary extended through Cycle 2 Phase 1.
+- [x] Cycle 2 Phase 2: NEXT-ACTION.md phase chain extended with new SHAs (RUN-D / Phase A / Phase 1) + new (current — Phase 2) marker.
+- [x] Cycle 2 Phase 2: CHECKLIST.md new sections added for RUN-D-DESIGN-SPEC closed + Phase A closed + Cycle 2 Phase 1 closed + Phase 2 in progress.
+- [x] Cycle 2 Phase 2: scope discipline — 3 status doc files only; no other handoff record / runtime / test / migration / script / package / env / position / deploy-config touched; memory-file edits remain separate.
+- [x] Cycle 2 Phase 2: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [x] Cycle 2 Phase 2: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [x] Cycle 2 Phase 2: closed at `c9c44e8fb09b572073d84770a72e2b564c586262`.
 
 ## DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN — Cycle 2 Phase 3 — Closed (conversation-only DESIGN-ONLY)
 
@@ -1620,18 +1620,18 @@ CYCLE-2-CLOSEOUT-AUDIT was Cycle 2 Phase 5 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DE
 - [x] Phase 5: 13/13 PASS; recommendation: GO on Phase 6.
 - [x] Phase 5: closed — conversation-only; no commit by the audit phase itself.
 
-## CYCLE-2-CLOSEOUT-SPEC — Cycle 2 Phase 6 — In Progress
+## CYCLE-2-CLOSEOUT-SPEC — Cycle 2 Phase 6 — Closed at `fe474d2d6b6d97a89b454d1dea1f9fd02ca20814`
 
 CYCLE-2-CLOSEOUT-SPEC is Cycle 2 Phase 6 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DOCS-ONLY (Mode 3) operator-directed phase that persists the Phase 5 CYCLE-2-CLOSEOUT-AUDIT report as a permanent SAFE-class handoff record at `orchestrator/handoffs/CYCLE-2-CLOSEOUT.md` and rolls in two stale-tail closures (Phase 4 at `5e6f65cd80d71e1f8eca05a4df1e1da098d3a42b`; Phase 5 conversation-only). Mirrors RUN-D-DESIGN-SPEC pattern. Cycle 2 substantively complete after this commit lands and is pushed.
 
-- [ ] Phase 6: new SAFE-class handoff record drafted at `orchestrator/handoffs/CYCLE-2-CLOSEOUT.md` (16 sections).
-- [ ] Phase 6: STATUS.md preamble flipped to record Phase 6 IN PROGRESS + Phase 4 CLOSED at SHA + Phase 5 CLOSED conversation-only.
-- [ ] Phase 6: STATUS.md phase table flipped Phase 4 IN PROGRESS → CLOSED + 2 new rows added (Phase 6 IN PROGRESS + Phase 5 CLOSED).
-- [ ] Phase 6: STATUS.md Closeout Note prepended with new entries.
-- [ ] Phase 6: NEXT-ACTION.md Right Now block flipped to record Phase 6 IN PROGRESS embedding Phase 4 + Phase 5 closures.
-- [ ] Phase 6: NEXT-ACTION.md phase chain extended with Phase 4 SHA + Phase 5 + Phase 6 (current — ...) marker.
-- [ ] Phase 6: CHECKLIST.md Phase 4 section flipped from In Progress to Closed at SHA + new Phase 5 closed section + new Phase 6 in progress section.
-- [ ] Phase 6: scope discipline — 4 files only (1 new SAFE-class record + 3 status doc updates); no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config touched; memory-file edits remain separate.
-- [ ] Phase 6: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
-- [ ] Phase 6: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
-- [ ] Phase 6: closed at `<SHA TBD>`; Cycle 2 substantively complete and persisted.
+- [x] Phase 6: new SAFE-class handoff record drafted at `orchestrator/handoffs/CYCLE-2-CLOSEOUT.md` (16 sections).
+- [x] Phase 6: STATUS.md preamble flipped to record Phase 6 IN PROGRESS + Phase 4 CLOSED at SHA + Phase 5 CLOSED conversation-only.
+- [x] Phase 6: STATUS.md phase table flipped Phase 4 IN PROGRESS → CLOSED + 2 new rows added (Phase 6 IN PROGRESS + Phase 5 CLOSED).
+- [x] Phase 6: STATUS.md Closeout Note prepended with new entries.
+- [x] Phase 6: NEXT-ACTION.md Right Now block flipped to record Phase 6 IN PROGRESS embedding Phase 4 + Phase 5 closures.
+- [x] Phase 6: NEXT-ACTION.md phase chain extended with Phase 4 SHA + Phase 5 + Phase 6 (current — ...) marker.
+- [x] Phase 6: CHECKLIST.md Phase 4 section flipped from In Progress to Closed at SHA + new Phase 5 closed section + new Phase 6 in progress section.
+- [x] Phase 6: scope discipline — 4 files only (1 new SAFE-class record + 3 status doc updates); no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config touched; memory-file edits remain separate.
+- [x] Phase 6: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [x] Phase 6: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [x] Phase 6: closed at `fe474d2d6b6d97a89b454d1dea1f9fd02ca20814`; Cycle 2 substantively complete and persisted.
