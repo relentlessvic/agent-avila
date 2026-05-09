@@ -1584,18 +1584,54 @@ DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN was Cycle 2 Phase 3 of CYCLE-2-CLEANUP-AND-LIV
 - [x] Phase 3: preservation invariants explicit (Migration 008 applied; N-3 closed; Relay dormant; Autopilot dormant; approvers exactly {Victor}; no live trading authorized).
 - [x] Phase 3: closed — conversation-only; no commit by the design phase itself.
 
-## DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN-SPEC — Cycle 2 Phase 4 — In Progress
+## DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN-SPEC — Cycle 2 Phase 4 — Closed at `5e6f65cd80d71e1f8eca05a4df1e1da098d3a42b`
 
 DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN-SPEC is Cycle 2 Phase 4 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DOCS-ONLY (Mode 3) operator-directed phase persisting the Codex-cleared Cycle 2 Phase 3 design as a permanent SAFE-class handoff record at `orchestrator/handoffs/DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN.md`. Mirrors DASH-1 / DASH-3 / DASH-4 / DASH-5 design-spec codification pattern. Scope: 4-file commit (1 new SAFE-class record + 3 status doc updates). Design HEAD baseline `c9c44e8fb09b572073d84770a72e2b564c586262`.
 
-- [ ] Phase 4: new SAFE-class handoff record drafted at orchestrator/handoffs/DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN.md with full design content (§1 phase scope, §2 PATH-B-VIOLATION resolution, §3 sub-phase scope, §4 5-layer mocking architecture, §5 per-sub-phase test assertion plan, §6 safety boundaries, §7 approval gate matrix, §8 file-system delta, §9 Codex review history, §10 out of scope, §11 phase chain forward, §12 preservation invariants, §13 risk notes, §14 references, §15 change history).
-- [ ] Phase 4: STATUS.md preamble flipped to record Phase 4 IN PROGRESS + Phase 3 CLOSED.
-- [ ] Phase 4: STATUS.md phase table extended with 2 new rows (Phase 4 IN PROGRESS + Phase 3 CLOSED).
-- [ ] Phase 4: STATUS.md Closeout Note prepended with new entries.
-- [ ] Phase 4: NEXT-ACTION.md Right Now block flipped to record Phase 4 IN PROGRESS.
-- [ ] Phase 4: NEXT-ACTION.md phase chain extended with Phase 3 + Phase 4 + new (current — Phase 4) marker.
-- [ ] Phase 4: CHECKLIST.md new sections added for Phase 3 closed + Phase 4 in progress.
-- [ ] Phase 4: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / env / position / deploy-config / playwright config touched; memory-file edits remain separate.
-- [ ] Phase 4: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
-- [ ] Phase 4: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
-- [ ] Phase 4: closed at `<SHA TBD>`.
+- [x] Phase 4: new SAFE-class handoff record drafted at orchestrator/handoffs/DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN.md with full design content (§1 phase scope, §2 PATH-B-VIOLATION resolution, §3 sub-phase scope, §4 5-layer mocking architecture, §5 per-sub-phase test assertion plan, §6 safety boundaries, §7 approval gate matrix, §8 file-system delta, §9 Codex review history, §10 out of scope, §11 phase chain forward, §12 preservation invariants, §13 risk notes, §14 references, §15 change history).
+- [x] Phase 4: STATUS.md preamble flipped to record Phase 4 IN PROGRESS + Phase 3 CLOSED.
+- [x] Phase 4: STATUS.md phase table extended with 2 new rows (Phase 4 IN PROGRESS + Phase 3 CLOSED).
+- [x] Phase 4: STATUS.md Closeout Note prepended with new entries.
+- [x] Phase 4: NEXT-ACTION.md Right Now block flipped to record Phase 4 IN PROGRESS.
+- [x] Phase 4: NEXT-ACTION.md phase chain extended with Phase 3 + Phase 4 + new (current — Phase 4) marker.
+- [x] Phase 4: CHECKLIST.md new sections added for Phase 3 closed + Phase 4 in progress.
+- [x] Phase 4: scope discipline — 4 files only; no other handoff record / runtime / test / migration / script / package / env / position / deploy-config / playwright config touched; memory-file edits remain separate.
+- [x] Phase 4: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [x] Phase 4: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [x] Phase 4: closed at `5e6f65cd80d71e1f8eca05a4df1e1da098d3a42b`.
+
+## CYCLE-2-CLOSEOUT-AUDIT — Cycle 2 Phase 5 — Closed (conversation-only READ-ONLY AUDIT)
+
+CYCLE-2-CLOSEOUT-AUDIT was Cycle 2 Phase 5 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. READ-ONLY AUDIT (Mode 1) conversation-only phase that verified Cycle 2 completion state via 13 audit checks. No commit by the audit phase itself.
+
+- [x] Phase 5: three-way SHA consistency verified at `5e6f65cd80d71e1f8eca05a4df1e1da098d3a42b` (HEAD = origin/main = ls-remote).
+- [x] Phase 5: working tree clean except carve-out (`?? position.json.snap.20260502T020154Z`).
+- [x] Phase 5: Phase 1 closed at `82310b52452cd799eb26ea43e64f936bd3baa974` verified via `git log`.
+- [x] Phase 5: Phase 2 closed at `c9c44e8fb09b572073d84770a72e2b564c586262` verified via `git log`.
+- [x] Phase 5: Phase 3 closed conversation-only with Codex round-2 PASS verified via handoff record §9 / §11.
+- [x] Phase 5: Phase 4 closed at `5e6f65cd80d71e1f8eca05a4df1e1da098d3a42b` verified via `git log`.
+- [x] Phase 5: Phase 4 handoff file exists at `orchestrator/handoffs/DASH-6-LIVE-BOUNDARY-SMOKE-DESIGN.md` (23360 bytes).
+- [x] Phase 5: Phase 6 separately gated verified via handoff record §11.
+- [x] Phase 5: future DASH-6-LIVE-BOUNDARY-SMOKE-IMPL Mode 5 by structural rule + separately gated + not authorized verified.
+- [x] Phase 5: future test execution separately gated verified via handoff record §7 / §11.
+- [x] Phase 5: `playwright.config.js` modification NOT pre-authorized verified.
+- [x] Phase 5: no `dashboard.js` runtime change planned verified via handoff record §8.
+- [x] Phase 5: no forbidden-surface activity since Phase 4 push verified via `git diff c9c44e8..HEAD --name-only`.
+- [x] Phase 5: 13/13 PASS; recommendation: GO on Phase 6.
+- [x] Phase 5: closed — conversation-only; no commit by the audit phase itself.
+
+## CYCLE-2-CLOSEOUT-SPEC — Cycle 2 Phase 6 — In Progress
+
+CYCLE-2-CLOSEOUT-SPEC is Cycle 2 Phase 6 of CYCLE-2-CLEANUP-AND-LIVE-SAFETY-DESIGN. DOCS-ONLY (Mode 3) operator-directed phase that persists the Phase 5 CYCLE-2-CLOSEOUT-AUDIT report as a permanent SAFE-class handoff record at `orchestrator/handoffs/CYCLE-2-CLOSEOUT.md` and rolls in two stale-tail closures (Phase 4 at `5e6f65cd80d71e1f8eca05a4df1e1da098d3a42b`; Phase 5 conversation-only). Mirrors RUN-D-DESIGN-SPEC pattern. Cycle 2 substantively complete after this commit lands and is pushed.
+
+- [ ] Phase 6: new SAFE-class handoff record drafted at `orchestrator/handoffs/CYCLE-2-CLOSEOUT.md` (16 sections).
+- [ ] Phase 6: STATUS.md preamble flipped to record Phase 6 IN PROGRESS + Phase 4 CLOSED at SHA + Phase 5 CLOSED conversation-only.
+- [ ] Phase 6: STATUS.md phase table flipped Phase 4 IN PROGRESS → CLOSED + 2 new rows added (Phase 6 IN PROGRESS + Phase 5 CLOSED).
+- [ ] Phase 6: STATUS.md Closeout Note prepended with new entries.
+- [ ] Phase 6: NEXT-ACTION.md Right Now block flipped to record Phase 6 IN PROGRESS embedding Phase 4 + Phase 5 closures.
+- [ ] Phase 6: NEXT-ACTION.md phase chain extended with Phase 4 SHA + Phase 5 + Phase 6 (current — ...) marker.
+- [ ] Phase 6: CHECKLIST.md Phase 4 section flipped from In Progress to Closed at SHA + new Phase 5 closed section + new Phase 6 in progress section.
+- [ ] Phase 6: scope discipline — 4 files only (1 new SAFE-class record + 3 status doc updates); no other handoff record / runtime / test / migration / script / package / playwright / env / position / deploy-config touched; memory-file edits remain separate.
+- [ ] Phase 6: Codex DOCS-ONLY review submitted; verdict PASS or PASS WITH REQUIRED EDITS → required edits applied → re-review until clean PASS.
+- [ ] Phase 6: operator commit + push approval; commit lands on origin/main; three-way SHA consistency PASS verified post-push.
+- [ ] Phase 6: closed at `<SHA TBD>`; Cycle 2 substantively complete and persisted.
