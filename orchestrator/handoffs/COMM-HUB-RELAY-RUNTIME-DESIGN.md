@@ -144,7 +144,7 @@ This design is derivative of the existing canonical Relay safety-policy + handof
                 │                     │            │
                 ▼                     ▼            │
        ┌────────────────┐    ┌────────────────┐   │
-       │   HALT (log    │    │ HERMES_MODE    │   │
+       │   HALT (log    │    │ RELAY_MODE    │   │
        │  anomaly id +  │    │   check:       │   │
        │  context;      │    │   dry_run vs   │   │
        │  exit; no auto │    │   production?  │   │
@@ -354,12 +354,12 @@ Relay runtime reads exactly these env vars — and no others — from the Railwa
 | Env var | Type | Source | Purpose | Validation rules |
 |---|---|---|---|---|
 | `DISCORD_BOT_TOKEN` | secret | Railway secret variable (already populated in Stage 5 Step 7.2) | Authenticate Relay to Discord gateway | Must be non-empty; must match Discord bot token format (regex check); never logged in plain text |
-| `HERMES_MODE` | non-secret | Railway env variable (operator-set) | `production` \| `dry_run` | Must be exactly one of the two values; halt on any other value |
+| `RELAY_MODE` | non-secret | Railway env variable (operator-set) | `production` \| `dry_run` | Must be exactly one of the two values; halt on any other value |
 | `LOG_LEVEL` | non-secret | Railway env variable (operator-set) | `debug` \| `info` \| `warn` \| `error` | Must be one of four; defaults to `info` |
 | `LOG_DESTINATION` | non-secret | Railway env variable (operator-set) | `stdout` \| `file:/path/to/log` (host-side path) | Must match one of two formats; halt on invalid |
 | `MESSAGE_STORE_PATH` | non-secret | Railway env variable (operator-set) | Path to the source-of-truth append-only message store (read-only by Relay) | Must be an absolute filesystem path; must exist; must be readable by the Relay process user; halt on missing/unreadable |
 | `PUBLISH_LOG_PATH` | non-secret | Railway env variable (operator-set) | Path to the Relay-private append-only publish log (write-only-append by Relay) | Must be an absolute filesystem path; must be writable; must be append-only (Relay never seeks/truncates); halt on missing/unwritable |
-| `DRY_RUN_LOG_PATH` | non-secret | Railway env variable (operator-set; required when `HERMES_MODE=dry_run`) | Path to the dry-run `would_have_published` log; SEPARATE from `PUBLISH_LOG_PATH` | Must be an absolute filesystem path; must be different from `PUBLISH_LOG_PATH`; halt on collision |
+| `DRY_RUN_LOG_PATH` | non-secret | Railway env variable (operator-set; required when `RELAY_MODE=dry_run`) | Path to the dry-run `would_have_published` log; SEPARATE from `PUBLISH_LOG_PATH` | Must be an absolute filesystem path; must be different from `PUBLISH_LOG_PATH`; halt on collision |
 | `CEILING_PAUSE_SIGNAL_PATH` | non-secret | Railway env variable (operator-set) | Path to a controlled signal file that indicates CEILING-PAUSE state (`ACTIVE` / `BROKEN`) | Must be readable; must contain exactly `ACTIVE` or `BROKEN`; halt on `ACTIVE` per Relay spec line 149 |
 | `HERMES_VERSION` | non-secret | Railway env variable (set by build/CI; non-secret) | The Relay runtime version identifier (e.g., `1.0.0` or git commit SHA short form) | Logged at boot; not validated beyond "non-empty" |
 
@@ -369,7 +369,7 @@ Relay runtime reads exactly these env vars — and no others — from the Railwa
 
 At process boot, Relay runs an explicit env-var validation step (in `src/config.js`):
 
-1. Verify all 8 baseline required env vars are present (or 9 if `HERMES_MODE=dry_run` requires `DRY_RUN_LOG_PATH`).
+1. Verify all 8 baseline required env vars are present (or 9 if `RELAY_MODE=dry_run` requires `DRY_RUN_LOG_PATH`).
 2. Validate each var's format per the rules above.
 3. Verify NO forbidden env var is present (see §9).
 4. Halt-on-anomaly if any check fails.
@@ -431,7 +431,7 @@ Relay MUST NOT have any of the following env vars present at runtime. Their pres
 | Endpoint class | Specific hostname(s) | Purpose |
 |---|---|---|
 | Discord gateway | `gateway.discord.gg` (and any Discord-published gateway endpoint at deploy time; resolved via Discord's `Get Gateway Bot` REST endpoint at boot) | Relay gateway IDENTIFY + READY (one-way; receives no message events) |
-| Discord REST API | `discord.com` (specifically `discord.com/api/v10/...` REST paths) | Relay `Send Message` calls when `HERMES_MODE=production`; `View Channels` channel-list inspection (read-only metadata, NOT message content) |
+| Discord REST API | `discord.com` (specifically `discord.com/api/v10/...` REST paths) | Relay `Send Message` calls when `RELAY_MODE=production`; `View Channels` channel-list inspection (read-only metadata, NOT message content) |
 | DNS resolver | Operator-configured (Railway-provided default) | Resolve Discord hostnames |
 | TLS / certificate-authority validation | Operator-configured CA bundle | Verify Discord TLS certificates |
 
@@ -642,7 +642,7 @@ This filesystem permission set means: Relay cannot inject its own messages, cann
     },
     "dry_run": {
       "type": "boolean",
-      "description": "If true, Relay routes through the dry-run path even if HERMES_MODE=production. If HERMES_MODE=dry_run and dry_run=false, halt class 'dry_run flag mismatch'."
+      "description": "If true, Relay routes through the dry-run path even if RELAY_MODE=production. If RELAY_MODE=dry_run and dry_run=false, halt class 'dry_run flag mismatch'."
     }
   }
 }
@@ -673,7 +673,7 @@ Before any publish (real or dry-run), Relay runs **11 verification gates** in or
 | 8 | Character / rate limit | Post-substitution `body` ≤ 2000 chars (Discord limit); also ≤ per-channel rate cap (5 messages per phase for `#status`, etc.) | "character-limit exceeded" or "rate-limit hit" |
 | 9 | Network allow-list / egress-anomaly verification | Verify the runtime-side allowlist hook is active and intact (Layer 2 of §10); confirm the most recent egress event log shows only Discord-API hostnames; if any non-allow-listed egress is recorded since last check or if the hook itself is missing, fail. | "network anomaly (egress to non-allow-listed endpoint)" (per Relay spec line 148 canonical halt class 6) |
 | 10 | Forbidden-content scan | Body does not contain any pattern from `orchestrator/HANDOFF-RULES.md` + `orchestrator/COMM-HUB-RULES.md` forbidden lists (no secrets, no env values, no Kraken/DB/Railway data, no `MANUAL_LIVE_ARMED`, no `position.json` fragments, no approval-like language not from Victor, etc.) | "forbidden-content scan trip" |
-| 11 | `dry_run` flag consistency | If `HERMES_MODE=dry_run`, the message MUST have `dry_run=true`; if `HERMES_MODE=production`, message MAY have either value but `dry_run=true` routes through the dry-run path | "dry_run flag mismatch" |
+| 11 | `dry_run` flag consistency | If `RELAY_MODE=dry_run`, the message MUST have `dry_run=true`; if `RELAY_MODE=production`, message MAY have either value but `dry_run=true` routes through the dry-run path | "dry_run flag mismatch" |
 
 ### Gate-9 (network anomaly) rationale
 
@@ -695,8 +695,8 @@ Gates run in the order above because:
 ### After all 11 gates PASS
 
 Relay routes:
-- If `HERMES_MODE=production` AND `dry_run=false`: real `Send Message` API call. On success: append `outcome=success` to `$PUBLISH_LOG_PATH` with `message_id` + `channel_id` + timestamp; move file to `$MESSAGE_STORE_PATH/processed/`. On failure (network anomaly, Discord rate limit, etc.): halt class "publish-attempt-failed".
-- If `HERMES_MODE=dry_run` OR `dry_run=true`: write `would_have_published` entry to `$DRY_RUN_LOG_PATH` with the full message. Move file to `$MESSAGE_STORE_PATH/processed/`. Do NOT write to `$PUBLISH_LOG_PATH` (that's reserved for real publishes only).
+- If `RELAY_MODE=production` AND `dry_run=false`: real `Send Message` API call. On success: append `outcome=success` to `$PUBLISH_LOG_PATH` with `message_id` + `channel_id` + timestamp; move file to `$MESSAGE_STORE_PATH/processed/`. On failure (network anomaly, Discord rate limit, etc.): halt class "publish-attempt-failed".
+- If `RELAY_MODE=dry_run` OR `dry_run=true`: write `would_have_published` entry to `$DRY_RUN_LOG_PATH` with the full message. Move file to `$MESSAGE_STORE_PATH/processed/`. Do NOT write to `$PUBLISH_LOG_PATH` (that's reserved for real publishes only).
 
 **Maps to requirements:** R5, R6, R12, R13, R14, R15, R16, R17, R19.
 
@@ -768,7 +768,7 @@ Per the corrected halt model in `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-D
 
 ### Layer 2: 9 dry-run-specific halt classes (from `COMM-HUB-HERMES-DRY-RUN-DESIGN.md`)
 
-11. `HERMES_MODE` missing or not `dry_run` while expected
+11. `RELAY_MODE` missing or not `dry_run` while expected
 12. Test message lacks `dry_run: true` flag while in dry-run mode
 13. Dry-run branch bypassed (publish path reached real Send Message) — IMMEDIATE HALT + ABORT
 14. Dry-run log write failure
@@ -781,7 +781,7 @@ Per the corrected halt model in `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-D
 ### Layer 3: 9 runtime-design-specific halt classes (new in this design)
 
 20. **Forbidden env var present at boot.** Any env var matching the §9 forbidden-list pattern is detected at boot. Halt + log + exit.
-21. **Required env var missing at boot.** Any of the 8 baseline required env vars from §8 is absent or invalid format (or 9 if `HERMES_MODE=dry_run` requires `DRY_RUN_LOG_PATH`). Halt + log + exit.
+21. **Required env var missing at boot.** Any of the 8 baseline required env vars from §8 is absent or invalid format (or 9 if `RELAY_MODE=dry_run` requires `DRY_RUN_LOG_PATH`). Halt + log + exit.
 22. **Filesystem isolation violation.** Relay filesystem unexpectedly contains `bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `package.json` of trading runtime, `.env*`, `position.json`, or any file from `relentlessvic/agent-avila` (R12). Detected via boot-time `find` + halt.
 23. **Network allowlist hook bypass.** An outbound HTTP request reaches the allowlist hook to a hostname not in the allow-list. Halt + log + exit + immediate token-revocation recommendation.
 24. **Source-of-truth message store unreadable / unmounted.** `$MESSAGE_STORE_PATH` does not exist or is not readable. Halt at boot.
@@ -814,7 +814,7 @@ Relay never auto-resumes after a halt. Even if the underlying anomaly resolves, 
 
 | Event | Log level | Content |
 |---|---|---|
-| Boot | `info` | hermes_version, HERMES_MODE, MESSAGE_STORE_PATH, gateway IDENTIFY success, READY event received |
+| Boot | `info` | hermes_version, RELAY_MODE, MESSAGE_STORE_PATH, gateway IDENTIFY success, READY event received |
 | Message ingest | `debug` | `message_id`, `channel_name`, file path |
 | Gate verification | `debug` | gate name, pass/fail, brief reason on fail (no body content) |
 | Publish (real) | `info` | `message_id`, `channel_id`, timestamp, `outcome=success` |
@@ -859,11 +859,11 @@ Operator can `cat` / `tail` / `grep` log files directly. The redaction rules ens
 
 ## §17 — Dry-run / no-publish test mode
 
-**`HERMES_MODE=dry_run` env var gates the publish path.** Real `Send Message` API call is replaced with `would_have_published` log write. The 11 verification gates run normally. Test fixtures from `COMM-HUB-HERMES-DRY-RUN-DESIGN.md` §4 are reused (10 anomaly-injection cases + 3 sample-channel messages).
+**`RELAY_MODE=dry_run` env var gates the publish path.** Real `Send Message` API call is replaced with `would_have_published` log write. The 11 verification gates run normally. Test fixtures from `COMM-HUB-HERMES-DRY-RUN-DESIGN.md` §4 are reused (10 anomaly-injection cases + 3 sample-channel messages).
 
 ### Dry-run mode definition
 
-When `HERMES_MODE=dry_run`:
+When `RELAY_MODE=dry_run`:
 
 1. All 11 verification gates run (§13).
 2. At gate 11, the `dry_run` flag check is enforced: every message MUST have `dry_run: true` (defense-in-depth; halt class 12 if absent).
@@ -884,7 +884,7 @@ When `HERMES_MODE=dry_run`:
 
 This was canonically defined in the dry-run design §1. Reproduced for the runtime design:
 
-1. Boot Relay process with `HERMES_MODE=dry_run`.
+1. Boot Relay process with `RELAY_MODE=dry_run`.
 2. Verify env-var validation passes.
 3. Discord gateway IDENTIFY + READY (read-only authentication; no message events listened to).
 4. Channel-list inspection: list 3 allowed channels by id; verify 4 forbidden channels are NOT in the bot's visible-channel list.
@@ -897,9 +897,9 @@ This was canonically defined in the dry-run design §1. Reproduced for the runti
 
 ### Mode flag safety
 
-`HERMES_MODE` MUST be set to `production` for real publishes and `dry_run` for tests. Halt classes prevent ambiguity:
-- Halt 11: `HERMES_MODE` missing or not `dry_run` while operator expected dry-run (e.g., environment misconfiguration).
-- Halt 12: `dry_run: true` flag missing on a message when `HERMES_MODE=dry_run`.
+`RELAY_MODE` MUST be set to `production` for real publishes and `dry_run` for tests. Halt classes prevent ambiguity:
+- Halt 11: `RELAY_MODE` missing or not `dry_run` while operator expected dry-run (e.g., environment misconfiguration).
+- Halt 12: `dry_run: true` flag missing on a message when `RELAY_MODE=dry_run`.
 - Halt 13: dry-run branch bypassed and publish path reached real Send Message → IMMEDIATE HALT + ABORT + recommendation to revoke the bot token.
 
 **Maps to requirements:** R18.
@@ -1001,7 +1001,7 @@ The Codex docs-only review at the end of this design phase should answer these q
 10. Is the idempotency mechanism (Relay-private append-only publish log + orchestrator-side keys) sufficient to guarantee no duplicate publishes?
 11. Are the 28 halt classes (10 canonical + 9 dry-run + 9 runtime-design-specific) complete? Any missing halt condition?
 12. Does the logging discipline (pino + redaction) guarantee no secrets in logs?
-13. Is the dry-run mode (`HERMES_MODE=dry_run` + `dry_run: true` flag) bulletproof against accidental real publishes?
+13. Is the dry-run mode (`RELAY_MODE=dry_run` + `dry_run: true` flag) bulletproof against accidental real publishes?
 14. Does the 3-layer Discord-read isolation proof (permission + code + halt) provide defense in depth?
 15. Does the 3-layer trading-touch isolation proof (filesystem + env + network) provide defense in depth?
 16. Are forbidden dependencies (kraken-api, pg, dotenv, openai SDK, modern cloud SDK families, etc.) explicitly excluded?
