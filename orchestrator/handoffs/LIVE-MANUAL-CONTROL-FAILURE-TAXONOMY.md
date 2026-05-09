@@ -21,7 +21,7 @@ DASH-5.D-LIVE-MANUAL-CONTROL-FAILURE-TAXONOMY-CODIFICATION codifies the 7-class 
 
 **Out of scope:**
 - Any edit to `dashboard.js`, `bot.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.env`, `.env.example`, `.nvmrc`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
-- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `BLUEPRINT.md`, `AUTOPILOT-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-HERMES-RULES.md`, `CLAUDE.md`).
+- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `BLUEPRINT.md`, `AUTOPILOT-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-RELAY-RULES.md`, `CLAUDE.md`).
 - Any edit to other handoff records (`DASH-1-READ-STATE-AUDIT.md`, `ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN.md`, `DASH-3-POSITION-DISPLAY-CANONICALIZATION-DESIGN.md`, `DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN.md`, `DASH-5-LIVE-CONTROLS-DESIGN.md`, `D-5-12F-LIVE-SELLALL-DESIGN.md` — referenced but not modified).
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, autopilot runtime activation.
 - Any DASH-5.A / DASH-5.B / Phase 8 / Phase 9 / DASH-6 / Phase 11 work.

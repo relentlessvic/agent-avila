@@ -183,7 +183,7 @@ Future automation: after explicit Victor approval to install Relay (Gate 10), su
 
 ## Future Relay integration point
 
-**Canonical Relay spec:** `orchestrator/COMM-HUB-HERMES-RULES.md` (SAFE-class; filename retains `HERMES` literal pending COMM-HUB-RENAME-RELAY-FILES Phase B). The summary below is intentionally short; the canonical spec carries the full capability matrix, anti-execution boundaries, approval discipline (per-message through Stage 9; bounded class only at Stage 10a/10b with 7 documented bounds), idempotency mechanism (orchestrator-side keys + Relay-private append-only publish logs; **no Discord-side reads**), and staged activation path. If this section diverges from the canonical Relay spec, the canonical spec wins for Relay-specific detail.
+**Canonical Relay spec:** `orchestrator/COMM-HUB-RELAY-RULES.md` (SAFE-class; filename retains `HERMES` literal pending COMM-HUB-RENAME-RELAY-FILES Phase B). The summary below is intentionally short; the canonical spec carries the full capability matrix, anti-execution boundaries, approval discipline (per-message through Stage 9; bounded class only at Stage 10a/10b with 7 documented bounds), idempotency mechanism (orchestrator-side keys + Relay-private append-only publish logs; **no Discord-side reads**), and staged activation path. If this section diverges from the canonical Relay spec, the canonical spec wins for Relay-specific detail.
 
 **Relay** is the proposed future scheduled-summarizer / Discord-publisher role. Currently DORMANT.
 

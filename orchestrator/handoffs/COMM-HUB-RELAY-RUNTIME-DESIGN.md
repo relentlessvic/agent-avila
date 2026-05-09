@@ -8,10 +8,10 @@ Author: Operator-driven manual planning (Claude as orchestrator; future implemen
 Last updated: 2026-05-06 (COMM-HUB-DOCS-G-HERMES-RUNTIME-DESIGN-SPEC — DOCS-ONLY)
 Source-design HEAD: `01a449020cb97e817667557fadb2c80fc682479d` (the conversation-only design packet was Codex-PASS-verified at this HEAD after EDIT-1 through EDIT-5 corrections)
 Canonical references:
-- `orchestrator/COMM-HUB-HERMES-RULES.md` — canonical Relay specification (SAFE-class)
-- `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` — Relay Stage 5 install checklist (21-step manual sequence; Steps 1–13 complete; Steps 14–21 deferred)
+- `orchestrator/COMM-HUB-RELAY-RULES.md` — canonical Relay specification (SAFE-class)
+- `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` — Relay Stage 5 install checklist (21-step manual sequence; Steps 1–13 complete; Steps 14–21 deferred)
 - `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` — Stage 4 dry-run design (19 halt classes; 13 test fixtures)
-- `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md` — Stage 5 preconditions 12–15
+- `orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md` — Stage 5 preconditions 12–15
 - `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` — Stage 5 partial-install record (Steps 1–13 done; Steps 14–21 deferred; 3-step rollback path canonical in §7)
 - `orchestrator/COMM-HUB-RULES.md` — Communication Hub rulebook
 - `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` — channel/role/permission canonical matrix
@@ -25,11 +25,11 @@ Canonical references:
 
 **Output type:** conversation-only design packet (this document is its codification). No commit by the design phase itself. No file written by the design phase. No Discord / Railway / env / production / trading action by the design phase. Codification of the design (this current `COMM-HUB-DOCS-G-HERMES-RUNTIME-DESIGN-SPEC` phase) writes the design to disk as a docs-only commit; codification does NOT authorize implementation or deployment.
 
-**Stage in canonical Relay activation path:** between Stage 6 closeout (already done at `69b3790…` recording the partial Stage 5 install) and any future Stage 5 resumption. The canonical Relay spec staged-path (per `orchestrator/COMM-HUB-HERMES-RULES.md` §"Staged activation path" lines 274–289) does NOT include a runtime-design step explicitly because the spec assumed a runtime would already exist. This phase fills that gap retroactively as its own design track, separate from but compatible with the canonical staged path.
+**Stage in canonical Relay activation path:** between Stage 6 closeout (already done at `69b3790…` recording the partial Stage 5 install) and any future Stage 5 resumption. The canonical Relay spec staged-path (per `orchestrator/COMM-HUB-RELAY-RULES.md` §"Staged activation path" lines 274–289) does NOT include a runtime-design step explicitly because the spec assumed a runtime would already exist. This phase fills that gap retroactively as its own design track, separate from but compatible with the canonical staged path.
 
 **Codex review at end of draft:** Codex docs-only review with ~25 questions covering design content + safety properties. PASS gate before any future codification phase opens. Established review pattern (similar to COMM-HUB-DESIGN-DISCORD-INSTALL 15-Q, COMM-HUB-DESIGN-HERMES 8-Q, COMM-HUB-HERMES-DRY-RUN-DESIGN 20-Q).
 
-**Future codification (this current phase performs codification):** the codification commits this design to disk as `orchestrator/handoffs/COMM-HUB-HERMES-RUNTIME-DESIGN.md`. Any subsequent design revisions would require their own separately-approved DOCS-ONLY phase.
+**Future codification (this current phase performs codification):** the codification commits this design to disk as `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-DESIGN.md`. Any subsequent design revisions would require their own separately-approved DOCS-ONLY phase.
 
 **Future implementation (not authorized by this codification phase):** runtime authoring (writing actual Relay process code — Node.js modules, Discord client integration, halt-on-anomaly state machine, idempotency store, etc.) is a separate substantive implementation phase. Implementation is NOT a DOCS-ONLY phase; it would be SAFE IMPLEMENTATION or HIGH-RISK IMPLEMENTATION tier per `orchestrator/PHASE-MODES.md`. Implementation requires its own design + Codex code review + Victor approval cascade with fresh approvals.
 
@@ -37,12 +37,12 @@ Canonical references:
 
 **Hard limits this design preserves:**
 
-- Relay is governance-only and never a trading actor (per `orchestrator/AUTOMATION-PERMISSIONS.md` line 224 + `orchestrator/COMM-HUB-HERMES-RULES.md` line 37).
-- Relay has zero approval authority forever (per `COMM-HUB-HERMES-RULES.md` §"Approval discipline" line 160).
-- Relay never reads Discord channels (per `COMM-HUB-HERMES-RULES.md` §"Forbidden — explicit non-listener clause" line 106).
-- Relay never has `Read Message History` (per `COMM-HUB-HERMES-RULES.md` lines 88, 106).
-- Relay never posts to `#approvals`, `#codex-warnings`, or Category C (per `COMM-HUB-HERMES-RULES.md` §"Channel allow-list" line 222 + `COMM-HUB-CHANNEL-LAYOUT.md`).
-- Relay never auto-resumes after halt (per `COMM-HUB-HERMES-RULES.md` §"Anti-execution boundaries" item 7 line 148).
+- Relay is governance-only and never a trading actor (per `orchestrator/AUTOMATION-PERMISSIONS.md` line 224 + `orchestrator/COMM-HUB-RELAY-RULES.md` line 37).
+- Relay has zero approval authority forever (per `COMM-HUB-RELAY-RULES.md` §"Approval discipline" line 160).
+- Relay never reads Discord channels (per `COMM-HUB-RELAY-RULES.md` §"Forbidden — explicit non-listener clause" line 106).
+- Relay never has `Read Message History` (per `COMM-HUB-RELAY-RULES.md` lines 88, 106).
+- Relay never posts to `#approvals`, `#codex-warnings`, or Category C (per `COMM-HUB-RELAY-RULES.md` §"Channel allow-list" line 222 + `COMM-HUB-CHANNEL-LAYOUT.md`).
+- Relay never auto-resumes after halt (per `COMM-HUB-RELAY-RULES.md` §"Anti-execution boundaries" item 7 line 148).
 - CEILING-PAUSE remains active and not broken throughout this phase.
 - Migration 008 APPLIED at `189eb1be6ef6304d914671bdaedec44d389cf877`; N-3 CLOSED. Approvers exactly `{Victor}`.
 
@@ -85,10 +85,10 @@ This design is derivative of the existing canonical Relay safety-policy + handof
 
 | Canonical file | Last commit | Role for this design |
 |---|---|---|
-| `orchestrator/COMM-HUB-HERMES-RULES.md` | `96f56a4…` | SAFE-class Relay spec; 13 anti-execution boundaries; capability allow-list; staged activation path |
-| `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` | `e18f220…` | 21-step install checklist; partial-completed at Steps 1–13; Steps 14–21 deferred |
+| `orchestrator/COMM-HUB-RELAY-RULES.md` | `96f56a4…` | SAFE-class Relay spec; 13 anti-execution boundaries; capability allow-list; staged activation path |
+| `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` | `e18f220…` | 21-step install checklist; partial-completed at Steps 1–13; Steps 14–21 deferred |
 | `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` | `f58451a…` | Stage 4 dry-run design; 19 halt classes; sample test fixtures |
-| `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md` | `40f3137…` | Stage 5 preconditions 12–15 (host class A — Separate Railway service `agent-avila-hermes`; Discord API egress only; token-storage discipline; account good-standing) |
+| `orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md` | `40f3137…` | Stage 5 preconditions 12–15 (host class A — Separate Railway service `agent-avila-hermes`; Discord API egress only; token-storage discipline; account good-standing) |
 | `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` | `69b3790…` | Stage 5 partial-install record; Steps 1–13 done; Steps 14–21 deferred; CONSUMED Gate-10 approval |
 | `orchestrator/COMM-HUB-RULES.md` | `728f979…` | Communication Hub rulebook; per-message Codex pre-publish discipline |
 | `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` | `728f979…` | Channel/role/permission canonical matrix |
@@ -289,7 +289,7 @@ relentlessvic/agent-avila-hermes/
 **Forbidden in this repo (forever):**
 
 - Any trading-runtime file (`bot.js`, `dashboard.js`, `db.js`, `migrations/`, `scripts/`, `package.json` of the trading runtime, lockfiles of the trading runtime, `.nvmrc` of the trading runtime, `.env*` containing trading secrets, `position.json`).
-- Any orchestrator safety-policy doc (`COMM-HUB-HERMES-RULES.md`, `COMM-HUB-RULES.md`, etc. — those stay canonical in `relentlessvic/agent-avila`).
+- Any orchestrator safety-policy doc (`COMM-HUB-RELAY-RULES.md`, `COMM-HUB-RULES.md`, etc. — those stay canonical in `relentlessvic/agent-avila`).
 - Any secret value (`.env*` committed; bot tokens; API keys; etc.).
 - Any LLM-SDK dependency.
 
@@ -751,9 +751,9 @@ Two cases:
 
 **Total halt classes: 28.** Composed of three layers:
 
-### Layer 1: 10 canonical halt classes (from `COMM-HUB-HERMES-RULES.md`)
+### Layer 1: 10 canonical halt classes (from `COMM-HUB-RELAY-RULES.md`)
 
-Per the corrected halt model in `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` §7 (multi-section sourced from `COMM-HUB-HERMES-RULES.md` lines 148, 149, 154, 178):
+Per the corrected halt model in `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` §7 (multi-section sourced from `COMM-HUB-RELAY-RULES.md` lines 148, 149, 154, 178):
 
 1. Missing or stale Codex PASS metadata
 2. Missing/expired/exhausted/out-of-scope operator authorization metadata

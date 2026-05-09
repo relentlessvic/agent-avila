@@ -3,11 +3,9 @@
 > **Author rule:** This file is the canonical Relay specification for the Agent Avila Communication Hub. Relay is the planned future auto-publisher for `#status`, `#summaries`, and `#system-health` — currently DORMANT. **This spec is NOT authorization to install Relay, install a Discord bot, install a webhook, install a scheduler/MCP/cron/Ruflo/background automation, post to Discord, take a production action, take a trading action, or break CEILING-PAUSE.** Each future Relay activation step requires its own scoped operator-approved phase.
 >
 > **No Relay runtime, Discord bot, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
->
-> **Filename note:** This file's filename retains the historical `COMM-HUB-HERMES-RULES.md` literal pending the `COMM-HUB-RENAME-RELAY-FILES` Phase B. Cross-references throughout the repo continue to cite this filename verbatim during Phase A. After Phase B lands, filepaths will be updated atomically in a separate operator-authorized commit.
 
 Author: Operator-driven manual planning (Claude as orchestrator; future installs Victor-only)
-Last updated: 2026-05-08 (COMM-HUB-RENAME-RELAY-CONTENT — Mode 3 DOCS-ONLY; Batch 2 rename internal messenger Hermes → Relay; filename retained for COMM-HUB-RENAME-RELAY-FILES Phase B). Original spec authored 2026-05-05 by COMM-HUB-DOCS-C-HERMES-SPEC.
+Last updated: 2026-05-09 (COMM-HUB-RENAME-RELAY-FILES — Mode 3 DOCS-ONLY; Cycle 2 Phase 1 file rename Hermes → Relay; filename moved from `orchestrator/COMM-HUB-HERMES-RULES.md` to `orchestrator/COMM-HUB-RELAY-RULES.md` via `git mv`; cross-references updated atomically). Prior update: 2026-05-08 COMM-HUB-RENAME-RELAY-CONTENT Phase A (content rename Hermes → Relay; filename then retained pending Phase B). Original spec authored 2026-05-05 by COMM-HUB-DOCS-C-HERMES-SPEC.
 Classification: SAFE-class safety-policy doc per `orchestrator/PROTECTED-FILES.md` (modifications require Codex docs-only review + Victor commit + Victor push)
 
 Canonical references:
@@ -50,15 +48,15 @@ To avoid confusion with the external Nous Hermes Agent (an unrelated Nous/OpenRo
 ### What is preserved as "Hermes" (historical / factual)
 
 - **Phase names committed to git history.** `COMM-HUB-DOCS-G-HERMES-RUNTIME-DESIGN-SPEC` and its CLOSEOUT-SYNC variants; `COMM-HUB-HERMES-DRY-RUN-DESIGN-SPEC`; `COMM-HUB-INSTALL-HERMES-CHECKLIST-SPEC`; `COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL`; the original `COMM-HUB-DOCS-C-HERMES-SPEC` (this file's spec-creation phase); and the staged-activation phase identifiers below in the "Staged activation path" table (Stages 1 through EOL) are preserved verbatim. They are immutable once-or-historically used phase identifiers.
-- **Filenames retained pending Phase B.** This file (`orchestrator/COMM-HUB-HERMES-RULES.md`); `orchestrator/handoffs/COMM-HUB-HERMES-RUNTIME-DESIGN.md`; `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md`; `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md`.
-- **Filenames preserved permanently as historical artifacts.** `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` (records past dry-run); `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` (records Steps 1-13 install).
+- **Filenames renamed in Cycle 2 Phase 1 (`COMM-HUB-RENAME-RELAY-FILES`).** This file at `orchestrator/COMM-HUB-RELAY-RULES.md` (was `orchestrator/COMM-HUB-HERMES-RULES.md`); `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-DESIGN.md` (was `…COMM-HUB-HERMES-RUNTIME-DESIGN.md`); `orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md` (was `…COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md`); `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` (was `…COMM-HUB-INSTALL-HERMES-CHECKLIST.md`). Renamed via `git mv` (blame preserved); cross-references updated atomically in the same commit.
+- **Filenames preserved permanently as historical artifacts.** `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` (records past dry-run executed under the original "Hermes" name); `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md` (records Stage 5 Steps 1-13 install at SHA `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` under the original "Hermes" name).
 - **Railway service name `agent-avila-hermes`** — preserved as factual current state. Renaming the Railway service is an operator-led infrastructure phase outside the docs-only scope.
 - **SHA-anchored historical statements** — preserved verbatim because they record past state at named commits (e.g., "Hermes shelved at `17103c27…`"; "Hermes Stage 5 Gate-10 install approval at `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935` CONSUMED"; "Hermes Stage 5 Steps 1-13 completed at `40f3137e…`").
 - **Verbatim quotes from prior commit messages** — preserved exactly.
 
-### Phase B handoff (file renames, pending separate authorization)
+### Phase B handoff (file renames, completed in Cycle 2 Phase 1)
 
-The `COMM-HUB-RENAME-RELAY-FILES` Phase B will atomically rename the four forward-looking filenames listed above and update all cross-references in a single commit. `orchestrator/PROTECTED-FILES.md` will require updating in the same commit to reflect the new spec path. Until then, no filename changes occur.
+The `COMM-HUB-RENAME-RELAY-FILES` phase (Cycle 2 Phase 1, 2026-05-09) atomically renamed the four forward-looking filenames listed above and updated all cross-references in a single commit. `orchestrator/PROTECTED-FILES.md` row 41 was updated in the same commit to reflect the new canonical Relay spec path. The rename initiative across these four forward-looking files is now closed; the two historical filenames (`COMM-HUB-HERMES-DRY-RUN-DESIGN.md` and `COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md`) remain preserved permanently as historical artifacts.
 
 ---
 
@@ -262,7 +260,7 @@ Every Relay phase requires its own Codex docs-only review with sanitized prompt 
 | Gate | When | Scope |
 |---|---|---|
 | Codex design review | End of Stage 1 (`COMM-HUB-DESIGN-HERMES`) | Conversation-only design verification |
-| Codex SAFE-class spec review | End of Stage 2 (`COMM-HUB-DOCS-C-HERMES-SPEC` — wrote `COMM-HUB-HERMES-RULES.md`) | New SAFE-class doc + cross-references |
+| Codex SAFE-class spec review | End of Stage 2 (`COMM-HUB-DOCS-C-HERMES-SPEC` — wrote `COMM-HUB-RELAY-RULES.md`) | New SAFE-class doc + cross-references |
 | Codex install-checklist review | End of Stage 3 (`COMM-HUB-DOCS-D-HERMES-INSTALL-CHECKLIST`) | New install checklist template |
 | Codex dry-run design review | End of Stage 4 (`COMM-HUB-HERMES-DRY-RUN-DESIGN`) | Conversation-only dry-run plan |
 | Codex install-readiness review | End of Stage 5 (pre-install Gate-10 audit; before bot creation) | Final go/no-go for live install |
@@ -300,8 +298,8 @@ The set of approvers remains exactly `{Victor}` throughout. Relay never has appr
 | Stage | Phase identifier | Mode | Output | Approval class |
 |---|---|---|---|---|
 | 1 | `COMM-HUB-DESIGN-HERMES` | DESIGN-ONLY conversation | Design report (closed; Codex 8/8 PASS after one revision round) | Operator-directed manual; no commit |
-| 2 | `COMM-HUB-DOCS-C-HERMES-SPEC` | DOCS-ONLY | This file (`orchestrator/COMM-HUB-HERMES-RULES.md`) + cross-reference updates + 3 status docs | Commit-only + push |
-| 3 | `COMM-HUB-DOCS-D-HERMES-INSTALL-CHECKLIST` | DOCS-ONLY | New `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` + 3 status docs | Commit-only + push |
+| 2 | `COMM-HUB-DOCS-C-HERMES-SPEC` | DOCS-ONLY | This file (`orchestrator/COMM-HUB-RELAY-RULES.md`) + cross-reference updates + 3 status docs | Commit-only + push |
+| 3 | `COMM-HUB-DOCS-D-HERMES-INSTALL-CHECKLIST` | DOCS-ONLY | New `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` + 3 status docs | Commit-only + push |
 | 4 | `COMM-HUB-HERMES-DRY-RUN-DESIGN` | DESIGN-ONLY conversation | Dry-run plan (no install) | Operator-directed manual; no commit |
 | 5 | `COMM-HUB-HERMES-INSTALL` | OPERATOR-DIRECTED MANUAL INSTALL | Live install — Discord bot creation, hosting setup, network allowlist, token rotation | **Gate 10 (automation install / upgrade)** per `orchestrator/APPROVAL-GATES.md` |
 | 6 | `COMM-HUB-HERMES-INSTALL-CLOSEOUT` | DOCS-ONLY closeout | 3 status docs | Commit-only + push |

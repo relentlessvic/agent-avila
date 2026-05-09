@@ -1,18 +1,18 @@
 # Communication Hub — Relay Stage 5 Partial Install Record (template — COMM-HUB)
 
-> **Author rule:** This file is the canonical record of the partial Stage 5 Relay install executed under the `COMM-HUB-HERMES-INSTALL` Gate-10 RED-tier approval. Stage 5 was approved with the exact 21-step canonical scope from `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md`; in execution, Steps 1–13 were completed and Steps 14–21 were deferred because the Relay runtime image / process binary does not exist yet. This document records what was actually done, what was deferred, and what would be required to resume — so the partial-install state is version-controlled and visible to any future operator-approved phase.
+> **Author rule:** This file is the canonical record of the partial Stage 5 Relay install executed under the `COMM-HUB-HERMES-INSTALL` Gate-10 RED-tier approval. Stage 5 was approved with the exact 21-step canonical scope from `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md`; in execution, Steps 1–13 were completed and Steps 14–21 were deferred because the Relay runtime image / process binary does not exist yet. This document records what was actually done, what was deferred, and what would be required to resume — so the partial-install state is version-controlled and visible to any future operator-approved phase.
 >
 > **This document is NOT authorization to install Relay further, deploy a Relay runtime, register additional Discord applications, mint additional tokens, invite the bot to additional servers, grant additional permissions, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, post to Discord, run a Stage 7 dry-run, take a production action, take a trading action, or break CEILING-PAUSE.** Stage 5's Gate-10 approval was bound to the canonical 21-step scope at HEAD `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935`; that approval is now CONSUMED by the partial execution. **Resuming Steps 14–21 in any future phase requires a fresh Gate-10 approval at that future HEAD, plus a Relay runtime that does not exist today.**
 
-> **Naming convention.** Internal Avila messenger references in this file's active forward-looking wording use "Relay" per `orchestrator/COMM-HUB-HERMES-RULES.md` "Naming convention" subsection. Phase identifiers (uppercase `HERMES` literals such as `COMM-HUB-HERMES-INSTALL`, `COMM-HUB-HERMES-INSTALL-CLOSEOUT`) and the filename (`COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md`) are preserved verbatim because they record historical / committed phase identifiers. Filename rename is deferred to the COMM-HUB-RENAME-RELAY-FILES Phase B as a permanent historical artifact preserve (this record records past Steps 1–13 actions performed under the original "Hermes" name at HEAD `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935`).
+> **Naming convention.** Internal Avila messenger references in this file's active forward-looking wording use "Relay" per `orchestrator/COMM-HUB-RELAY-RULES.md` "Naming convention" subsection. Phase identifiers (uppercase `HERMES` literals such as `COMM-HUB-HERMES-INSTALL`, `COMM-HUB-HERMES-INSTALL-CLOSEOUT`) and the filename (`COMM-HUB-HERMES-STAGE5-PARTIAL-INSTALL-RECORD.md`) are preserved verbatim because they record historical / committed phase identifiers. Cycle 2 Phase 1 (`COMM-HUB-RENAME-RELAY-FILES`, 2026-05-09) renamed the four forward-looking SAFE-class filenames; this historical file's filename was excluded from that rename and is preserved permanently as a record of past Stage 5 Steps 1–13 actions performed under the original "Hermes" name at HEAD `40f3137e842cd60acf1adf17ecc7fe2f0b1b8935`.
 
 Author: Operator-driven manual execution (Victor at install execution time; Claude as orchestrator and step-by-step guide; no Discord-side or Railway-side action by Claude)
 Last updated: 2026-05-06 (COMM-HUB-HERMES-INSTALL-CLOSEOUT — DOCS-ONLY). 2026-05-08 COMM-HUB-RENAME-RELAY-CONTENT Batch 5: forward-looking internal-messenger wording renamed Hermes → Relay; phase identifiers + filename preserved as historical record.
 Canonical references:
-- `orchestrator/COMM-HUB-HERMES-RULES.md` — canonical Relay specification (SAFE-class)
-- `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` — Relay Stage 5 install checklist (the 21-step canonical sequence)
+- `orchestrator/COMM-HUB-RELAY-RULES.md` — canonical Relay specification (SAFE-class)
+- `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` — Relay Stage 5 install checklist (the 21-step canonical sequence)
 - `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` — Stage 4 dry-run design
-- `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md` — Stage 5 preconditions 12–15 codification
+- `orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md` — Stage 5 preconditions 12–15 codification
 - `orchestrator/COMM-HUB-RULES.md` — Communication Hub rulebook (SAFE-class)
 - `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` — canonical channel/role/permission layout
 - `orchestrator/AUTOPILOT-RULES.md` — ARC-8 phase-loop ceiling rule
@@ -62,7 +62,7 @@ The Stage 5 approval explicitly named the 21-step canonical scope. The unexecute
 
 ## §4 — Steps 1–13 completion record
 
-Per the canonical install checklist `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` §"Discord application / bot creation" steps 1–13:
+Per the canonical install checklist `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` §"Discord application / bot creation" steps 1–13:
 
 | Step | Action | State (operator-attested at install execution) |
 |---|---|---|
@@ -119,7 +119,7 @@ After Stage 6 closeout commits and pushes, Relay is in a "shelved" state:
 - **Railway-side:** the `agent-avila-hermes` service exists as an empty service shell with the `DISCORD_BOT_TOKEN` secret variable populated. No deployment is running. No GitHub source is connected. No trading env variables are present.
 - **Trading-runtime-side:** completely separate. Relay has no link to `agent-avila-dashboard`, the production DB, Kraken, env, `MANUAL_LIVE_ARMED`, or `position.json`.
 - **Process-state:** no Relay process exists anywhere. The Stage 5 approval scope did not authorize the operator to write or build a Relay runtime; no runtime authoring track has opened. Relay is, in effect, a Discord-side member with a stored token but no actual program using it.
-- **Posting capability:** zero. Even if the operator started a third-party Discord-bot framework with the stored token outside the orchestrator framework, that would be (a) unauthorized per `orchestrator/COMM-HUB-HERMES-RULES.md`'s anti-execution boundaries, (b) not in scope of the consumed Stage 5 approval, and (c) detectable through log evidence and channel-content inspection. The orchestrator framework provides no path to "accidentally" post via Relay from the shelved state.
+- **Posting capability:** zero. Even if the operator started a third-party Discord-bot framework with the stored token outside the orchestrator framework, that would be (a) unauthorized per `orchestrator/COMM-HUB-RELAY-RULES.md`'s anti-execution boundaries, (b) not in scope of the consumed Stage 5 approval, and (c) detectable through log evidence and channel-content inspection. The orchestrator framework provides no path to "accidentally" post via Relay from the shelved state.
 - **Read-Message-History capability:** zero at every layer (role-level OFF + explicit deny on every channel where `System-Writer` has a row).
 - **Trading authority:** zero (forever forbidden per Relay spec).
 - **Approval authority:** zero (forever forbidden per Relay spec).
@@ -155,7 +155,7 @@ The following work would be required to complete the deferred Steps 14–21 in a
 Before Steps 14–21 can resume, a Relay runtime image / process binary must exist. Authoring this runtime is its own substantive implementation track, distinct from the DOCS-ONLY / DESIGN-ONLY phases that produced the Relay spec, install checklist, dry-run design, and preconditions doc. Suggested phase sequence (each requires its own separate operator approval):
 
 - **`COMM-HUB-HERMES-RUNTIME-DESIGN`** (DESIGN-ONLY conversation) — design the Relay process architecture: language / framework choice (Discord client library compatibility), idempotency-store data model, source-of-truth message store schema, halt-on-anomaly state machine, container image base, env variable handling, logging output format, signal-handling for clean exit, single-instance discipline mechanism, etc. Codex design review at end. Operator-directed manual; conversation-only; no commit.
-- **`COMM-HUB-HERMES-RUNTIME-DOCS`** (DOCS-ONLY) — codify the runtime design as an on-disk template (e.g., `orchestrator/handoffs/COMM-HUB-HERMES-RUNTIME-DESIGN.md`) plus possibly cross-reference updates. Codex docs-only review. Commit-only + push approvals.
+- **`COMM-HUB-HERMES-RUNTIME-DOCS`** (DOCS-ONLY) — codify the runtime design as an on-disk template (e.g., `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-DESIGN.md`) plus possibly cross-reference updates. Codex docs-only review. Commit-only + push approvals.
 - **`COMM-HUB-HERMES-RUNTIME-IMPLEMENT`** (SAFE / HIGH-RISK IMPLEMENTATION — NOT DOCS-ONLY) — write actual runtime code in a new directory (e.g., `hermes/`) or separate operator-controlled repository. This phase implements code, not docs. Code review (Codex + operator), tests, build pipeline, container image construction. **This phase tier and scope require fresh design and a separate Stage-5-style approval cascade because the canonical Relay spec calls Relay "governance-only" and "never a trading actor" — but a runtime implementation phase still has substantive code that must be reviewed for compliance with the canonical anti-execution boundaries.**
 - **`COMM-HUB-HERMES-RUNTIME-IMPLEMENT-CLOSEOUT`** (DOCS-ONLY) — record runtime implementation completion.
 
@@ -252,10 +252,10 @@ This Stage 6 closeout phase **does NOT authorize** any of the following:
 - **Not authorization to post any Discord message via Relay.** Discord posting via Relay is gated behind Stages 9 / 10a / 10b, each separately approved.
 - **Not authorization to break CEILING-PAUSE.** Only an explicit operator direction-confirmation breaks the ceiling.
 - **Not authorization for any trading / Railway / production-DB / Kraken / env / `MANUAL_LIVE_ARMED` action.**
-- **Not canonical over `orchestrator/COMM-HUB-HERMES-RULES.md`.** If this record diverges from the Relay spec, the spec wins.
-- **Not canonical over `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md`.** If this record diverges from the install checklist's 21-step canonical sequence, the install checklist wins.
+- **Not canonical over `orchestrator/COMM-HUB-RELAY-RULES.md`.** If this record diverges from the Relay spec, the spec wins.
+- **Not canonical over `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md`.** If this record diverges from the install checklist's 21-step canonical sequence, the install checklist wins.
 - **Not canonical over `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md`.** If this record diverges from the dry-run design, the dry-run design wins.
-- **Not canonical over `orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md`.** If this record diverges from the preconditions doc, the preconditions doc wins.
+- **Not canonical over `orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md`.** If this record diverges from the preconditions doc, the preconditions doc wins.
 - **Not canonical over `orchestrator/COMM-HUB-RULES.md`.** If this record diverges from the rulebook, the rulebook wins.
 - **Not canonical over `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`.** If this record diverges from the channel layout, the channel layout wins.
 - **Not canonical over `orchestrator/AUTOMATION-PERMISSIONS.md`.** If this record diverges from the automation-permissions tiers, the tiers win.

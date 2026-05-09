@@ -23,7 +23,7 @@ DASH-4-PAPER-CONTROLS-CLEANUP-DESIGN-SPEC persists the Codex round-2 PASS-verifi
 
 **Out of scope:**
 - Any edit to `dashboard.js`, `bot.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.env`, `.env.example`, `.nvmrc`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
-- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `BLUEPRINT.md`, `AUTOPILOT-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-HERMES-RULES.md`, `CLAUDE.md`).
+- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `BLUEPRINT.md`, `AUTOPILOT-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-RELAY-RULES.md`, `CLAUDE.md`).
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, autopilot runtime activation.
 - **DASH-4.A implementation is NOT authorized by this codification.** DASH-4.A requires its own separately-gated SAFE IMPLEMENTATION phase with operator-granted scoped lift on RESTRICTED `dashboard.js` for DASH-4.A only + Codex implementation review + commit + push approvals.
 - DASH-4.B and DASH-4.C are deferred (see §5).

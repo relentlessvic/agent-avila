@@ -23,7 +23,7 @@ ARC-8-RUN-C-DASHBOARD-STABILITY-DESIGN-SPEC codifies the Codex-PASS-verified Pha
 
 **Out of scope:**
 - Any edit to `dashboard.js`, `bot.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.env`, `.env.example`, `.nvmrc`, `position.json`, `position.json.snap.20260502T020154Z`.
-- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `BLUEPRINT.md`, `AUTOPILOT-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-HERMES-RULES.md`, `CLAUDE.md`).
+- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `BLUEPRINT.md`, `AUTOPILOT-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-RELAY-RULES.md`, `CLAUDE.md`).
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, or autopilot runtime activation.
 - Any DASH-1 through DASH-6 implementation, any D-5.12f code-implementation, any D-5.12e.1 cleanup. Each separately gated.
 - Any Relay runtime authoring, Relay repo creation, Relay runtime deployment.
@@ -177,7 +177,7 @@ Everything except the 4 named files. No file edits outside `orchestrator/STATUS.
 - `position.json.snap.20260502T020154Z` — HARD BLOCK throughout. Pre-existing untracked carve-out; never staged or modified.
 - `package.json`, `package-lock.json`, `.nvmrc` — HARD BLOCK throughout (DASH-6 may add `tests/` runner config only via a separately-scoped lift if the phase actually needs it; default is to use existing tools).
 - `.env*` — HARD BLOCK forever for automation per ARC-6.
-- All safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `AUTOPILOT-RULES.md`, `BLUEPRINT.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-HERMES-RULES.md`) — HARD BLOCK throughout the DASH track.
+- All safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `AUTOPILOT-RULES.md`, `BLUEPRINT.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-RELAY-RULES.md`) — HARD BLOCK throughout the DASH track.
 - All Relay templates / runtime — HARD BLOCK; Relay stays shelved.
 
 ### Hard-blocked production-side surfaces across the entire DASH track

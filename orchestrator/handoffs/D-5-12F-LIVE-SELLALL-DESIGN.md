@@ -417,7 +417,7 @@ A Codex PASS, clean working tree, green tests, scheduled trigger, signed token, 
 - `orchestrator/NEXT-ACTION-SELECTOR.md` — ten ordered selector rules; Hard ordering rule for D-5.12f.
 - `orchestrator/ROLE-HIERARCHY.md` — five roles; Victor is sole approver.
 - `orchestrator/AUTOMATION-PERMISSIONS.md` — GREEN / YELLOW / RED tiers; Codex PASS is governance-only.
-- `orchestrator/HANDOFF-RULES.md` — packet rules; this doc is a SAFE-class design record (precedent: `COMM-HUB-HERMES-RUNTIME-DESIGN.md`, `N-2-MIGRATION-008-PRODUCTION-PLAN.md`).
+- `orchestrator/HANDOFF-RULES.md` — packet rules; this doc is a SAFE-class design record (precedent: `COMM-HUB-RELAY-RUNTIME-DESIGN.md`, `N-2-MIGRATION-008-PRODUCTION-PLAN.md`).
 - `orchestrator/BLUEPRINT.md` — architectural blueprint.
 - `CLAUDE.md` (repo root) — top-level role / safety / change-discipline rules.
 

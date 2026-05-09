@@ -1,14 +1,14 @@
 # Communication Hub — Relay Stage 5 Preconditions (template — COMM-HUB)
 
-> **Author rule:** This file documents preconditions 12–15 in the canonical install checklist (`orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` §"Preconditions before Relay install") so they are version-controlled before any Stage 5 install approval. **This document is NOT authorization to install Relay, register a Discord application, mint a Discord bot token, invite a bot to the server, grant any permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / Relay runtime / background automation, post to Discord, take a production action, take a trading action, or break CEILING-PAUSE.** Stage 5 install (`COMM-HUB-HERMES-INSTALL`) remains RED-tier Gate-10 per `orchestrator/APPROVAL-GATES.md` and requires Codex install-readiness PASS plus explicit Victor in-session Gate-10 approval at that future time.
+> **Author rule:** This file documents preconditions 12–15 in the canonical install checklist (`orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` §"Preconditions before Relay install") so they are version-controlled before any Stage 5 install approval. **This document is NOT authorization to install Relay, register a Discord application, mint a Discord bot token, invite a bot to the server, grant any permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / Relay runtime / background automation, post to Discord, take a production action, take a trading action, or break CEILING-PAUSE.** Stage 5 install (`COMM-HUB-HERMES-INSTALL`) remains RED-tier Gate-10 per `orchestrator/APPROVAL-GATES.md` and requires Codex install-readiness PASS plus explicit Victor in-session Gate-10 approval at that future time.
 >
 > **No Relay runtime, Discord bot, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
 
 Author: Operator-driven manual planning (Claude as orchestrator; future installs Victor-only)
 Last updated: 2026-05-05 (COMM-HUB-DOCS-F-HERMES-STAGE5-PRECONDITIONS — DOCS-ONLY)
 Canonical references:
-- `orchestrator/COMM-HUB-HERMES-RULES.md` — canonical Relay specification (SAFE-class)
-- `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` — Relay Stage 5 install checklist (15 preconditions; this document codifies preconditions 12–15)
+- `orchestrator/COMM-HUB-RELAY-RULES.md` — canonical Relay specification (SAFE-class)
+- `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` — Relay Stage 5 install checklist (15 preconditions; this document codifies preconditions 12–15)
 - `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md` — Stage 4 dry-run design
 - `orchestrator/COMM-HUB-RULES.md` — Communication Hub rulebook (SAFE-class)
 - `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` — canonical channel/role/permission layout
@@ -27,7 +27,7 @@ If any field below diverges from the canonical files above, the canonical files 
 This Stage 4-related codification phase (`COMM-HUB-DOCS-F-HERMES-STAGE5-PRECONDITIONS`) is **DOCS-ONLY**. It does NOT install Relay, register a Discord application, mint a Discord bot token, invite a bot, grant any permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / Relay runtime / background automation, post to Discord, take a production action, take a trading action, or break CEILING-PAUSE.
 
 The phase produces:
-- This new template file (`orchestrator/handoffs/COMM-HUB-HERMES-STAGE5-PRECONDITIONS.md`).
+- This new template file (`orchestrator/handoffs/COMM-HUB-RELAY-STAGE5-PRECONDITIONS.md`).
 - Updates to 3 status docs (`orchestrator/STATUS.md`, `orchestrator/CHECKLIST.md`, `orchestrator/NEXT-ACTION.md`).
 
 Total scope = 4 files.
@@ -326,8 +326,8 @@ After Stage 5 install completes and Stage 6 closeout commits-and-pushes, Stage 7
 - **Not authorization to post to Discord.** Posting is operator-only manual action until Stage 9 lands; Stage 9 itself is RED-tier per-message.
 - **Not authorization to take any production action, trading action, deploy action, env change, or RED-tier action.**
 - **Not authorization to break CEILING-PAUSE.** Only an explicit operator direction-confirmation instruction breaks the ceiling.
-- **Not canonical over `orchestrator/COMM-HUB-HERMES-RULES.md`.** If this document diverges from the Relay spec, the spec wins.
-- **Not canonical over `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md`.** If this document diverges from the install checklist, the install checklist wins.
+- **Not canonical over `orchestrator/COMM-HUB-RELAY-RULES.md`.** If this document diverges from the Relay spec, the spec wins.
+- **Not canonical over `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md`.** If this document diverges from the install checklist, the install checklist wins.
 - **Not canonical over `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-DESIGN.md`.** If this document diverges from the dry-run design, the dry-run design wins.
 - **Not canonical over `orchestrator/COMM-HUB-RULES.md`.** If this document diverges from the rulebook, the rulebook wins.
 - **Not canonical over `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`.** If this document diverges from the channel layout, the channel layout wins.

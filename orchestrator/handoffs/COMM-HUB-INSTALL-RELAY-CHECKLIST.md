@@ -1,13 +1,13 @@
 # Communication Hub — Relay Install Checklist (template — COMM-HUB)
 
-> **Author rule:** This checklist codifies the click-by-click manual Relay install plan for the Agent Avila Communication Hub. It is a docs-only specification — not a runtime install. **This checklist is NOT authorization to install Relay, register a Discord application or bot, mint a bot token, invite a bot to the server, grant any permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, change CEILING-PAUSE, take any production action, take any trading action, or post to Discord.** Actual Relay install requires a separate operator-approved phase (`COMM-HUB-HERMES-INSTALL`, Stage 5 per `orchestrator/COMM-HUB-HERMES-RULES.md`) which is **Gate 10 (automation install / upgrade)** per `orchestrator/APPROVAL-GATES.md` and requires explicit Victor in-session approval at that future time.
+> **Author rule:** This checklist codifies the click-by-click manual Relay install plan for the Agent Avila Communication Hub. It is a docs-only specification — not a runtime install. **This checklist is NOT authorization to install Relay, register a Discord application or bot, mint a bot token, invite a bot to the server, grant any permission, install a webhook / scheduler / MCP trigger / cron job / Ruflo / background automation, change CEILING-PAUSE, take any production action, take any trading action, or post to Discord.** Actual Relay install requires a separate operator-approved phase (`COMM-HUB-HERMES-INSTALL`, Stage 5 per `orchestrator/COMM-HUB-RELAY-RULES.md`) which is **Gate 10 (automation install / upgrade)** per `orchestrator/APPROVAL-GATES.md` and requires explicit Victor in-session approval at that future time.
 >
 > **No Relay runtime, Discord bot, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
 
 Author: Operator-driven manual planning (Claude as orchestrator; future installs Victor-only)
 Last updated: 2026-05-05 (COMM-HUB-DOCS-D-HERMES-INSTALL-CHECKLIST — DOCS-ONLY)
 Canonical references:
-- `orchestrator/COMM-HUB-HERMES-RULES.md` — canonical Relay specification (SAFE-class)
+- `orchestrator/COMM-HUB-RELAY-RULES.md` — canonical Relay specification (SAFE-class)
 - `orchestrator/COMM-HUB-RULES.md` — Communication Hub rulebook (SAFE-class)
 - `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` — canonical channel/role/permission layout (lines 136–145 carry `System-Writer (Relay)` DORMANT row)
 - `orchestrator/handoffs/COMM-HUB-INSTALL-DISCORD-CHECKLIST.md` — Discord server install checklist (followed by `COMM-HUB-INSTALL-DISCORD`)
@@ -18,7 +18,7 @@ Canonical references:
 - `orchestrator/HANDOFF-RULES.md` — packet conventions and forbidden-content list
 - `orchestrator/ROLE-HIERARCHY.md` — role boundaries; future-automation governance-only inheritance
 
-If any field below diverges from `orchestrator/COMM-HUB-HERMES-RULES.md`, `orchestrator/COMM-HUB-RULES.md`, or `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`, the canonical files win and this checklist must be re-aligned in a follow-up DOCS-ONLY phase. The Relay spec is canonical for capability scope; the rulebook is canonical for the Communication Hub; the channel layout is canonical for per-role permissions.
+If any field below diverges from `orchestrator/COMM-HUB-RELAY-RULES.md`, `orchestrator/COMM-HUB-RULES.md`, or `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`, the canonical files win and this checklist must be re-aligned in a follow-up DOCS-ONLY phase. The Relay spec is canonical for capability scope; the rulebook is canonical for the Communication Hub; the channel layout is canonical for per-role permissions.
 
 ---
 
@@ -40,8 +40,8 @@ These conditions are verified by the operator and Codex during the Stage 5 insta
 
 1. **Discord server exists.** `Agent Avila Hub` (or operator-chosen equivalent) has been manually created per `orchestrator/handoffs/COMM-HUB-INSTALL-DISCORD-CHECKLIST.md` and `COMM-HUB-INSTALL-DISCORD` is closed.
 2. **Server install verified.** Verification checklist in the Discord install checklist passed; channel structure matches the canonical 3-category / 7-channel layout; Future-Trading remains DORMANT; no bot / webhook / scheduler / MCP / cron / Ruflo / Relay / background automation is currently installed.
-3. **Relay spec is canonical and unchanged.** `orchestrator/COMM-HUB-HERMES-RULES.md` is the canonical Relay spec; no divergence from `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`.
-4. **This checklist is canonical and Codex-PASS.** `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` (this file) is committed, pushed, and Codex-reviewed PASS at the install-readiness round.
+3. **Relay spec is canonical and unchanged.** `orchestrator/COMM-HUB-RELAY-RULES.md` is the canonical Relay spec; no divergence from `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`.
+4. **This checklist is canonical and Codex-PASS.** `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` (this file) is committed, pushed, and Codex-reviewed PASS at the install-readiness round.
 5. **Stage 4 dry-run design closed.** `COMM-HUB-HERMES-DRY-RUN-DESIGN` is closed (DESIGN-ONLY conversation; no commit) with Codex PASS.
 6. **CEILING-PAUSE state.** Active and not broken; or explicit Victor direction-confirmation has reset the counter to 0 and authorized this Relay install track. Operator-directed manual stages do NOT advance the autopilot phase-loop counter and do NOT break CEILING-PAUSE.
 7. **N-3 closed.** Migration 008 APPLIED at HEAD `189eb1be6ef6304d914671bdaedec44d389cf877`; no production-DB action open; no migration in-flight.
@@ -128,7 +128,7 @@ These steps are for the operator at Stage 5 install execution time. **Do not per
 
 ## Permission boundaries (full enumeration)
 
-Relay role permissions at install time, mirroring `orchestrator/COMM-HUB-HERMES-RULES.md` Allowed/Forbidden capability matrix.
+Relay role permissions at install time, mirroring `orchestrator/COMM-HUB-RELAY-RULES.md` Allowed/Forbidden capability matrix.
 
 ### Discord token scope (allow-list — full enumeration)
 
@@ -270,7 +270,7 @@ Relay does NOT auto-post at install (Stage 5) or at closeout (Stage 6). The firs
 
 ## Idempotency and logging install
 
-Mirrors `orchestrator/COMM-HUB-HERMES-RULES.md` §"Idempotency mechanism".
+Mirrors `orchestrator/COMM-HUB-RELAY-RULES.md` §"Idempotency mechanism".
 
 1. **Each orchestrator-drafted message carries a globally unique idempotency key** in the source-of-truth message store.
 2. **Relay-private append-only publish log records every publish attempt** (success or halt) with the idempotency key, channel id, timestamp, and outcome.
@@ -305,7 +305,7 @@ Relay can be reverted to DORMANT at any stage. The operator-directed manual `COM
 
 **Rollback explicitly does NOT:**
 
-- Modify the Relay spec (`orchestrator/COMM-HUB-HERMES-RULES.md`).
+- Modify the Relay spec (`orchestrator/COMM-HUB-RELAY-RULES.md`).
 - Modify this checklist.
 - Modify any safety-policy doc.
 - Affect Migration 008 / N-3 state.
@@ -383,8 +383,8 @@ Each screenshot is annotated locally with timestamp and step-reference. Screensh
 
 Stage 5 install is gated by a fresh Codex install-readiness review at the HEAD that will be referenced in the Stage 5 approval. The review verifies:
 
-1. This checklist (`orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md`) is the canonical install plan and is unchanged from this commit's HEAD or has been re-reviewed if changed.
-2. The Relay spec (`orchestrator/COMM-HUB-HERMES-RULES.md`) is unchanged from its canonical HEAD (`96f56a4767cc96ddd8b78bcc3b309e8fd455c8a5`) or has been re-reviewed if changed.
+1. This checklist (`orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md`) is the canonical install plan and is unchanged from this commit's HEAD or has been re-reviewed if changed.
+2. The Relay spec (`orchestrator/COMM-HUB-RELAY-RULES.md`) is unchanged from its canonical HEAD (`96f56a4767cc96ddd8b78bcc3b309e8fd455c8a5`) or has been re-reviewed if changed.
 3. The Discord install checklist (`orchestrator/handoffs/COMM-HUB-INSTALL-DISCORD-CHECKLIST.md`) and channel layout (`orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`) are unchanged or have been re-reviewed.
 4. All 15 preconditions are satisfied at the relevant HEAD.
 5. The Stage 4 dry-run-design phase is closed with Codex PASS.
@@ -487,9 +487,9 @@ Per-message Codex pre-publish sanity check is canonical at the Communication Hub
 - **Not authorization to post to Discord.** Posting is operator-only manual action until Stage 9 lands; Stage 9 itself is RED-tier per-message.
 - **Not authorization to take any production action, trading action, deploy action, env change, or RED-tier action.**
 - **Not authorization to break CEILING-PAUSE.** Only an explicit operator direction-confirmation instruction breaks the ceiling.
-- **Not authorization to expand Relay beyond the canonical capability matrix.** Capability matrix is canonical in `orchestrator/COMM-HUB-HERMES-RULES.md`.
+- **Not authorization to expand Relay beyond the canonical capability matrix.** Capability matrix is canonical in `orchestrator/COMM-HUB-RELAY-RULES.md`.
 - **Not authorization to grant `Read Message History` to Relay.** Forever forbidden unless a separately-scoped Gate-10 phase opens with its own design + Codex review + Victor approval; no such phase is currently planned.
-- **Not canonical over `orchestrator/COMM-HUB-HERMES-RULES.md`.** If this checklist diverges from the Relay spec, the spec wins.
+- **Not canonical over `orchestrator/COMM-HUB-RELAY-RULES.md`.** If this checklist diverges from the Relay spec, the spec wins.
 - **Not canonical over `orchestrator/COMM-HUB-RULES.md`.** If this checklist diverges from the rulebook, the rulebook wins.
 - **Not canonical over `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`.** If this checklist diverges from the channel layout, the channel layout wins.
 - **Not canonical over `orchestrator/AUTOMATION-PERMISSIONS.md`.** If this checklist diverges from the automation-permissions tiers, the tiers win.

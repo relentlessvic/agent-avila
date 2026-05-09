@@ -31,7 +31,7 @@ This RUN-D-DESIGN-SPEC phase persists those four outputs as a SAFE-class informa
 
 **Out of scope:**
 - Any edit to `dashboard.js`, `bot.js`, `db.js`, `migrations/`, `scripts/`, `tests/`, `package.json`, `package-lock.json`, `.env`, `.env.example`, `.nvmrc`, `position.json`, `position.json.snap.20260502T020154Z`, deploy config.
-- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `AUTOPILOT-RULES.md`, `BLUEPRINT.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-HERMES-RULES.md`).
+- Any edit to safety-policy docs (`PROTECTED-FILES.md`, `APPROVAL-GATES.md`, `AUTOPILOT-RULES.md`, `BLUEPRINT.md`, `PHASE-MODES.md`, `NEXT-ACTION-SELECTOR.md`, `ROLE-HIERARCHY.md`, `AUTOMATION-PERMISSIONS.md`, `HANDOFF-RULES.md`, `COMM-HUB-RULES.md`, `COMM-HUB-RELAY-RULES.md`).
 - Any deploy, migration application, Kraken action, `MANUAL_LIVE_ARMED` toggle, env / secret read or write, production DB query or mutation, Railway command, or autopilot runtime activation.
 - Any DASH-6-LIVE-BOUNDARY-SMOKE design or implementation work (deferred Mode 5; not authorized by this record).
 - Any next supervised cycle's master order definition.

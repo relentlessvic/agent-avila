@@ -4,14 +4,14 @@
 >
 > **No Relay runtime, Discord application, bot, webhook, scheduler, MCP trigger, cron job, or background automation is installed by writing this file.**
 >
-> **Naming convention.** Internal Avila messenger references in this file's active forward-looking wording use "Relay" per `orchestrator/COMM-HUB-HERMES-RULES.md` "Naming convention" subsection. Phase identifiers (uppercase `HERMES` literals such as `COMM-HUB-DOCS-E-HERMES-DRY-RUN-DESIGN-SPEC`, `COMM-HUB-HERMES-DRY-RUN-DESIGN`, `COMM-HUB-HERMES-INSTALL`, `COMM-HUB-HERMES-DRY-RUN`) and the filename (`COMM-HUB-HERMES-DRY-RUN-DESIGN.md`) are preserved verbatim because they record historical / committed phase identifiers. Filename rename is deferred to the COMM-HUB-RENAME-RELAY-FILES Phase B as a historical artifact preserve.
+> **Naming convention.** Internal Avila messenger references in this file's active forward-looking wording use "Relay" per `orchestrator/COMM-HUB-RELAY-RULES.md` "Naming convention" subsection. Phase identifiers (uppercase `HERMES` literals such as `COMM-HUB-DOCS-E-HERMES-DRY-RUN-DESIGN-SPEC`, `COMM-HUB-HERMES-DRY-RUN-DESIGN`, `COMM-HUB-HERMES-INSTALL`, `COMM-HUB-HERMES-DRY-RUN`) and the filename (`COMM-HUB-HERMES-DRY-RUN-DESIGN.md`) are preserved verbatim because they record historical / committed phase identifiers. Cycle 2 Phase 1 (`COMM-HUB-RENAME-RELAY-FILES`, 2026-05-09) renamed the four forward-looking SAFE-class filenames; this historical file's filename was excluded from that rename and is preserved permanently as a record of the past Stage 4 dry-run executed under the original "Hermes" name.
 
 Author: Operator-driven manual planning (Claude as orchestrator; future installs Victor-only)
 Last updated: 2026-05-05 (COMM-HUB-DOCS-E-HERMES-DRY-RUN-DESIGN-SPEC — DOCS-ONLY). 2026-05-08 COMM-HUB-RENAME-RELAY-CONTENT Batch 5: forward-looking internal-messenger wording renamed Hermes → Relay; phase identifiers + filename preserved.
 Canonical references:
-- `orchestrator/COMM-HUB-HERMES-RULES.md` — canonical Relay specification (SAFE-class)
+- `orchestrator/COMM-HUB-RELAY-RULES.md` — canonical Relay specification (SAFE-class)
 - `orchestrator/COMM-HUB-RULES.md` — Communication Hub rulebook (SAFE-class)
-- `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` — Relay Stage 5 install checklist
+- `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` — Relay Stage 5 install checklist
 - `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md` — canonical channel/role/permission layout
 - `orchestrator/handoffs/COMM-HUB-DAILY-SUMMARY.md`, `COMM-HUB-WEEKLY-SUMMARY.md`, `COMM-HUB-CODEX-WARNING.md`, `COMM-HUB-SYSTEM-ALERT.md` — message templates
 - `orchestrator/AUTOPILOT-RULES.md` — ARC-8 phase-loop ceiling rule
@@ -21,7 +21,7 @@ Canonical references:
 - `orchestrator/HANDOFF-RULES.md` — packet conventions and forbidden-content list
 - `orchestrator/ROLE-HIERARCHY.md` — role boundaries
 
-If any field below diverges from `orchestrator/COMM-HUB-HERMES-RULES.md`, `orchestrator/COMM-HUB-RULES.md`, `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`, or `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md`, the canonical files win and this design must be re-aligned in a follow-up DOCS-ONLY phase.
+If any field below diverges from `orchestrator/COMM-HUB-RELAY-RULES.md`, `orchestrator/COMM-HUB-RULES.md`, `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`, or `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md`, the canonical files win and this design must be re-aligned in a follow-up DOCS-ONLY phase.
 
 ---
 
@@ -255,7 +255,7 @@ All evidence is annotated locally with timestamp + dry-run id. Tokens redacted i
 
 Total halt classes for dry-run = **10 canonical** + **9 dry-run-specific** = **19 distinct halt classes**.
 
-### Canonical halts (from `orchestrator/COMM-HUB-HERMES-RULES.md` — multi-section sourcing) — 10 classes
+### Canonical halts (from `orchestrator/COMM-HUB-RELAY-RULES.md` — multi-section sourcing) — 10 classes
 
 Sourced from:
 - §"Anti-execution boundaries" item 7 at line 148 — halt classes 1–7
@@ -276,7 +276,7 @@ Canonical halt classes:
 9. Concurrent-Relay-instance detection (single-instance discipline). *(line 154)*
 10. Class-authorization bounds violation (Stage 10a/10b — including forbidden-content scan trip via bound 7 at line 176). *(line 178)*
 
-**Removed as fabricated / not in canonical spec:** "Discord API authentication failure" — not present anywhere in `orchestrator/COMM-HUB-HERMES-RULES.md`. Removed by EDIT-2 during Codex review Pass 2.
+**Removed as fabricated / not in canonical spec:** "Discord API authentication failure" — not present anywhere in `orchestrator/COMM-HUB-RELAY-RULES.md`. Removed by EDIT-2 during Codex review Pass 2.
 
 ### Dry-run-specific halts (9 additional)
 
@@ -338,7 +338,7 @@ The Stage 7 dry-run cannot run until Stage 5 install is closed. The relevant gat
 | Stage 3 closed | `COMM-HUB-DOCS-D-HERMES-INSTALL-CHECKLIST` closed/pushed at `e18f2207eae4ab734beb6f29626de1a5e4cd5757` (already closed) | Commit-only + push |
 | Stage 4 closed | `COMM-HUB-HERMES-DRY-RUN-DESIGN` Codex PASS (already closed Design-only PASS after 4 review passes; conversation-only) | Operator-directed manual; conversation-only; no commit |
 | Stage 4 codification | `COMM-HUB-DOCS-E-HERMES-DRY-RUN-DESIGN-SPEC` (this phase) | Commit-only + push |
-| Stage 5 preconditions | All 15 preconditions in `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md` §"Preconditions before Relay install" satisfied | Operator-side fact-finding |
+| Stage 5 preconditions | All 15 preconditions in `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md` §"Preconditions before Relay install" satisfied | Operator-side fact-finding |
 | Stage 5 install-readiness review | Fresh Codex install-readiness review at the relevant HEAD (10 questions per install checklist §"Codex review gate before any future install"); returns PASS | Codex review |
 | **Stage 5 Gate-10 install approval** | Explicit Victor in-session approval naming the exact install scope at the relevant HEAD per `git rev-parse HEAD` | **RED-tier per `orchestrator/APPROVAL-GATES.md` Gate 10 (automation install / upgrade)** |
 | Stage 6 closeout | `COMM-HUB-HERMES-INSTALL-CLOSEOUT` (records install complete in 3 status docs) | Commit-only + push |
@@ -462,13 +462,13 @@ Writing this document and committing it preserves:
 - **Not authorization to post to Discord.** Posting is operator-only manual action until Stage 9 lands; Stage 9 itself is RED-tier per-message.
 - **Not authorization to take any production action, trading action, deploy action, env change, or RED-tier action.**
 - **Not authorization to break CEILING-PAUSE.** Only an explicit operator direction-confirmation instruction breaks the ceiling.
-- **Not authorization to expand Relay beyond the canonical capability matrix.** Capability matrix is canonical in `orchestrator/COMM-HUB-HERMES-RULES.md`.
+- **Not authorization to expand Relay beyond the canonical capability matrix.** Capability matrix is canonical in `orchestrator/COMM-HUB-RELAY-RULES.md`.
 - **Not authorization to grant `Read Message History` to Relay.** Forever forbidden unless a separately-scoped Gate-10 phase opens with its own design + Codex review + Victor approval; no such phase is currently planned.
 - **Not authorization to execute Stage 7 dry-run.** Stage 7 dry-run requires its own separately-approved per-action phase after Stage 5 install + Stage 6 closeout.
-- **Not canonical over `orchestrator/COMM-HUB-HERMES-RULES.md`.** If this document diverges from the Relay spec, the spec wins.
+- **Not canonical over `orchestrator/COMM-HUB-RELAY-RULES.md`.** If this document diverges from the Relay spec, the spec wins.
 - **Not canonical over `orchestrator/COMM-HUB-RULES.md`.** If this document diverges from the rulebook, the rulebook wins.
 - **Not canonical over `orchestrator/handoffs/COMM-HUB-CHANNEL-LAYOUT.md`.** If this document diverges from the channel layout, the channel layout wins.
-- **Not canonical over `orchestrator/handoffs/COMM-HUB-INSTALL-HERMES-CHECKLIST.md`.** If this document diverges from the install checklist, the install checklist wins.
+- **Not canonical over `orchestrator/handoffs/COMM-HUB-INSTALL-RELAY-CHECKLIST.md`.** If this document diverges from the install checklist, the install checklist wins.
 - **Not canonical over `orchestrator/AUTOMATION-PERMISSIONS.md`.** If this document diverges from the automation-permissions tiers, the tiers win.
 - **Not canonical over `orchestrator/APPROVAL-GATES.md`.** If this document diverges from the gate matrix, the gate matrix wins.
 
