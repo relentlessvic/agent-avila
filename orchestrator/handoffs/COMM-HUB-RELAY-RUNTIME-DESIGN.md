@@ -749,7 +749,7 @@ Two cases:
 
 ## §15 — Halt-on-anomaly state machine
 
-**Total halt classes: 28.** Composed of three layers:
+**Total halt classes: 32.** Composed of four layers:
 
 ### Layer 1: 10 canonical halt classes (from `COMM-HUB-RELAY-RULES.md`)
 
@@ -789,6 +789,16 @@ Per the corrected halt model in `orchestrator/handoffs/COMM-HUB-HERMES-DRY-RUN-D
 26. **Schema validation library missing.** Required dependencies (Ajv) failed to load. Halt at boot.
 27. **Process privilege violation.** Relay detected running as root or with elevated capabilities. Halt at boot per non-root requirement (Stage 5 install checklist Step 14).
 28. **`git rev-parse HEAD` returns non-error inside the Relay container** (would indicate a git checkout exists, violating Relay spec line 145). Halt at boot.
+
+### Layer 4: 4 Phase E verification extension halt classes (added by `COMM-HUB-RELAY-RUNTIME-DESIGN-§15-EXTENSION-FOR-PHASE-E`)
+
+29. **Per-message schema mismatch (Phase E gate 1).** Pending-message record fails ajv schema validation against `schemas/hermes-message.schema.json` (any required field missing / wrong type / pattern violation / `additionalProperties: false` violation / channel enum violation / `oneOf` failure / etc.). Distinct from ID 26 (which covers ajv library load failure only) and ID 30 (which covers schema-file boot failures). Halt + log + exit.
+
+30. **Schema file unverifiable at boot.** `schemas/hermes-message.schema.json` is missing, unreadable, not valid JSON, not Draft-07 conformant, or fails ajv compilation at boot. Distinct from ID 26 (ajv library load failure) and ID 29 (per-message schema mismatch at gate 1). Halt at boot.
+
+31. **Allow-listed-placeholder violation (Phase E gate 7).** Pending-message `body` contains a `<PLACEHOLDER>` token not present in the message's `allowed_placeholder_map`, or the substituted value would map to a non-canonical substitution source. Halt + log + exit.
+
+32. **Network allowlist hook missing or integrity-failure (Phase E gate 9).** At gate-9 verification time, the Phase G-installed allowlist hook reference is null, the hook is not registered, or the hook's integrity check fails (expected shape mismatch). Distinct from ID 23 (which is triggered by a runtime outbound request reaching the hook with a non-allow-listed hostname). Halt + log + exit.
 
 ### Halt behavior (uniform across all classes)
 
