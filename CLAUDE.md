@@ -42,3 +42,7 @@ To avoid confusion with the external Nous Hermes Agent (an unrelated Nous/OpenRo
 - **external Hermes Agent (Nous/OpenRouter)** — the external Nous-hosted agent/tool. Reserved term; not currently referenced in this repo.
 
 Historical artifacts (phase names, file names, SHA-anchored facts, and the original Railway service name `agent-avila-hermes` — manually renamed by Victor to `agent-avila-relay` on 2026-05-08 during the operator-led RAILWAY-SERVICE-RENAME-HERMES-TO-RELAY-MANUAL Phase 3) preserve the original "Hermes" wording because they record past state. The current Railway service display name is `agent-avila-relay`. The COMM-HUB-RENAME-RELAY-FILES Phase B will later rename the canonical-spec filename and other forward-looking SAFE-class filenames; until then, those filepaths retain the `HERMES` literal.
+
+## Antigravity
+
+For Antigravity-hosted agents, see `orchestrator/ANTIGRAVITY-RULES.md`.
