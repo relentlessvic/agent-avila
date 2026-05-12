@@ -1,0 +1,82 @@
+---
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import StatusChip from '../StatusChip.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+type ChipState = 'pass' | 'done' | 'off' | 'dormant' | 'blocked' | 'paused' | 'planned' | 'in-progress' | 'shut' | 'on';
+type IconTone = 'default' | 'off' | 'warm' | 'emerald';
+
+interface Row {
+  letter: string;
+  iconTone: IconTone;
+  name: string;
+  note: string;
+  state: ChipState;
+  display: string;
+}
+
+// Static, operator-defined invariants. Not derived from data; intentionally
+// hardcoded so the boundary chart cannot drift from the governing rules.
+const rows: Row[] = [
+  {
+    letter: 'G',
+    iconTone: 'default',
+    name: 'Governance — this dashboard and orchestrator notes',
+    note: 'Read-only view of plans and progress. Cannot trade, deploy, migrate, or override me.',
+    state: 'pass',
+    display: 'READ-ONLY'
+  },
+  {
+    letter: 'R',
+    iconTone: 'off',
+    name: 'Runtime — the trading code (separate from this page)',
+    note: 'Lives outside this dashboard. Off-scope, never assessed here, never touched by the upgrade.',
+    state: 'off',
+    display: 'OUT OF SCOPE'
+  },
+  {
+    letter: 'C',
+    iconTone: 'off',
+    name: 'Communication / Messenger',
+    note: 'The future messenger project is asleep. No posting, no listening, no automation right now.',
+    state: 'dormant',
+    display: 'DORMANT'
+  },
+  {
+    letter: 'T',
+    iconTone: 'warm',
+    name: 'Trading boundary — the armed-trading flag',
+    note: "I'm the only one who can flip it. Nothing on this page can touch it, even by accident.",
+    state: 'shut',
+    display: 'OPERATOR-ONLY'
+  },
+  {
+    letter: 'V',
+    iconTone: 'emerald',
+    name: 'Final authority — Victor',
+    note: 'Approvers stay exactly {Victor}. No agent, no review, no cascade can grant approval on my behalf.',
+    state: 'pass',
+    display: 'FINAL'
+  }
+];
+---
+<Section id="system-boundaries" title="System boundaries" icon="shield">
+  <Card tier="primary">
+    <p class="text-sm text-slate-400 mb-5 leading-relaxed">
+      The fences between what runs, what watches, and what only I can decide.
+    </p>
+    <div class="boundaries-grid">
+      {rows.map(r => (
+        <div class="boundary-row">
+          <span class={`boundary-row__icon boundary-row__icon--${r.iconTone === 'default' ? '' : r.iconTone}`}>{r.letter}</span>
+          <div class="min-w-0">
+            <p class="boundary-row__name">{r.name}</p>
+            <p class="boundary-row__note">{r.note}</p>
+          </div>
+          <StatusChip state={r.state} label={r.display} />
+        </div>
+      ))}
+    </div>
+  </Card>
+</Section>

@@ -10,7 +10,12 @@
     --fg-muted: #94a3b8;
     --accent-cyan: #00e6ff;
     --accent-violet: #8b5cf6;
+    --accent-warm: #ffb96b;
+    --accent-rose: #ff6b9b;
     --border-faint: rgba(0, 230, 255, 0.18);
+    --orb-cyan: rgba(0, 230, 255, 0.18);
+    --orb-violet: rgba(139, 92, 246, 0.16);
+    --orb-warm: rgba(255, 185, 107, 0.14);
   }
 
   html {
@@ -23,6 +28,8 @@
   body {
     margin: 0;
     min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
   }
 
   *:focus-visible {
@@ -57,4 +64,74 @@
 
 .skip-link:focus {
   top: 0;
+}
+
+/* ambient background layer container — pointer-events:none so it never blocks interaction */
+.ambient-stack {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.65;
+  will-change: transform, opacity;
+}
+
+.bg-orb--cyan {
+  width: 38rem;
+  height: 38rem;
+  top: -10rem;
+  left: -8rem;
+  background: var(--orb-cyan);
+}
+
+.bg-orb--violet {
+  width: 32rem;
+  height: 32rem;
+  top: 30vh;
+  right: -10rem;
+  background: var(--orb-violet);
+}
+
+.bg-orb--warm {
+  width: 28rem;
+  height: 28rem;
+  bottom: -8rem;
+  left: 22%;
+  background: var(--orb-warm);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bg-orb--cyan {
+    animation: orb-drift 18s ease-in-out infinite;
+  }
+  .bg-orb--violet {
+    animation: orb-drift 22s ease-in-out -7s infinite;
+  }
+  .bg-orb--warm {
+    animation: orb-drift 26s ease-in-out -13s infinite;
+  }
+}
+
+/* scan-line overlay — subtle, low alpha; never animated so cheap and accessible */
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -5;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.025) 0,
+    rgba(255, 255, 255, 0.025) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  opacity: 0.55;
+  mix-blend-mode: overlay;
 }

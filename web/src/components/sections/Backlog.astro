@@ -2,24 +2,92 @@
 import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
-import Pill from '../Pill.astro';
-import { SECTION_IDS, getBacklogStateColor } from '../../lib/constants';
+import StatusChip from '../StatusChip.astro';
+import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+
+type ChipState = 'pass' | 'done' | 'off' | 'dormant' | 'blocked' | 'paused' | 'planned' | 'in-progress' | 'shut' | 'on';
+
+// Exclude items already surfaced in DecisionsNeeded.
+const items = data.backlog.filter(item => !(item.stateBadge || '').toUpperCase().includes('DECISION'));
+
+function sortKey(state: string): number {
+  const s = (state || '').toUpperCase();
+  if (s.includes('BLOCKED')) return 0;
+  if (s.includes('IN-PROGRESS') || s.includes('IN_PROGRESS')) return 1;
+  if (s.includes('DESIGNED')) return 2;
+  if (s.includes('IDEA') || s === 'BACKLOG') return 3;
+  return 4;
+}
+items.sort((a, b) => sortKey(a.stateBadge) - sortKey(b.stateBadge));
+
+function chipFor(state: string): { state: ChipState; label: string; showWhy: boolean } {
+  const s = (state || '').toUpperCase();
+  if (s.includes('BLOCKED-DEPENDENCY')) return { state: 'blocked', label: 'WAITING ON', showWhy: true };
+  if (s.includes('BLOCKED')) return { state: 'blocked', label: 'BLOCKED', showWhy: true };
+  if (s.includes('IN-PROGRESS') || s.includes('IN_PROGRESS')) return { state: 'in-progress', label: 'IN PROGRESS', showWhy: false };
+  if (s.includes('DESIGNED')) return { state: 'planned', label: 'DESIGNED', showWhy: false };
+  if (s.includes('IDEA') || s === 'BACKLOG') return { state: 'planned', label: 'IDEA', showWhy: false };
+  return { state: 'planned', label: state || 'PLANNED', showWhy: false };
+}
+
+function friendlyTitle(raw: string): string {
+  if (!raw) return '—';
+  const t = raw.trim();
+  if (t === 'Project Progress Dashboard') return 'Mission console build';
+  if (t.includes('Agentic OS') || t.includes('Dreaming Engine')) return 'Future AI engine concept';
+  if (t.includes('Command Center')) return 'Future command center concept';
+  if (t.includes('Relay Phase G')) return 'Messenger first network step';
+  if (t.toLowerCase().includes('discord posting')) return 'Messenger posting';
+  if (t.toLowerCase().includes('inherited forbidden-content')) return 'Old-text cleanup';
+  if (t.includes('Phase F amendment')) return 'Messenger safety follow-ups';
+  if (t.toLowerCase().includes('railway') || t.toLowerCase().includes('deploy')) return 'Cloud deploy actions';
+  if (t.toLowerCase().includes('env') && t.toLowerCase().includes('secret')) return 'Permission widening';
+  if (t.toLowerCase().includes('scheduler') || t.toLowerCase().includes('cron') || t.toLowerCase().includes('mcp')) return 'Background automation install';
+  if (t.includes('Relay Stage 5') || t.includes('Stage 5 Steps')) return 'Messenger install — finishing steps';
+  return t;
+}
+
+function friendlyDescription(raw: string): string {
+  if (!raw) return '';
+  const t = raw;
+  if (t.includes('Cascade through Phase G/H')) return 'Waits on the messenger network step.';
+  if (t.includes('F-HALT-AMENDMENT') && t.includes('paused')) return 'Waits on the messenger safety reinforcement and the paused smoke-test design.';
+  if (t.includes('No design yet')) return 'No design yet — just an idea on the shelf.';
+  if (t.includes('Richer UI layer over this dashboard')) return 'A richer UI layer that would sit on top of this console — deferred.';
+  if (t.includes('First HIGH-RISK')) return 'First higher-risk step that would put messenger code on a network. Separately gated.';
+  if (t.includes('Design + implement-design cascades CLOSED')) return 'Design and implementation plans are sealed; this build is in progress.';
+  if (t.includes('Inherited platform-credential env-var name literals')) return 'Old technical literals scattered through historical notes; cleanup at leisure.';
+  return t;
+}
 ---
-<Section id={SECTION_IDS.backlog} title="Backlog / Future Ideas" count={data.backlog.length}>
-  <Card class="space-y-4">
-    {data.backlog.map(item => (
-      <div class="border-t border-slate-800/50 pt-4 first:border-t-0 first:pt-0">
-        <div class="flex flex-wrap items-start gap-3 mb-2">
-          <h3 class="font-sans text-sm text-slate-200 flex-1">{item.title}</h3>
-          <Pill text={item.stateBadge} color={getBacklogStateColor(item.stateBadge)} />
-        </div>
-        <p class="text-xs text-slate-500 leading-relaxed">{item.description}</p>
-      </div>
-    ))}
-  </Card>
-</Section>
+{items.length > 0 && (
+  <Section id={SECTION_IDS.backlog} title="Waiting and ideas" count={items.length}>
+    <Card tier="secondary" class="space-y-4">
+      <p class="text-sm text-slate-500 mb-1 leading-relaxed">
+        Things lined up — some waiting on something specific, some just future thoughts.
+      </p>
+      {items.map(item => {
+        const c = chipFor(item.stateBadge);
+        const title = friendlyTitle(item.title);
+        const desc = friendlyDescription(item.description);
+        return (
+          <div class="border-t border-slate-800/50 pt-4 first:border-t-0 first:pt-0">
+            <div class="flex flex-wrap items-start gap-3 mb-2">
+              <h3 class="font-sans text-sm text-slate-200 flex-1 leading-snug" title={item.title}>{title}</h3>
+              <StatusChip state={c.state} label={c.label} />
+            </div>
+            <p class="text-xs text-slate-500 leading-relaxed" title={item.description}>
+              {c.showWhy && <span class="font-mono uppercase tracking-wider text-slate-500 mr-1">Why:</span>}
+              {desc}
+            </p>
+          </div>
+        );
+      })}
+    </Card>
+  </Section>
+)}

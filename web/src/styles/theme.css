@@ -1,27 +1,63 @@
 .glass-card {
-  background: rgba(11, 15, 26, 0.55);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(11, 15, 26, 0.6);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid var(--border-faint);
-  border-radius: 0.75rem;
+  border-radius: 1.25rem;
   box-shadow:
-    0 0 0 1px rgba(0, 230, 255, 0.05),
-    0 8px 32px rgba(0, 0, 0, 0.4);
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(0, 230, 255, 0.06),
+    0 12px 40px rgba(0, 0, 0, 0.45);
+  position: relative;
+  transition: box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* primary tier: brighter, closer, used for hero / safety locks / what's next */
+.glass-card--primary {
+  background: rgba(11, 15, 26, 0.7);
+  border-color: rgba(0, 230, 255, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 0 0 1px rgba(0, 230, 255, 0.1),
+    0 0 32px rgba(0, 230, 255, 0.08),
+    0 18px 50px rgba(0, 0, 0, 0.55);
+}
+
+/* secondary tier: deeper, recedes; used for timeline / checkpoints / lists */
+.glass-card--secondary {
+  background: rgba(11, 15, 26, 0.45);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  border-color: rgba(148, 163, 184, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 8px 28px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .glass-card:hover {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(0, 230, 255, 0.18),
+      0 0 38px rgba(0, 230, 255, 0.12),
+      0 18px 50px rgba(0, 0, 0, 0.55);
+  }
 }
 
 .status-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.25rem 0.75rem;
-  border: 1px solid rgba(0, 230, 255, 0.35);
+  padding: 0.3rem 0.85rem;
+  border: 1px solid rgba(0, 230, 255, 0.4);
   border-radius: 9999px;
   color: var(--accent-cyan);
   font-family: theme('fontFamily.mono');
   font-size: 0.7rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  background: rgba(0, 230, 255, 0.06);
+  background: rgba(0, 230, 255, 0.08);
+  box-shadow: 0 0 18px rgba(0, 230, 255, 0.15);
 }
 
 .status-pill::before {
@@ -54,4 +90,623 @@
     transparent 100%
   );
   opacity: 0.6;
+}
+
+/* ---------------- Hero radial-ring (SVG-based; sizing only here) ---------------- */
+.neon-ring-wrap {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+
+.neon-ring-wrap svg {
+  display: block;
+}
+
+.neon-ring-track {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.18);
+  stroke-width: 6;
+}
+
+.neon-ring-fill {
+  fill: none;
+  stroke: url(#neon-ring-grad);
+  stroke-width: 6;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px rgba(0, 230, 255, 0.45));
+}
+
+.neon-ring-number {
+  font-family: theme('fontFamily.display');
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--fg-primary);
+  text-shadow: 0 0 18px rgba(0, 230, 255, 0.35);
+}
+
+/* ---------------- Safety dial (small circular indicator) ---------------- */
+.safety-dial-wrap {
+  display: inline-grid;
+  place-items: center;
+  min-width: 3rem;
+  min-height: 3rem;
+}
+
+.safety-dial-track {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.18);
+  stroke-width: 3;
+}
+
+.safety-dial-fill {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.safety-dial-fill--good { stroke: var(--accent-cyan); color: var(--accent-cyan); }
+.safety-dial-fill--off { stroke: rgba(148, 163, 184, 0.35); color: rgba(148, 163, 184, 0.5); }
+.safety-dial-fill--in-use { stroke: var(--accent-warm); color: var(--accent-warm); }
+.safety-dial-fill--shut { stroke: var(--accent-cyan); color: var(--accent-cyan); }
+.safety-dial-fill--applied { stroke: #10b981; color: #10b981; }
+
+.safety-dial-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.safety-dial-dot--off {
+  background: rgba(148, 163, 184, 0.35);
+  box-shadow: none;
+}
+
+/* ---------------- Timeline dot-strip ---------------- */
+.timeline-strip {
+  position: relative;
+  padding: 1.25rem 0.25rem;
+}
+
+.timeline-strip::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 230, 255, 0.35) 15%,
+    rgba(139, 92, 246, 0.35) 50%,
+    rgba(0, 230, 255, 0.35) 85%,
+    transparent 100%
+  );
+}
+
+.timeline-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 9999px;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px rgba(0, 230, 255, 0.6);
+  flex-shrink: 0;
+}
+
+.timeline-dot--muted {
+  background: rgba(148, 163, 184, 0.45);
+  box-shadow: none;
+}
+
+/* ---------------- Code-checkpoint chip wrapper (RepoAnchors) ---------------- */
+.checkpoint-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* ---------------- StatusChip (round-2 patch) ---------------- */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.32rem 0.75rem;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  font-family: theme('fontFamily.mono');
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  min-height: 1.65rem;
+  line-height: 1;
+  white-space: nowrap;
+  background: rgba(11, 15, 26, 0.4);
+}
+
+.status-chip--md {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.7rem;
+  min-height: 2rem;
+}
+
+.status-chip__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex-shrink: 0;
+}
+
+.status-chip__text {
+  font-weight: 500;
+}
+
+.status-chip--pass,
+.status-chip--done {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.status-chip--on,
+.status-chip--in-progress {
+  color: var(--accent-cyan);
+  background: rgba(0, 230, 255, 0.08);
+  border-color: rgba(0, 230, 255, 0.4);
+}
+
+.status-chip--off,
+.status-chip--dormant {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.06);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.status-chip--blocked {
+  color: var(--accent-warm);
+  background: rgba(255, 185, 107, 0.08);
+  border-color: rgba(255, 185, 107, 0.4);
+}
+
+.status-chip--paused {
+  color: var(--accent-warm);
+  background: rgba(255, 185, 107, 0.06);
+  border-color: rgba(255, 185, 107, 0.32);
+}
+
+.status-chip--planned {
+  color: var(--accent-violet);
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.status-chip--shut {
+  color: var(--accent-cyan);
+  background: rgba(0, 230, 255, 0.06);
+  border-color: rgba(0, 230, 255, 0.35);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-chip--pulse .status-chip__dot {
+    animation: pulse-glow 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+/* ---------------- Collapsible disclosure (round-2 patch) ---------------- */
+.disclosure {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(11, 15, 26, 0.3);
+  overflow: hidden;
+}
+
+.disclosure[open] {
+  border-color: rgba(0, 230, 255, 0.22);
+  background: rgba(11, 15, 26, 0.5);
+}
+
+.disclosure__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  min-height: 2.75rem;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.disclosure__summary::-webkit-details-marker { display: none; }
+.disclosure__summary::marker { display: none; }
+
+.disclosure__summary:hover {
+  background: rgba(0, 230, 255, 0.04);
+}
+
+.disclosure__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--accent-cyan);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.disclosure[open] .disclosure__chevron {
+  transform: rotate(180deg);
+}
+
+.disclosure__title {
+  flex: 1;
+  text-align: left;
+}
+
+.disclosure__count {
+  color: #64748b;
+  font-family: theme('fontFamily.mono');
+  font-size: 0.75rem;
+}
+
+.disclosure__body {
+  padding: 0.25rem 1rem 1rem 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure__chevron {
+    transition: none;
+  }
+}
+
+/* ---------------- Mission Status command strip (round-2 patch) ---------------- */
+.mission-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .mission-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .mission-strip {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.mission-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 0.85rem;
+  background: rgba(11, 15, 26, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.mission-cell__label {
+  font-family: theme('fontFamily.mono');
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+/* ---------------- Roadmap markers (round-2 patch) ---------------- */
+.roadmap-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .roadmap-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.roadmap-col {
+  position: relative;
+  padding: 1rem;
+  border-radius: 0.85rem;
+  background: rgba(11, 15, 26, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.roadmap-col--now {
+  border-color: rgba(0, 230, 255, 0.35);
+  background: rgba(0, 230, 255, 0.04);
+  box-shadow: 0 0 0 1px rgba(0, 230, 255, 0.1), 0 0 24px rgba(0, 230, 255, 0.06);
+}
+
+.roadmap-col__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: theme('fontFamily.mono');
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 0.75rem;
+}
+
+.roadmap-col--now .roadmap-col__title {
+  color: var(--accent-cyan);
+}
+
+.roadmap-marker {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.45);
+}
+
+.roadmap-marker--past { background: #34d399; box-shadow: 0 0 6px rgba(52, 211, 153, 0.6); }
+.roadmap-marker--now { background: var(--accent-cyan); box-shadow: 0 0 8px rgba(0, 230, 255, 0.7); }
+.roadmap-marker--future { background: var(--accent-violet); box-shadow: 0 0 6px rgba(139, 92, 246, 0.6); }
+
+.roadmap-item {
+  font-family: theme('fontFamily.mono');
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  padding: 0.4rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  word-break: break-word;
+}
+
+.roadmap-item:first-of-type {
+  border-top: 0;
+}
+
+/* ---------------- System Boundaries grid (round-2 patch) ---------------- */
+.boundaries-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .boundaries-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.boundary-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.75rem;
+  background: rgba(11, 15, 26, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.boundary-row__icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 0.625rem;
+  background: rgba(0, 230, 255, 0.08);
+  color: var(--accent-cyan);
+  font-family: theme('fontFamily.mono');
+  font-size: 0.95rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.boundary-row__icon--off {
+  background: rgba(148, 163, 184, 0.08);
+  color: #94a3b8;
+}
+
+.boundary-row__icon--warm {
+  background: rgba(255, 185, 107, 0.08);
+  color: var(--accent-warm);
+}
+
+.boundary-row__icon--emerald {
+  background: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+}
+
+.boundary-row__name {
+  font-size: 0.95rem;
+  color: #e2e8f0;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.boundary-row__note {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-top: 0.15rem;
+  line-height: 1.4;
+}
+
+/* ---------------- sr-only utility (reuse if not provided elsewhere) ---------------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------- Mission focal banner (round-3 patch) ---------------- */
+.focal-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-radius: 1rem;
+  background: linear-gradient(
+    100deg,
+    rgba(0, 230, 255, 0.08) 0%,
+    rgba(11, 15, 26, 0.65) 35%,
+    rgba(11, 15, 26, 0.65) 65%,
+    rgba(139, 92, 246, 0.07) 100%
+  );
+  border: 1px solid rgba(0, 230, 255, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(0, 230, 255, 0.18),
+    0 0 32px rgba(0, 230, 255, 0.12),
+    0 16px 50px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.focal-banner__label {
+  font-family: theme('fontFamily.mono');
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.focal-banner__title {
+  font-family: theme('fontFamily.display');
+  font-size: 1.05rem;
+  line-height: 1.35;
+  color: #e2e8f0;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  word-break: break-word;
+}
+
+@media (min-width: 640px) {
+  .focal-banner__title {
+    font-size: 1.2rem;
+  }
+}
+
+.focal-banner__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 230, 255, 0.45);
+  background: rgba(0, 230, 255, 0.1);
+  color: var(--accent-cyan);
+  font-family: theme('fontFamily.mono');
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.focal-banner__chip-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 6px var(--accent-cyan);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .focal-banner__chip-dot {
+    animation: status-dot-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+/* ---------------- Hierarchy-secondary text (raw IDs demoted) ---------------- */
+.tech-id {
+  display: inline-block;
+  font-family: theme('fontFamily.mono');
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: #475569;
+  word-break: break-all;
+  line-height: 1.35;
+}
+
+.tech-id--block {
+  display: block;
+  margin-top: 0.25rem;
+}
+
+/* ---------------- Demoted SHA chips (in finished-work and roadmap) ---------------- */
+.sha-chip--muted {
+  opacity: 0.55;
+  font-size: 0.6rem;
+  transform: scale(0.92);
+  transform-origin: left center;
+}
+
+/* ---------------- Scan host wrapper (round-3 patch) ---------------- */
+/* When `.scan-host` is added to a positioned element, animations.css adds a
+   subtle left-to-right shimmer overlay via ::before. The element itself must
+   be position:relative and overflow:hidden to contain the sweep. */
+.scan-host {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ---------------- Roadmap "Now" extra emphasis (round-3 patch) ---------------- */
+.roadmap-col--now-strong {
+  border-color: rgba(0, 230, 255, 0.5);
+  background: rgba(0, 230, 255, 0.06);
+  box-shadow:
+    0 0 0 1px rgba(0, 230, 255, 0.16),
+    0 0 36px rgba(0, 230, 255, 0.1),
+    0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------------- Mission "next objective" promotion (round-3 patch) ---------------- */
+.next-objective {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: start;
+  padding: 1.1rem 1.25rem;
+  border-radius: 1rem;
+  background: linear-gradient(
+    100deg,
+    rgba(0, 230, 255, 0.06) 0%,
+    rgba(11, 15, 26, 0.6) 100%
+  );
+  border: 1px solid rgba(0, 230, 255, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 0 1px rgba(0, 230, 255, 0.1),
+    0 0 24px rgba(0, 230, 255, 0.06);
+}
+
+.next-objective__arrow {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 0.7rem;
+  background: rgba(0, 230, 255, 0.12);
+  color: var(--accent-cyan);
 }

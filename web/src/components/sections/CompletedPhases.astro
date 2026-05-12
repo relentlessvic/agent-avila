@@ -3,23 +3,141 @@ import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
 import SHAChip from '../SHAChip.astro';
+import CollapsibleList from '../CollapsibleList.astro';
+import StatusChip from '../StatusChip.astro';
 import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+
+function friendlyName(raw: string): string {
+  if (!raw) return '—';
+  const t = raw.trim();
+
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'AI mission console design — fully sealed';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT')) return 'AI mission console design — closed';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC')) return 'AI mission console design — codified';
+  if (t.includes('AI-GOV-OS')) return 'AI mission console upgrade';
+
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'Mission console UX design — fully sealed';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC-CLOSEOUT')) return 'Mission console UX design — closed';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC')) return 'Mission console UX design — codified';
+  if (t.includes('UX-UPGRADE')) return 'Mission console UX upgrade';
+
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'Local build & preview design — fully sealed';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC-CLOSEOUT')) return 'Local build & preview design — closed';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC')) return 'Local build & preview design — codified';
+  if (t.includes('BUILD-PREVIEW-DESIGN')) return 'Local build & preview design';
+
+  const m1 = t.match(/REFRESH-(\d+)-CLOSEOUT-SYNC-CLOSEOUT/);
+  if (m1) return `Snapshot refresh #${m1[1]} — fully sealed`;
+  const m2 = t.match(/REFRESH-(\d+)-CLOSEOUT-SYNC/);
+  if (m2) return `Snapshot refresh #${m2[1]} — closeout synced`;
+  const m3 = t.match(/REFRESH-(\d+)-CLOSEOUT/);
+  if (m3) return `Snapshot refresh #${m3[1]} — closed`;
+  const m4 = t.match(/REFRESH-(\d+)/);
+  if (m4) return `Snapshot refresh #${m4[1]}`;
+
+  if (t.includes('WEB-CONTENT-CLOSEOUT')) return 'Mission console content — closed';
+  if (t.includes('WEB-CONTENT')) return 'Mission console content';
+  if (t.includes('WEB-SCAFFOLD-CLOSEOUT')) return 'Mission console scaffold — closed';
+  if (t.includes('WEB-SCAFFOLD')) return 'Mission console scaffold';
+  if (t.includes('WEB-IMPLEMENT-DESIGN-SPEC')) return 'Mission console implementation design — codified';
+  if (t.includes('WEB-IMPLEMENT-DESIGN')) return 'Mission console implementation design';
+  if (t.includes('WEB-DESIGN-SPEC')) return 'Mission console design — codified';
+  if (t.includes('WEB-DESIGN')) return 'Mission console design';
+
+  if (t.startsWith('ANTIGRAVITY')) return 'IDE setup — Antigravity';
+  if (t.startsWith('COMM-HUB')) return 'Messenger setup';
+  if (t.includes('F-HALT')) return 'Messenger halt cascade';
+  if (t.toUpperCase().includes('MIGRATION 008')) return 'Database update — Migration 008';
+  if (t.startsWith('ARC-')) return t;
+  if (t.startsWith('DASH-')) return t;
+  if (t.startsWith('D-5')) return t;
+  if (t.startsWith('N-')) return t;
+
+  return t;
+}
+
+type GroupKey = 'refresh' | 'web' | 'build' | 'ux' | 'aigov' | 'antigravity' | 'messenger' | 'halt' | 'runtime' | 'other';
+
+interface Group {
+  key: GroupKey;
+  title: string;
+  items: typeof data.completedPhases;
+}
+
+function groupFor(name: string): GroupKey {
+  if (name.includes('REFRESH')) return 'refresh';
+  if (name.includes('AI-GOV-OS')) return 'aigov';
+  if (name.includes('UX-UPGRADE')) return 'ux';
+  if (name.includes('BUILD-PREVIEW')) return 'build';
+  if (name.includes('WEB-')) return 'web';
+  if (name.startsWith('ANTIGRAVITY')) return 'antigravity';
+  if (name.startsWith('COMM-HUB')) return 'messenger';
+  if (name.includes('F-HALT')) return 'halt';
+  if (name.startsWith('ARC-') || name.startsWith('DASH-') || name.startsWith('D-5') || name.startsWith('N-') || name.startsWith('MIGRATION')) return 'runtime';
+  return 'other';
+}
+
+const groupTitles: Record<GroupKey, string> = {
+  refresh: 'Snapshot refreshes',
+  aigov: 'AI mission console design',
+  ux: 'Mission console UX upgrade',
+  build: 'Local build & preview design',
+  web: 'Mission console build',
+  antigravity: 'IDE setup',
+  messenger: 'Messenger setup',
+  halt: 'Messenger halt cascade',
+  runtime: 'Trading runtime (historical, sealed)',
+  other: 'Other finished work'
+};
+
+const groupOrder: GroupKey[] = ['aigov', 'ux', 'build', 'refresh', 'web', 'messenger', 'halt', 'antigravity', 'runtime', 'other'];
+
+const groups: Group[] = groupOrder
+  .map(k => ({ key: k, title: groupTitles[k], items: data.completedPhases.filter(p => groupFor(p.name) === k) }))
+  .filter(g => g.items.length > 0);
+
+const recent = data.completedPhases.slice(0, 3);
 ---
-<Section id={SECTION_IDS.completedPhases} title="Completed Phases" icon="check" count={data.completedPhases.length}>
-  <Card>
-    <p class="text-xs text-slate-500 mb-4 font-mono">CLOSED in STATUS.md; most recent first</p>
-    <ul class="space-y-0 max-h-[60vh] overflow-y-auto pr-2">
-      {data.completedPhases.map(p => (
-        <li class="flex items-start gap-3 py-2 border-t border-slate-800/50 first:border-t-0">
-          <SHAChip sha={p.sha} />
-          <span class="font-mono text-xs text-slate-300 break-words flex-1 pt-0.5">{p.name}</span>
-        </li>
+<Section id={SECTION_IDS.completedPhases} title="Finished work" icon="check" count={data.completedPhases.length}>
+  <Card tier="secondary">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <p class="text-sm text-slate-400 leading-relaxed">Grouped by what they belonged to. Most recent stay on top.</p>
+      <StatusChip state="done" label={`${data.completedPhases.length} DONE`} />
+    </div>
+
+    <div class="mb-5">
+      <p class="text-xs font-mono uppercase tracking-wider text-slate-500 mb-2">Just finished</p>
+      <ul class="space-y-0">
+        {recent.map(p => (
+          <li class="flex items-start gap-2.5 py-2.5 border-t border-slate-800/50 first:border-t-0">
+            <span class="sha-chip--muted"><SHAChip sha={p.sha} /></span>
+            <span class="text-sm text-slate-200 break-words flex-1 pt-0.5 leading-relaxed" title={p.name}>{friendlyName(p.name)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+
+    <div class="space-y-2.5">
+      {groups.map(g => (
+        <CollapsibleList summary={g.title} count={g.items.length}>
+          <ul class="space-y-0">
+            {g.items.map(p => (
+              <li class="flex items-start gap-2.5 py-2 border-t border-slate-800/50 first:border-t-0">
+                <span class="sha-chip--muted"><SHAChip sha={p.sha} /></span>
+                <div class="flex-1 min-w-0 pt-0.5">
+                  <p class="text-sm text-slate-200 break-words leading-relaxed" title={p.name}>{friendlyName(p.name)}</p>
+                  <p class="tech-id" title={p.name}>{p.name}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </CollapsibleList>
       ))}
-    </ul>
+    </div>
   </Card>
 </Section>

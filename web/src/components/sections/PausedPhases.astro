@@ -2,20 +2,59 @@
 import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
+import StatusChip from '../StatusChip.astro';
 import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+
+function friendlyName(raw: string): string {
+  if (!raw) return '—';
+  const t = raw.trim();
+  if (t.includes('COMM-HUB-RELAY-RUNTIME-IMPLEMENT-F-HALT-AMENDMENT')) return 'Messenger safety reinforcement';
+  if (t.includes('F-HALT-SMOKE-DESIGN')) return 'Messenger safety smoke-test design';
+  if (t.includes('F-HALT-AMENDMENT')) return 'Messenger safety reinforcement';
+  if (t.includes('F-HALT')) return 'Messenger halt cascade';
+  if (t.includes('AI-GOV-OS')) return 'AI mission console upgrade';
+  if (t.includes('UX-UPGRADE')) return 'Mission console UX upgrade';
+  if (t.includes('BUILD-PREVIEW')) return 'Local build & preview';
+  if (t.includes('WEB-CONTENT')) return 'Mission console content';
+  if (t.includes('WEB-SCAFFOLD')) return 'Mission console scaffold';
+  if (t.includes('WEB-IMPLEMENT-DESIGN')) return 'Mission console implementation design';
+  if (t.includes('WEB-DESIGN')) return 'Mission console design';
+  const m = t.match(/REFRESH-(\d+)/);
+  if (m) return `Snapshot refresh #${m[1]}`;
+  if (t.includes('RELAY')) return 'Messenger setup';
+  if (t.startsWith('COMM-HUB')) return 'Messenger setup';
+  return t;
+}
+
+function friendlyNote(raw: string): string {
+  if (!raw) return '';
+  const t = raw;
+  if (t.toLowerCase().includes('round-1') && t.includes('REs')) return 'Round-1 review found some fixes needed; waiting on me to take them up.';
+  if (t.toLowerCase().includes('round-1') && t.includes('PASS')) return 'Round-1 review passed; ready when I am.';
+  if (t.includes('deferred') && t.includes('Stage')) return 'Held back behind earlier safety steps.';
+  if (t.includes('paused per')) return 'Paused on purpose, per the rules I set.';
+  return t;
+}
 ---
 {data.pausedPhases.length > 0 && (
-  <Section id={SECTION_IDS.pausedPhases} title="Paused Phases" icon="pause" count={data.pausedPhases.length}>
-    <Card class="space-y-3">
+  <Section id={SECTION_IDS.pausedPhases} title="On pause" icon="pause" count={data.pausedPhases.length}>
+    <Card tier="secondary" class="space-y-4">
       {data.pausedPhases.map(p => (
-        <div class="border-l-2 border-cyber-amber/50 pl-4 py-1">
-          <p class="font-mono text-sm text-slate-200 break-words">{p.name}</p>
-          <p class="text-xs text-slate-500 mt-1 leading-relaxed">{p.note}</p>
+        <div class="border-l-2 border-cyber-warm/60 pl-4 py-1.5">
+          <div class="flex flex-wrap items-start gap-2 mb-1.5">
+            <p class="text-sm text-slate-200 break-words leading-snug flex-1 font-medium" title={p.name}>{friendlyName(p.name)}</p>
+            <StatusChip state="paused" />
+          </div>
+          <p class="text-xs text-slate-400 leading-relaxed" title={p.note}>
+            <span class="font-mono uppercase tracking-wider text-slate-500 mr-1">Why:</span>
+            {friendlyNote(p.note)}
+          </p>
+          <p class="tech-id tech-id--block" title={p.name}>{p.name}</p>
         </div>
       ))}
     </Card>

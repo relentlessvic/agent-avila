@@ -2,33 +2,86 @@
 import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
-import Pill from '../Pill.astro';
-import { SECTION_IDS, getSafetyGateColor } from '../../lib/constants';
+import SafetyDial from '../SafetyDial.astro';
+import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+
+// Presentation-side mapping — does NOT change the data layer.
+// Maps the raw gate-name string to a plain-English label and a dial state.
+// Falls back to the raw name when no mapping exists (keeps factual content intact).
+type DialState = 'good' | 'off' | 'in-use' | 'shut' | 'applied';
+
+interface Friendly {
+  label: string;
+  detail: string;
+  state: DialState;
+}
+
+function friendlyFor(name: string, status: string): Friendly {
+  const key = name.toLowerCase();
+  if (key.includes('migration 008')) {
+    return { label: 'Database update', detail: 'done', state: 'applied' };
+  }
+  if (key.includes('stage 5') && key.includes('gate-10')) {
+    return { label: 'Helper install', detail: 'used up (single-use)', state: 'in-use' };
+  }
+  if (key.startsWith('relay runtime')) {
+    return { label: 'Messenger', detail: 'resting', state: 'off' };
+  }
+  if (key.startsWith('autopilot')) {
+    return { label: 'Auto-mode', detail: 'off', state: 'off' };
+  }
+  if (key.startsWith('discord posting')) {
+    return { label: 'Messenger sending', detail: 'not active', state: 'off' };
+  }
+  if (key.startsWith('live trading')) {
+    return { label: 'Live trading', detail: 'not allowed', state: 'shut' };
+  }
+  if (key.startsWith('manual live-armed') || key.includes('live-armed')) {
+    return { label: 'The armed-trading flag', detail: "I'm the only one who can flip it", state: 'in-use' };
+  }
+  if (key.startsWith('approvers')) {
+    return { label: 'Approvers', detail: 'just me ({Victor})', state: 'good' };
+  }
+  if (key.startsWith('ceiling-pause')) {
+    return { label: 'Soft ceiling', detail: 'lifted (counter at 0 of 3)', state: 'good' };
+  }
+  if (key.startsWith('n-3') || key.includes('deploy gate')) {
+    return { label: 'Deploy gate', detail: 'shut', state: 'shut' };
+  }
+  // Default: keep raw, mark as good unless status looks negative
+  const lowerStatus = (status || '').toLowerCase();
+  const inferred: DialState =
+    lowerStatus.includes('not') || lowerStatus.includes('off') || lowerStatus.includes('dormant')
+      ? 'off'
+      : 'good';
+  return { label: name, detail: status, state: inferred };
+}
 ---
-<Section id={SECTION_IDS.safetyGates} title="Safety Gates" icon="shield" count={data.safetyGates.length}>
-  <Card>
-    <table class="w-full">
-      <thead class="text-xs font-mono uppercase tracking-wider text-slate-500">
-        <tr>
-          <th class="text-left pb-3 pr-4">Gate</th>
-          <th class="text-left pb-3">Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.safetyGates.map(g => (
-          <tr class="border-t border-slate-800/50">
-            <td class="py-3 pr-4 text-sm text-slate-300 align-top">{g.name}</td>
-            <td class="py-3 align-top">
-              <Pill text={g.status} color={getSafetyGateColor(g.status)} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+<Section id={SECTION_IDS.safetyGates} title="Safety locks" icon="shield" count={data.safetyGates.length}>
+  <Card tier="primary">
+    <p class="text-sm text-slate-400 mb-5 leading-relaxed">
+      How I'm protecting things while this builds. Everything below comes straight from my own status notes — no
+      guessing.
+    </p>
+    <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+      {data.safetyGates.map(g => {
+        const f = friendlyFor(g.name, g.status);
+        const aria = `${f.label}: ${f.detail}`;
+        return (
+          <li class="flex items-center gap-4 min-h-[3rem]">
+            <SafetyDial state={f.state} ariaLabel={aria} />
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-slate-200 font-medium leading-snug">{f.label}</p>
+              <p class="text-xs text-slate-500 mt-0.5 leading-snug break-words" title={`${g.name}: ${g.status}`}>{f.detail}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   </Card>
 </Section>

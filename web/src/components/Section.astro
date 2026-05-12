@@ -15,16 +15,16 @@ const headingId = `${id}-heading`;
 <section
   id={id}
   aria-labelledby={headingId}
-  class="px-6 py-8 max-w-5xl mx-auto fade-in scroll-mt-20"
+  class="px-6 py-7 max-w-5xl mx-auto fade-in scroll-mt-20"
 >
   <h2
     id={headingId}
-    class="font-mono text-xs tracking-[0.2em] uppercase text-cyber-cyan/80 mb-4 flex items-center gap-2"
+    class="font-sans text-sm sm:text-base font-medium text-slate-200 mb-4 flex items-center gap-2.5"
   >
-    {icon && <Icon name={icon} class="w-3.5 h-3.5" />}
+    {icon && <Icon name={icon} class="w-4 h-4 text-cyber-cyan/80" />}
     <span>{title}</span>
     {count !== undefined && (
-      <span class="text-slate-500 ml-1 normal-case tracking-normal">({count})</span>
+      <span class="text-slate-500 ml-1 font-mono text-xs">({count})</span>
     )}
   </h2>
   <slot />

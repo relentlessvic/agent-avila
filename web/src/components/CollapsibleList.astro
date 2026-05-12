@@ -1,0 +1,26 @@
+---
+interface Props {
+  summary: string;
+  count?: number;
+  open?: boolean;
+  class?: string;
+}
+
+const { summary, count, open = false, class: className = '' } = Astro.props;
+---
+<details class={`disclosure ${className}`} open={open}>
+  <summary class="disclosure__summary">
+    <span class="disclosure__chevron" aria-hidden="true">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none" focusable="false" aria-hidden="true">
+        <path d="M2 3 L5 7 L8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <span class="disclosure__title">{summary}</span>
+    {count !== undefined && (
+      <span class="disclosure__count">({count})</span>
+    )}
+  </summary>
+  <div class="disclosure__body">
+    <slot />
+  </div>
+</details>

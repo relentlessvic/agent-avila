@@ -1,0 +1,78 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import StatusChip from '../StatusChip.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+
+// Presentation-only mapping from the existing parsed safetyGates list to a
+// compact 6-cell strip. Falls back gracefully if a label is missing.
+type CellState =
+  | 'pass'
+  | 'done'
+  | 'off'
+  | 'dormant'
+  | 'blocked'
+  | 'paused'
+  | 'planned'
+  | 'in-progress'
+  | 'shut'
+  | 'on';
+
+interface Cell {
+  label: string;
+  state: CellState;
+  display: string;
+}
+
+function findGate(predicate: (name: string, status: string) => boolean) {
+  return data.safetyGates.find(g => predicate(g.name.toLowerCase(), (g.status || '').toLowerCase()));
+}
+
+const relayGate = findGate(n => n.startsWith('relay runtime'));
+const autopilotGate = findGate(n => n.startsWith('autopilot'));
+const deployGate = findGate(n => n.startsWith('n-3') || n.includes('deploy gate'));
+const liveTradeGate = findGate(n => n.startsWith('live trading'));
+const ceilingGate = findGate(n => n.startsWith('ceiling-pause'));
+const migrationGate = findGate(n => n.startsWith('migration 008'));
+
+// Safety overall: all locks holding → PASS; otherwise FLAGGED.
+const allHolding =
+  !!relayGate &&
+  !!autopilotGate &&
+  !!deployGate &&
+  !!liveTradeGate &&
+  (relayGate.status.toLowerCase().includes('dormant')) &&
+  (autopilotGate.status.toLowerCase().includes('dormant')) &&
+  (deployGate.status.toLowerCase().includes('closed') || deployGate.status.toLowerCase().includes('shut')) &&
+  (liveTradeGate.status.toLowerCase().includes('not authorized') || liveTradeGate.status.toLowerCase().includes('off'));
+
+const cells: Cell[] = [
+  { label: 'Safety', state: allHolding ? 'pass' : 'blocked', display: allHolding ? 'PASS' : 'CHECK' },
+  { label: 'Runtime', state: 'dormant', display: relayGate ? 'DORMANT' : 'OFF' },
+  { label: 'Deploy gate', state: 'shut', display: 'SHUT' },
+  { label: 'Live trading', state: 'off', display: 'OFF' },
+  { label: 'Messenger', state: 'dormant', display: 'DORMANT' },
+  { label: 'Auto-mode', state: 'dormant', display: 'OFF' }
+];
+---
+<Section id={SECTION_IDS.safetyGates + '-strip'} title="Mission Status">
+  <Card tier="primary">
+    <p class="text-sm text-slate-400 mb-5 leading-relaxed">
+      A quick read of where everything stands right now. Calm, contained, off when off.
+    </p>
+    <div class="mission-strip">
+      {cells.map(cell => (
+        <div class="mission-cell">
+          <span class="mission-cell__label">{cell.label}</span>
+          <StatusChip state={cell.state} label={cell.display} />
+        </div>
+      ))}
+    </div>
+  </Card>
+</Section>

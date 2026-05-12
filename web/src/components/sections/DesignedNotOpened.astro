@@ -2,21 +2,47 @@
 import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
+import StatusChip from '../StatusChip.astro';
 import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+
+function friendlyName(raw: string): string {
+  if (!raw) return '—';
+  const t = raw.trim();
+  if (t.includes('AI-GOV-OS-PHASE-ALPHA')) return 'Mission console upgrade — phase alpha';
+  if (t.includes('AI-GOV-OS-PHASE-BETA')) return 'Mission console upgrade — phase beta';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC')) return 'AI mission console design (codified)';
+  if (t.includes('AI-GOV-OS')) return 'AI mission console upgrade';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC')) return 'Mission console UX design (codified)';
+  if (t.includes('UX-UPGRADE')) return 'Mission console UX upgrade';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC')) return 'Local build & preview design (codified)';
+  if (t.includes('BUILD-PREVIEW')) return 'Local build & preview';
+  if (t.includes('F-HALT-AMENDMENT')) return 'Messenger safety reinforcement';
+  if (t.includes('F-HALT-SMOKE')) return 'Messenger safety smoke-test design';
+  if (t.includes('F-HALT')) return 'Messenger halt cascade';
+  if (t.includes('TESTS-DESIGN')) return 'Mission console tests — design';
+  if (t.includes('JSON-EXPORT')) return 'JSON export — design';
+  if (t.includes('RELAY')) return 'Messenger setup';
+  if (t.startsWith('COMM-HUB')) return 'Messenger setup';
+  return t;
+}
 ---
 {data.designedNotOpened.length > 0 && (
-  <Section id={SECTION_IDS.designedNotOpened} title="Designed / Not-Opened" count={data.designedNotOpened.length}>
-    <Card class="space-y-3">
-      <p class="text-xs text-slate-500 font-mono mb-2">canonical handoffs sealed</p>
+  <Section id={SECTION_IDS.designedNotOpened} title="Planned, not started" count={data.designedNotOpened.length}>
+    <Card tier="secondary" class="space-y-3">
+      <p class="text-sm text-slate-500 mb-1 leading-relaxed">Designs that are ready and waiting.</p>
       {data.designedNotOpened.map(p => (
-        <div class="border-l-2 border-cyber-violet/50 pl-4 py-1">
-          <p class="font-mono text-sm text-slate-200 break-words">{p.name}</p>
+        <div class="border-l-2 border-cyber-violet/55 pl-4 py-1.5">
+          <div class="flex flex-wrap items-start gap-2 mb-1.5">
+            <p class="text-sm text-slate-200 break-words leading-snug flex-1 font-medium" title={p.name}>{friendlyName(p.name)}</p>
+            <StatusChip state="planned" />
+          </div>
           {p.note && <p class="text-xs text-slate-500 mt-1 leading-relaxed">{p.note}</p>}
+          <p class="tech-id tech-id--block" title={p.name}>{p.name}</p>
         </div>
       ))}
     </Card>

@@ -8,10 +8,50 @@ interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+const raw = data.activePhase?.name || '';
+
+function friendlyMission(t: string): string {
+  if (!t) return '—';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'AI mission console design — fully sealed';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT')) return 'AI mission console design — closed';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC')) return 'AI mission console design — codified';
+  if (t.includes('AI-GOV-OS')) return 'AI mission console upgrade';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'Mission console UX design — fully sealed';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC-CLOSEOUT')) return 'Mission console UX design — closed';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC')) return 'Mission console UX design — codified';
+  if (t.includes('UX-UPGRADE')) return 'Mission console UX upgrade';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'Local build & preview design — fully sealed';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC-CLOSEOUT')) return 'Local build & preview design — closed';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC')) return 'Local build & preview design — codified';
+  if (t.includes('BUILD-PREVIEW-DESIGN')) return 'Local build & preview design';
+  if (t.includes('WEB-BUILD-PREVIEW')) return 'Local build & preview';
+  const m = t.match(/REFRESH-(\d+)(?:-CLOSEOUT-SYNC-CLOSEOUT|-CLOSEOUT-SYNC|-CLOSEOUT)?/);
+  if (m) {
+    if (t.includes('-CLOSEOUT-SYNC-CLOSEOUT')) return `Snapshot refresh #${m[1]} — fully sealed`;
+    if (t.includes('-CLOSEOUT-SYNC')) return `Snapshot refresh #${m[1]} — closeout synced`;
+    if (t.includes('-CLOSEOUT')) return `Snapshot refresh #${m[1]} — closed`;
+    return `Snapshot refresh #${m[1]}`;
+  }
+  if (t.includes('F-HALT-AMENDMENT')) return 'Messenger safety reinforcement';
+  if (t.includes('F-HALT-SMOKE')) return 'Messenger safety smoke-test design';
+  if (t.includes('F-HALT')) return 'Messenger halt cascade';
+  if (t.includes('WEB-CONTENT')) return 'Mission console content';
+  if (t.includes('WEB-SCAFFOLD')) return 'Mission console scaffold';
+  if (t.includes('WEB-IMPLEMENT-DESIGN')) return 'Mission console implementation design';
+  if (t.includes('WEB-DESIGN')) return 'Mission console design';
+  if (t.includes('RELAY')) return 'Messenger setup';
+  if (t.startsWith('COMM-HUB')) return 'Messenger setup';
+  if (t.startsWith('ANTIGRAVITY')) return 'IDE setup — Antigravity';
+  return t;
+}
+
+const friendly = friendlyMission(raw);
+const detail = data.activePhase?.detailsHint || '';
 ---
-<Section id={SECTION_IDS.activePhase} title="Active Phase" icon="lightning">
+<Section id={SECTION_IDS.activePhase} title="What I'm working on now" icon="lightning">
   <Card>
-    <p class="font-mono text-sm text-cyber-cyan break-words mb-3">{data.activePhase.name}</p>
-    <p class="text-xs text-slate-500">{data.activePhase.detailsHint}</p>
+    <p class="text-sm sm:text-base text-slate-100 leading-relaxed mb-2 font-medium">{friendly}</p>
+    {detail && <p class="text-xs text-slate-500 leading-relaxed mb-3">{detail}</p>}
+    <p class="tech-id" title={raw}>{raw}</p>
   </Card>
 </Section>

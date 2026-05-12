@@ -2,16 +2,100 @@
 import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
+import CollapsibleList from '../CollapsibleList.astro';
 import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+
+function friendlyName(raw: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '—';
+
+  if (trimmed.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'AI mission console design (fully sealed)';
+  if (trimmed.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT')) return 'AI mission console design (closed)';
+  if (trimmed.includes('AI-GOV-OS-DESIGN-SPEC')) return 'AI mission console design (codified)';
+  if (trimmed.includes('AI-GOV-OS-PHASE-ALPHA')) return 'Mission console upgrade — phase alpha';
+  if (trimmed.includes('AI-GOV-OS-PHASE-BETA')) return 'Mission console upgrade — phase beta';
+  if (trimmed.includes('AI-GOV-OS')) return 'AI mission console upgrade';
+
+  if (trimmed.includes('UX-UPGRADE-DESIGN-SPEC')) return 'Mission console UX design — codified';
+  if (trimmed.includes('UX-UPGRADE')) return 'Mission console UX upgrade';
+
+  if (trimmed.includes('BUILD-PREVIEW-DESIGN-SPEC')) return 'Local build & preview design — codified';
+  if (trimmed.includes('BUILD-PREVIEW')) return 'Local build & preview';
+
+  const m1 = trimmed.match(/REFRESH-(\d+)-CLOSEOUT-SYNC-CLOSEOUT/);
+  if (m1) return `Snapshot refresh #${m1[1]} (fully sealed)`;
+  const m2 = trimmed.match(/REFRESH-(\d+)-CLOSEOUT-SYNC/);
+  if (m2) return `Snapshot refresh #${m2[1]} (closeout synced)`;
+  const m3 = trimmed.match(/REFRESH-(\d+)-CLOSEOUT/);
+  if (m3) return `Snapshot refresh #${m3[1]} (closed)`;
+  const m4 = trimmed.match(/REFRESH-(\d+)/);
+  if (m4) return `Snapshot refresh #${m4[1]}`;
+
+  if (trimmed.includes('WEB-CONTENT')) return 'Mission console content';
+  if (trimmed.includes('WEB-SCAFFOLD')) return 'Mission console scaffold';
+  if (trimmed.includes('WEB-IMPLEMENT-DESIGN')) return 'Mission console implementation design';
+  if (trimmed.includes('WEB-DESIGN')) return 'Mission console design';
+
+  if (trimmed.includes('F-HALT-AMENDMENT')) return 'Messenger safety reinforcement';
+  if (trimmed.includes('F-HALT-SMOKE')) return 'Messenger safety smoke-test design';
+  if (trimmed.includes('F-HALT')) return 'Messenger halt cascade';
+
+  if (trimmed.startsWith('COMM-HUB')) return 'Messenger setup';
+  if (trimmed.startsWith('ANTIGRAVITY')) return 'IDE setup — Antigravity';
+
+  return trimmed;
+}
+
+const past = (data.completedPhases || []).slice(0, 5).map(p => ({ friendly: friendlyName(p.name), raw: p.name }));
+const nowFriendly = friendlyName(data.activePhase?.name || data.whereAreWeNow?.activePhase || '—');
+const nowRaw = data.activePhase?.name || data.whereAreWeNow?.activePhase || '';
+const future = (data.designedNotOpened || []).slice(0, 5).map(p => ({ friendly: friendlyName(p.name), raw: p.name }));
 ---
-<Section id={SECTION_IDS.phaseTimeline} title="Phase Timeline / Roadmap">
-  <Card>
-    <p class="text-xs text-slate-500 font-mono mb-4">committed-anchored only</p>
-    <pre class="font-mono text-xs text-slate-300 leading-relaxed overflow-x-auto whitespace-pre">{data.phaseTimeline}</pre>
+<Section id={SECTION_IDS.phaseTimeline} title="Past, now, next">
+  <Card tier="secondary">
+    <p class="text-sm text-slate-500 mb-5 leading-relaxed">A quick map of how the line is moving.</p>
+    <div class="roadmap-grid">
+      <div class="roadmap-col">
+        <div class="roadmap-col__title">
+          <span class="roadmap-marker roadmap-marker--past" aria-hidden="true"></span>
+          <span>Recently done</span>
+        </div>
+        {past.length === 0 && (<p class="text-xs text-slate-500 leading-relaxed">No recent finishes captured.</p>)}
+        {past.map(item => (
+          <p class="roadmap-item" title={item.raw}>{item.friendly}</p>
+        ))}
+      </div>
+
+      <div class="roadmap-col roadmap-col--now roadmap-col--now-strong scan-host">
+        <div class="roadmap-col__title">
+          <span class="roadmap-marker roadmap-marker--now" aria-hidden="true"></span>
+          <span>Now</span>
+        </div>
+        <p class="roadmap-item text-slate-100 font-medium" title={nowRaw}>{nowFriendly}</p>
+        <p class="text-xs text-slate-500 leading-relaxed mt-2">{data.activePhase?.detailsHint || ''}</p>
+      </div>
+
+      <div class="roadmap-col">
+        <div class="roadmap-col__title">
+          <span class="roadmap-marker roadmap-marker--future" aria-hidden="true"></span>
+          <span>Planned ahead</span>
+        </div>
+        {future.length === 0 && (<p class="text-xs text-slate-500 leading-relaxed">Nothing planned-and-waiting right now.</p>)}
+        {future.map(item => (
+          <p class="roadmap-item" title={item.raw}>{item.friendly}</p>
+        ))}
+      </div>
+    </div>
+
+    <div class="mt-6">
+      <CollapsibleList summary="Raw timeline text (technical)">
+        <pre class="font-mono text-xs text-slate-300 leading-relaxed overflow-x-auto whitespace-pre">{data.phaseTimeline}</pre>
+      </CollapsibleList>
+    </div>
   </Card>
 </Section>

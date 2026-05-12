@@ -17,21 +17,28 @@ const { title = 'Project Progress Dashboard' } = Astro.props;
   <body class="min-h-screen flex flex-col">
     <a href="#main" class="skip-link">Skip to main content</a>
 
-    <header class="px-6 py-4 flex items-center justify-between">
-      <div class="font-mono text-xs tracking-[0.18em] text-slate-300 uppercase">
-        Agent Avila <span class="text-cyber-cyan/70">/</span> Progress Console
+    <div class="ambient-stack" aria-hidden="true">
+      <span class="bg-orb bg-orb--cyan"></span>
+      <span class="bg-orb bg-orb--violet"></span>
+      <span class="bg-orb bg-orb--warm"></span>
+    </div>
+    <div class="scan-overlay" aria-hidden="true"></div>
+
+    <header class="relative z-10 px-6 py-5 flex items-center justify-between">
+      <div class="font-mono text-xs tracking-[0.2em] text-slate-200 uppercase">
+        Agent Avila <span class="text-cyber-cyan/70">/</span> Mission Console
       </div>
-      <div class="status-pill">Status: Scaffold Ready</div>
+      <div class="status-pill">All systems steady</div>
     </header>
 
     <div class="divider-neon mx-6"></div>
 
-    <main id="main" class="flex-1 w-full">
+    <main id="main" class="relative z-10 flex-1 w-full">
       <slot />
     </main>
 
-    <footer class="px-6 py-4 text-xs text-slate-500 space-y-1 border-t border-slate-800/40">
-      <p>Generated locally · no network · no deploy · no trading</p>
+    <footer class="relative z-10 px-6 py-5 text-xs text-slate-500 space-y-1 border-t border-slate-800/40 mt-8">
+      <p>Built and viewed locally. No network. No deploy. No trading.</p>
       <Disclaimer class="text-slate-500">
         This web project is entirely separate from the trading runtime
         <code class="text-slate-400">dashboard.js</code>. It does not modify,

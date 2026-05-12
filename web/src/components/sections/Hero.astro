@@ -2,20 +2,97 @@
 import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
+import RadialRing from '../RadialRing.astro';
 import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+const closedCount = data.whereAreWeNow.totalClosedCount;
+const rawActive = data.whereAreWeNow.activePhase || data.activePhase?.name || '—';
+
+// Presentation-only friendly mission-name translator. Falls back to raw.
+function friendlyMission(raw: string): string {
+  if (!raw) return '—';
+  const t = raw.trim();
+
+  if (t.includes('AI-GOV-OS-PHASE-ALPHA')) return 'Mission console upgrade — phase alpha';
+  if (t.includes('AI-GOV-OS-PHASE-BETA')) return 'Mission console upgrade — phase beta';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'AI mission console design — fully sealed';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC-CLOSEOUT')) return 'AI mission console design — closed';
+  if (t.includes('AI-GOV-OS-DESIGN-SPEC')) return 'AI mission console design — codified';
+  if (t.includes('AI-GOV-OS')) return 'AI mission console upgrade';
+
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'Mission console UX design — fully sealed';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC-CLOSEOUT')) return 'Mission console UX design — closed';
+  if (t.includes('UX-UPGRADE-DESIGN-SPEC')) return 'Mission console UX design — codified';
+  if (t.includes('UX-UPGRADE')) return 'Mission console UX upgrade';
+
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC-CLOSEOUT-SYNC')) return 'Local build & preview design — fully sealed';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC-CLOSEOUT')) return 'Local build & preview design — closed';
+  if (t.includes('BUILD-PREVIEW-DESIGN-SPEC')) return 'Local build & preview design — codified';
+  if (t.includes('BUILD-PREVIEW-DESIGN')) return 'Local build & preview design';
+  if (t.includes('WEB-BUILD-PREVIEW')) return 'Local build & preview';
+
+  const m1 = t.match(/REFRESH-(\d+)-CLOSEOUT-SYNC-CLOSEOUT/);
+  if (m1) return `Snapshot refresh #${m1[1]} — fully sealed`;
+  const m2 = t.match(/REFRESH-(\d+)-CLOSEOUT-SYNC/);
+  if (m2) return `Snapshot refresh #${m2[1]} — closeout synced`;
+  const m3 = t.match(/REFRESH-(\d+)-CLOSEOUT/);
+  if (m3) return `Snapshot refresh #${m3[1]} — closed`;
+  const m4 = t.match(/REFRESH-(\d+)/);
+  if (m4) return `Snapshot refresh #${m4[1]}`;
+
+  if (t.includes('WEB-CONTENT')) return 'Mission console content';
+  if (t.includes('WEB-SCAFFOLD')) return 'Mission console scaffold';
+  if (t.includes('WEB-IMPLEMENT-DESIGN-SPEC')) return 'Mission console implementation design — codified';
+  if (t.includes('WEB-IMPLEMENT-DESIGN')) return 'Mission console implementation design';
+  if (t.includes('WEB-DESIGN-SPEC')) return 'Mission console design — codified';
+  if (t.includes('WEB-DESIGN')) return 'Mission console design';
+
+  if (t.includes('F-HALT-AMENDMENT')) return 'Messenger safety reinforcement';
+  if (t.includes('F-HALT-SMOKE')) return 'Messenger safety smoke-test design';
+  if (t.includes('F-HALT')) return 'Messenger halt cascade';
+  if (t.includes('RELAY')) return 'Messenger setup';
+  if (t.startsWith('COMM-HUB')) return 'Messenger setup';
+  if (t.startsWith('ANTIGRAVITY')) return 'IDE setup — Antigravity';
+  if (t.toUpperCase().includes('MIGRATION 008') || t.includes('MIGRATION-008')) return 'Database update — Migration 008';
+
+  return t;
+}
+
+const missionLabel = friendlyMission(rawActive);
 ---
-<Section id={SECTION_IDS.hero} title="Where Are We Now">
-  <Card class="sm:p-8">
-    <p class="text-xs font-mono uppercase tracking-wider text-slate-500 mb-2">Active phase</p>
-    <p class="font-mono text-sm sm:text-base text-slate-100 break-words">{data.whereAreWeNow.activePhase}</p>
-    <div class="mt-6 pt-6 border-t border-slate-800/50 flex items-baseline gap-2">
-      <span class="font-mono text-2xl text-cyber-emerald">{data.whereAreWeNow.totalClosedCount}</span>
-      <span class="text-sm text-slate-400">phases CLOSED in STATUS.md</span>
+<Section id={SECTION_IDS.hero} title="Right Now">
+  <div class="focal-banner mission-pulse scan-host fade-in mb-5">
+    <span class="focal-banner__label">Current mission</span>
+    <span class="focal-banner__title" title={rawActive}>{missionLabel}</span>
+    <span class="focal-banner__chip">
+      <span class="focal-banner__chip-dot" aria-hidden="true"></span>
+      In progress
+    </span>
+  </div>
+
+  <Card tier="primary" class="sm:p-9">
+    <div class="grid sm:grid-cols-[auto_1fr] gap-8 sm:gap-10 items-center">
+      <div class="justify-self-center sm:justify-self-start">
+        <RadialRing value={closedCount} label={`${closedCount} things finished so far`} />
+      </div>
+      <div>
+        <p class="text-xs font-mono uppercase tracking-wider text-cyber-cyan/80 mb-2">Big picture</p>
+        <p class="font-display text-2xl sm:text-3xl text-slate-100 leading-snug mb-3 tracking-tight">
+          I've finished <span class="text-cyber-cyan">{closedCount}</span> things so far.
+        </p>
+        <p class="text-sm text-slate-400 leading-relaxed mb-5">
+          Here's where I am, what's protected, and what I'm working on next. Calm and steady — no rush.
+        </p>
+        <div class="border-t border-slate-800/50 pt-5 mt-1">
+          <p class="text-xs font-mono uppercase tracking-wider text-slate-500 mb-1.5">Now</p>
+          <p class="text-sm text-slate-200 leading-relaxed font-medium">{missionLabel}</p>
+          <p class="tech-id tech-id--block" title={rawActive}>{rawActive}</p>
+        </div>
+      </div>
     </div>
   </Card>
 </Section>

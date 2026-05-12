@@ -2,33 +2,50 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { loadDashboard } from '../lib/load-dashboard';
 import Header from '../components/sections/Header.astro';
+import MissionStatus from '../components/sections/MissionStatus.astro';
 import Hero from '../components/sections/Hero.astro';
 import ActivePhase from '../components/sections/ActivePhase.astro';
+import NextSafeAction from '../components/sections/NextSafeAction.astro';
+import DecisionsNeeded from '../components/sections/DecisionsNeeded.astro';
 import SafetyGates from '../components/sections/SafetyGates.astro';
-import CompletedPhases from '../components/sections/CompletedPhases.astro';
+import DormantVsActive from '../components/sections/DormantVsActive.astro';
+import SystemBoundaries from '../components/sections/SystemBoundaries.astro';
 import PausedPhases from '../components/sections/PausedPhases.astro';
 import DesignedNotOpened from '../components/sections/DesignedNotOpened.astro';
 import Backlog from '../components/sections/Backlog.astro';
 import PhaseTimeline from '../components/sections/PhaseTimeline.astro';
+import CompletedPhases from '../components/sections/CompletedPhases.astro';
 import RepoAnchors from '../components/sections/RepoAnchors.astro';
-import DormantVsActive from '../components/sections/DormantVsActive.astro';
-import NextSafeAction from '../components/sections/NextSafeAction.astro';
 
 const data = loadDashboard();
 ---
 <BaseLayout title="Project Progress Dashboard">
   <div class="w-full pb-8">
+    <!-- Zone 1 — Mission Status -->
     <Header data={data} />
+    <MissionStatus data={data} />
+
+    <!-- Zone 2 — Current Work -->
     <Hero data={data} />
     <ActivePhase data={data} />
+    <NextSafeAction data={data} />
+    <DecisionsNeeded data={data} />
+
+    <!-- Zone 3 — Safety Locks -->
     <SafetyGates data={data} />
-    <CompletedPhases data={data} />
+    <DormantVsActive data={data} />
+    <SystemBoundaries />
+
+    <!-- Zone 4 — Waiting / Blocked -->
     <PausedPhases data={data} />
     <DesignedNotOpened data={data} />
     <Backlog data={data} />
+
+    <!-- Zone 5 — Future Roadmap -->
     <PhaseTimeline data={data} />
+
+    <!-- Zone 6 — Finished Work / History -->
+    <CompletedPhases data={data} />
     <RepoAnchors data={data} />
-    <DormantVsActive data={data} />
-    <NextSafeAction data={data} />
   </div>
 </BaseLayout>

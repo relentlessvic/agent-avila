@@ -9,14 +9,110 @@
   }
 }
 
+@keyframes orb-drift {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate3d(2rem, -1.5rem, 0) scale(1.06);
+    opacity: 0.85;
+  }
+}
+
+@keyframes glow-swell {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(0, 230, 255, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(0, 230, 255, 0.35);
+  }
+}
+
+@keyframes scan-sweep {
+  0% {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateX(110%);
+    opacity: 0;
+  }
+}
+
+@keyframes mission-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(0, 230, 255, 0.22),
+      0 0 28px rgba(0, 230, 255, 0.18),
+      0 14px 40px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(0, 230, 255, 0.45),
+      0 0 48px rgba(0, 230, 255, 0.35),
+      0 14px 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes status-dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.75;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .fade-in {
     animation: fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+  .glow-swell {
+    animation: glow-swell 3.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .mission-pulse {
+    animation: mission-pulse 3.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  .scan-host::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(0, 230, 255, 0.05) 30%,
+      rgba(0, 230, 255, 0.18) 50%,
+      rgba(0, 230, 255, 0.05) 70%,
+      transparent 100%
+    );
+    transform: translateX(-110%);
+    animation: scan-sweep 4.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+    mix-blend-mode: overlay;
+    border-radius: inherit;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fade-in {
+  .fade-in,
+  .glow-swell,
+  .mission-pulse {
     animation: none;
+  }
+  .scan-host::before {
+    animation: none;
+    display: none;
   }
 }

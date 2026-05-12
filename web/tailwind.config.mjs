@@ -13,12 +13,15 @@ export default {
           violet: '#8b5cf6',
           emerald: '#10b981',
           amber: '#fbbf24',
-          coral: '#ff6b6b'
+          coral: '#ff6b6b',
+          warm: '#ffb96b',
+          rose: '#ff6b9b'
         }
       },
       fontFamily: {
         sans: ['system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'sans-serif'],
-        mono: ['ui-monospace', '"SF Mono"', 'Menlo', 'Consolas', 'monospace']
+        mono: ['ui-monospace', '"SF Mono"', 'Menlo', 'Consolas', 'monospace'],
+        display: ['"SF Pro Display"', 'system-ui', '-apple-system', '"Segoe UI"', 'Roboto', 'sans-serif']
       }
     }
   },

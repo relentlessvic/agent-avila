@@ -1,0 +1,42 @@
+---
+type ChipState =
+  | 'pass'
+  | 'done'
+  | 'off'
+  | 'dormant'
+  | 'blocked'
+  | 'paused'
+  | 'planned'
+  | 'in-progress'
+  | 'shut'
+  | 'on';
+
+interface Props {
+  state: ChipState;
+  label?: string;
+  pulse?: boolean;
+  size?: 'sm' | 'md';
+}
+
+const { state, label, pulse = false, size = 'sm' } = Astro.props;
+
+const defaultLabel: Record<ChipState, string> = {
+  pass: 'PASS',
+  done: 'DONE',
+  off: 'OFF',
+  dormant: 'DORMANT',
+  blocked: 'BLOCKED',
+  paused: 'PAUSED',
+  planned: 'PLANNED',
+  'in-progress': 'IN PROGRESS',
+  shut: 'SHUT',
+  on: 'ON'
+};
+
+const chipText = label ?? defaultLabel[state];
+const classes = `status-chip status-chip--${state} ${size === 'md' ? 'status-chip--md' : ''} ${pulse ? 'status-chip--pulse' : ''}`;
+---
+<span class={classes}>
+  <span class="status-chip__dot" aria-hidden="true"></span>
+  <span class="status-chip__text">{chipText}</span>
+</span>

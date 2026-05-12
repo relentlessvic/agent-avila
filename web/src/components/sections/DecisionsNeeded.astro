@@ -1,0 +1,72 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import StatusChip from '../StatusChip.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+
+const decisions = data.backlog.filter(item =>
+  (item.stateBadge || '').toUpperCase().includes('DECISION')
+);
+
+function friendlyTitle(raw: string): string {
+  if (!raw) return '—';
+  const t = raw.trim();
+  if (t === 'DASH-6') return 'Trading dashboard health check';
+  if (t.includes('Live SELL_ALL') || t.includes('D-5.12f')) return 'Manual sell-all safety design';
+  if (t.startsWith('Migration 009') || t.includes('Migration 009')) return 'Database future updates';
+  if (t.includes('Relay Stage 5') || t.includes('Stage 5 Steps')) return 'Messenger install — finishing steps';
+  if (t.toLowerCase().includes('discord posting')) return 'Messenger posting';
+  if (t.toLowerCase().includes('railway') || t.toLowerCase().includes('deploy')) return 'Cloud deploy actions';
+  if (t.toLowerCase().includes('env') && t.toLowerCase().includes('secret')) return 'Permission widening';
+  if (t.toLowerCase().includes('scheduler') || t.toLowerCase().includes('cron') || t.toLowerCase().includes('mcp')) return 'Background automation install';
+  if (t.toLowerCase().includes('inherited forbidden-content')) return 'Old-text cleanup';
+  if (t.includes('Phase F amendment')) return 'Messenger safety follow-ups';
+  return t;
+}
+
+function friendlyWhy(raw: string): string {
+  if (!raw) return '';
+  const t = raw;
+  if (t.includes('Migration 008 APPLIED') && t.includes('N-3 CLOSED')) return 'Held in place to keep the database safe.';
+  if (t.includes('Stage 5 Gate-10') && t.includes('CONSUMED')) return 'First install was used up; remaining steps wait for me.';
+  if (t.includes('No deploy authorization')) return 'Cloud deploy stays off until I decide otherwise.';
+  if (t.includes('Approvers exactly') && t.includes('{Victor}')) return 'Only I can widen these.';
+  if (t.includes('COMM-HUB-RULES Hard limits') || t.includes('No background automation')) return 'No background automation; rules say no.';
+  if (t.includes('High-risk trading action')) return 'Trading action — only I can move it.';
+  if (t.includes('Separately gated per trading-safety')) return 'Trading-safety rules keep this paused.';
+  return t;
+}
+---
+{decisions.length > 0 && (
+  <Section id={SECTION_IDS.backlog + '-decisions'} title="Decisions on hold" count={decisions.length}>
+    <Card tier="primary">
+      <p class="text-sm text-slate-300 mb-5 leading-relaxed">
+        Each of these stays where it is unless I explicitly decide otherwise. Only I can unblock these.
+      </p>
+      <ul class="space-y-4">
+        {decisions.map(item => {
+          const title = friendlyTitle(item.title);
+          const why = friendlyWhy(item.description);
+          return (
+            <li class="border-t border-slate-800/50 pt-4 first:border-t-0 first:pt-0">
+              <div class="flex flex-wrap items-start gap-3 mb-1.5">
+                <h3 class="font-sans text-sm text-slate-100 flex-1 leading-snug font-medium" title={item.title}>{title}</h3>
+                <StatusChip state="blocked" label="ON HOLD" />
+              </div>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                <span class="font-mono uppercase tracking-wider text-slate-500 mr-1">Why:</span>
+                <span title={item.description}>{why}</span>
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  </Section>
+)}

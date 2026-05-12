@@ -1,9 +1,12 @@
 ---
 interface Props {
   class?: string;
+  tier?: 'primary' | 'secondary' | 'default';
 }
-const { class: className = '' } = Astro.props;
+const { class: className = '', tier = 'default' } = Astro.props;
+const tierClass =
+  tier === 'primary' ? 'glass-card--primary' : tier === 'secondary' ? 'glass-card--secondary' : '';
 ---
-<div class={`glass-card p-6 ${className}`}>
+<div class={`glass-card ${tierClass} p-6 sm:p-7 ${className}`}>
   <slot />
 </div>

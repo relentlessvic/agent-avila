@@ -2,35 +2,49 @@
 import type { DashboardData } from '../../lib/types';
 import Section from '../Section.astro';
 import Card from '../Card.astro';
-import Pill from '../Pill.astro';
-import { SECTION_IDS, getDormantVsActiveColor } from '../../lib/constants';
+import { SECTION_IDS } from '../../lib/constants';
 
 interface Props {
   data: DashboardData;
 }
 const { data } = Astro.props;
+
+// Split rows into "on" vs "resting" purely on the parsed state string.
+function isResting(state: string): boolean {
+  const s = (state || '').toLowerCase();
+  return s.includes('dormant') || s.includes('not') || s.includes('off') || s.includes('paused');
+}
+
+const active = data.dormantVsActive.filter(r => !isResting(r.state));
+const resting = data.dormantVsActive.filter(r => isResting(r.state));
 ---
-<Section id={SECTION_IDS.dormantVsActive} title="Dormant vs Active Systems" count={data.dormantVsActive.length}>
-  <Card>
-    <table class="w-full">
-      <thead class="text-xs font-mono uppercase tracking-wider text-slate-500">
-        <tr>
-          <th class="text-left pb-3 pr-4">System</th>
-          <th class="text-left pb-3 pr-4">State</th>
-          <th class="text-left pb-3 hidden sm:table-cell">Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.dormantVsActive.map(row => (
-          <tr class="border-t border-slate-800/50">
-            <td class="py-3 pr-4 text-sm text-slate-300 align-top">{row.system}</td>
-            <td class="py-3 pr-4 align-top">
-              <Pill text={row.state} color={getDormantVsActiveColor(row.state)} />
-            </td>
-            <td class="py-3 text-xs text-slate-500 align-top hidden sm:table-cell leading-relaxed">{row.notes}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </Card>
+<Section id={SECTION_IDS.dormantVsActive} title="What's on, what's resting" count={data.dormantVsActive.length}>
+  <div class="grid sm:grid-cols-2 gap-5">
+    <Card class="space-y-3">
+      <p class="text-xs font-mono uppercase tracking-wider text-cyber-cyan/80 mb-1">On</p>
+      {active.length === 0 && (
+        <p class="text-sm text-slate-500 leading-relaxed">Nothing actively running right now.</p>
+      )}
+      {active.map(row => (
+        <div class="border-t border-slate-800/50 pt-3 first:border-t-0 first:pt-0">
+          <p class="text-sm text-slate-200 leading-snug">{row.system}</p>
+          <p class="text-xs text-slate-500 mt-1 leading-relaxed">{row.notes}</p>
+          <p class="text-[0.65rem] font-mono uppercase tracking-wider text-cyber-cyan/70 mt-1.5">{row.state}</p>
+        </div>
+      ))}
+    </Card>
+    <Card class="space-y-3 opacity-90">
+      <p class="text-xs font-mono uppercase tracking-wider text-slate-500 mb-1">Resting</p>
+      {resting.length === 0 && (
+        <p class="text-sm text-slate-500 leading-relaxed">Nothing is currently resting.</p>
+      )}
+      {resting.map(row => (
+        <div class="border-t border-slate-800/50 pt-3 first:border-t-0 first:pt-0">
+          <p class="text-sm text-slate-300 leading-snug">{row.system}</p>
+          <p class="text-xs text-slate-500 mt-1 leading-relaxed">{row.notes}</p>
+          <p class="text-[0.65rem] font-mono uppercase tracking-wider text-slate-500 mt-1.5">{row.state}</p>
+        </div>
+      ))}
+    </Card>
+  </div>
 </Section>

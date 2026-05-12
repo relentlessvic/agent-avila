@@ -9,8 +9,18 @@ interface Props {
 }
 const { data } = Astro.props;
 ---
-<Section id={SECTION_IDS.nextSafeAction} title="Next Safe Action" icon="arrow">
-  <Card class="border-cyber-cyan/30">
-    <p class="text-sm text-slate-200 leading-relaxed">{data.nextSafeAction}</p>
+<Section id={SECTION_IDS.nextSafeAction} title="What's next for me" icon="arrow">
+  <Card tier="primary" class="glow-swell">
+    <div class="next-objective">
+      <span class="next-objective__arrow" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" focusable="false" aria-hidden="true">
+          <path d="M5 12 H17 M11 6 L17 12 L11 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <div class="min-w-0">
+        <p class="text-xs font-mono uppercase tracking-wider text-cyber-cyan/80 mb-2">Next objective</p>
+        <p class="font-display text-lg sm:text-xl text-slate-100 leading-relaxed tracking-tight">{data.nextSafeAction}</p>
+      </div>
+    </div>
   </Card>
 </Section>

@@ -1,0 +1,55 @@
+---
+interface Props {
+  value: number;
+  target?: number;
+  size?: number;
+  label?: string;
+}
+
+const { value, target, size = 200, label } = Astro.props;
+
+// Static SVG ring; no runtime data, no Math.random, no Date.now.
+const ringTarget = typeof target === 'number' && target > value ? target : Math.max(value + 5, Math.ceil((value + 1) / 10) * 10);
+const ratio = Math.max(0, Math.min(1, value / ringTarget));
+const radius = (size - 12) / 2;
+const circumference = 2 * Math.PI * radius;
+const dashOffset = circumference * (1 - ratio);
+const cx = size / 2;
+const cy = size / 2;
+
+const captionText = label ?? `${value} of ${ringTarget} things finished`;
+---
+<div class="neon-ring-wrap" style={`width:${size}px;height:${size}px`}>
+  <svg
+    width={size}
+    height={size}
+    viewBox={`0 0 ${size} ${size}`}
+    aria-hidden="true"
+    focusable="false"
+  >
+    <defs>
+      <linearGradient id="neon-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#00e6ff" />
+        <stop offset="50%" stop-color="#8b5cf6" />
+        <stop offset="100%" stop-color="#ffb96b" />
+      </linearGradient>
+    </defs>
+    <circle class="neon-ring-track" cx={cx} cy={cy} r={radius} />
+    <circle
+      class="neon-ring-fill"
+      cx={cx}
+      cy={cy}
+      r={radius}
+      stroke-dasharray={circumference}
+      stroke-dashoffset={dashOffset}
+      transform={`rotate(-90 ${cx} ${cy})`}
+    />
+  </svg>
+  <div class="absolute inset-0 grid place-items-center text-center">
+    <div>
+      <div class="neon-ring-number text-5xl sm:text-6xl">{value}</div>
+      <div class="text-[0.65rem] sm:text-xs font-mono uppercase tracking-wider text-slate-500 mt-1">of {ringTarget}</div>
+    </div>
+  </div>
+  <span class="sr-only">{captionText}</span>
+</div>

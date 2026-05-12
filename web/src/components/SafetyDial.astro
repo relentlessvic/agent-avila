@@ -1,0 +1,55 @@
+---
+type DialState = 'good' | 'off' | 'in-use' | 'shut' | 'applied';
+
+interface Props {
+  state: DialState;
+  size?: number;
+  ariaLabel: string;
+}
+
+const { state, size = 56, ariaLabel } = Astro.props;
+
+const radius = (size - 8) / 2;
+const cx = size / 2;
+const cy = size / 2;
+const circumference = 2 * Math.PI * radius;
+
+// Static arc fill amount per state — visual only, not derived from random or time.
+const fillRatio: Record<DialState, number> = {
+  good: 0.92,
+  applied: 0.92,
+  shut: 0.92,
+  'in-use': 0.55,
+  off: 0
+};
+
+const ratio = fillRatio[state];
+const dashOffset = circumference * (1 - ratio);
+const fillClass = `safety-dial-fill safety-dial-fill--${state}`;
+const dotClass = state === 'off' ? 'safety-dial-dot safety-dial-dot--off' : 'safety-dial-dot';
+const dotColorClass =
+  state === 'good' || state === 'shut'
+    ? 'text-cyber-cyan'
+    : state === 'applied'
+    ? 'text-cyber-emerald'
+    : state === 'in-use'
+    ? 'text-cyber-warm'
+    : 'text-slate-500';
+---
+<span class="safety-dial-wrap" role="img" aria-label={ariaLabel} style={`width:${size}px;height:${size}px`}>
+  <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" focusable="false" class="absolute">
+    <circle class="safety-dial-track" cx={cx} cy={cy} r={radius} />
+    {ratio > 0 && (
+      <circle
+        class={fillClass}
+        cx={cx}
+        cy={cy}
+        r={radius}
+        stroke-dasharray={circumference}
+        stroke-dashoffset={dashOffset}
+        transform={`rotate(-90 ${cx} ${cy})`}
+      />
+    )}
+  </svg>
+  <span class={`${dotClass} ${dotColorClass}`}></span>
+</span>
