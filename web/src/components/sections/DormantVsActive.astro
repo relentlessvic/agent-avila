@@ -1,0 +1,36 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import Pill from '../Pill.astro';
+import { SECTION_IDS, getDormantVsActiveColor } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.dormantVsActive} title="Dormant vs Active Systems" count={data.dormantVsActive.length}>
+  <Card>
+    <table class="w-full">
+      <thead class="text-xs font-mono uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="text-left pb-3 pr-4">System</th>
+          <th class="text-left pb-3 pr-4">State</th>
+          <th class="text-left pb-3 hidden sm:table-cell">Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.dormantVsActive.map(row => (
+          <tr class="border-t border-slate-800/50">
+            <td class="py-3 pr-4 text-sm text-slate-300 align-top">{row.system}</td>
+            <td class="py-3 pr-4 align-top">
+              <Pill text={row.state} color={getDormantVsActiveColor(row.state)} />
+            </td>
+            <td class="py-3 text-xs text-slate-500 align-top hidden sm:table-cell leading-relaxed">{row.notes}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </Card>
+</Section>

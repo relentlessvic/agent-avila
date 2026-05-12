@@ -1,0 +1,25 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import Pill from '../Pill.astro';
+import { SECTION_IDS, getBacklogStateColor } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.backlog} title="Backlog / Future Ideas" count={data.backlog.length}>
+  <Card class="space-y-4">
+    {data.backlog.map(item => (
+      <div class="border-t border-slate-800/50 pt-4 first:border-t-0 first:pt-0">
+        <div class="flex flex-wrap items-start gap-3 mb-2">
+          <h3 class="font-sans text-sm text-slate-200 flex-1">{item.title}</h3>
+          <Pill text={item.stateBadge} color={getBacklogStateColor(item.stateBadge)} />
+        </div>
+        <p class="text-xs text-slate-500 leading-relaxed">{item.description}</p>
+      </div>
+    ))}
+  </Card>
+</Section>

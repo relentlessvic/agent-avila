@@ -1,17 +1,34 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { loadDashboard } from '../lib/load-dashboard';
+import Header from '../components/sections/Header.astro';
+import Hero from '../components/sections/Hero.astro';
+import ActivePhase from '../components/sections/ActivePhase.astro';
+import SafetyGates from '../components/sections/SafetyGates.astro';
+import CompletedPhases from '../components/sections/CompletedPhases.astro';
+import PausedPhases from '../components/sections/PausedPhases.astro';
+import DesignedNotOpened from '../components/sections/DesignedNotOpened.astro';
+import Backlog from '../components/sections/Backlog.astro';
+import PhaseTimeline from '../components/sections/PhaseTimeline.astro';
+import RepoAnchors from '../components/sections/RepoAnchors.astro';
+import DormantVsActive from '../components/sections/DormantVsActive.astro';
+import NextSafeAction from '../components/sections/NextSafeAction.astro';
+
+const data = loadDashboard();
 ---
 <BaseLayout title="Project Progress Dashboard">
-  <article class="glass-card max-w-2xl w-full p-8 sm:p-10">
-    <h1 class="font-sans text-3xl sm:text-4xl text-slate-100 mb-2">
-      Project Progress Dashboard
-    </h1>
-    <p class="font-mono text-sm text-cyber-cyan/80 mb-6">
-      v1 — scaffold; content pending future phase
-    </p>
-    <p class="text-sm text-slate-400 leading-relaxed">
-      This dashboard summarizes orchestrator state at build time. It is entirely
-      separate from the trading runtime. Do not infer trading state from this UI.
-    </p>
-  </article>
+  <div class="w-full pb-8">
+    <Header data={data} />
+    <Hero data={data} />
+    <ActivePhase data={data} />
+    <SafetyGates data={data} />
+    <CompletedPhases data={data} />
+    <PausedPhases data={data} />
+    <DesignedNotOpened data={data} />
+    <Backlog data={data} />
+    <PhaseTimeline data={data} />
+    <RepoAnchors data={data} />
+    <DormantVsActive data={data} />
+    <NextSafeAction data={data} />
+  </div>
 </BaseLayout>

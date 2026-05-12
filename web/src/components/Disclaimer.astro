@@ -1,0 +1,13 @@
+---
+interface Props {
+  text?: string;
+  class?: string;
+}
+const { text, class: className = '' } = Astro.props;
+const hasSlot = Astro.slots.has('default');
+const fallback =
+  'This dashboard summarizes orchestrator state at build time. It is entirely separate from the trading runtime. Do not infer trading state from this UI.';
+---
+<p class={`text-xs leading-relaxed ${className}`}>
+  {hasSlot ? <slot /> : (text ?? fallback)}
+</p>

@@ -1,0 +1,16 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.nextSafeAction} title="Next Safe Action" icon="arrow">
+  <Card class="border-cyber-cyan/30">
+    <p class="text-sm text-slate-200 leading-relaxed">{data.nextSafeAction}</p>
+  </Card>
+</Section>

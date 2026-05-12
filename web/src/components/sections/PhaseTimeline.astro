@@ -1,0 +1,17 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.phaseTimeline} title="Phase Timeline / Roadmap">
+  <Card>
+    <p class="text-xs text-slate-500 font-mono mb-4">committed-anchored only</p>
+    <pre class="font-mono text-xs text-slate-300 leading-relaxed overflow-x-auto whitespace-pre">{data.phaseTimeline}</pre>
+  </Card>
+</Section>

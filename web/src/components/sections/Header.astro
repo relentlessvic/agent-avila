@@ -1,0 +1,29 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import SHAChip from '../SHAChip.astro';
+import { formatGeneratedAt } from '../../lib/format';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+const generatedDisplay = formatGeneratedAt(data.metadata.generatedAt);
+---
+<Section id={SECTION_IDS.header} title="Overview">
+  <Card class="sm:p-8">
+    <h1 class="font-sans text-2xl sm:text-3xl text-slate-100 mb-1">
+      Project Progress Dashboard
+    </h1>
+    <p class="text-sm text-slate-400 mb-5">Agent Avila</p>
+    <div class="flex flex-wrap gap-x-4 gap-y-2 items-center text-xs font-mono text-slate-500">
+      <span>Generated {generatedDisplay}</span>
+      <span class="text-slate-700">·</span>
+      <span class="inline-flex items-center gap-2">Parent <SHAChip sha={data.metadata.parentHead} /></span>
+      <span class="text-slate-700">·</span>
+      <span class="inline-flex items-center gap-2">Relay <SHAChip sha={data.metadata.relayHead} /></span>
+    </div>
+  </Card>
+</Section>

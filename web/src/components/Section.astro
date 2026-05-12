@@ -1,0 +1,31 @@
+---
+import Icon from './Icon.astro';
+
+type IconName = 'check' | 'pause' | 'lock' | 'spark' | 'lightning' | 'shield' | 'arrow';
+
+interface Props {
+  id: string;
+  title: string;
+  count?: number;
+  icon?: IconName;
+}
+const { id, title, count, icon } = Astro.props;
+const headingId = `${id}-heading`;
+---
+<section
+  id={id}
+  aria-labelledby={headingId}
+  class="px-6 py-8 max-w-5xl mx-auto fade-in scroll-mt-20"
+>
+  <h2
+    id={headingId}
+    class="font-mono text-xs tracking-[0.2em] uppercase text-cyber-cyan/80 mb-4 flex items-center gap-2"
+  >
+    {icon && <Icon name={icon} class="w-3.5 h-3.5" />}
+    <span>{title}</span>
+    {count !== undefined && (
+      <span class="text-slate-500 ml-1 normal-case tracking-normal">({count})</span>
+    )}
+  </h2>
+  <slot />
+</section>

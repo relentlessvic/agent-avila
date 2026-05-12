@@ -1,0 +1,32 @@
+---
+import type { PillColor } from '../lib/constants';
+
+interface Props {
+  text: string;
+  color?: PillColor;
+  pulse?: boolean;
+}
+const { text, color = 'cyan', pulse = false } = Astro.props;
+
+const colorClasses: Record<PillColor, string> = {
+  cyan: 'border-cyber-cyan/35 bg-cyber-cyan/10 text-cyber-cyan',
+  violet: 'border-cyber-violet/35 bg-cyber-violet/10 text-cyber-violet',
+  emerald: 'border-cyber-emerald/35 bg-cyber-emerald/10 text-cyber-emerald',
+  amber: 'border-cyber-amber/35 bg-cyber-amber/10 text-cyber-amber',
+  coral: 'border-cyber-coral/35 bg-cyber-coral/10 text-cyber-coral',
+  slate: 'border-slate-500/35 bg-slate-500/10 text-slate-400'
+};
+
+const dotClasses: Record<PillColor, string> = {
+  cyan: 'bg-cyber-cyan',
+  violet: 'bg-cyber-violet',
+  emerald: 'bg-cyber-emerald',
+  amber: 'bg-cyber-amber',
+  coral: 'bg-cyber-coral',
+  slate: 'bg-slate-500'
+};
+---
+<span class={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-mono uppercase tracking-wider ${colorClasses[color]}`}>
+  {pulse && <span class={`w-1.5 h-1.5 rounded-full ${dotClasses[color]}`}></span>}
+  {text}
+</span>

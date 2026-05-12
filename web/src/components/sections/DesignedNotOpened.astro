@@ -1,0 +1,24 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+{data.designedNotOpened.length > 0 && (
+  <Section id={SECTION_IDS.designedNotOpened} title="Designed / Not-Opened" count={data.designedNotOpened.length}>
+    <Card class="space-y-3">
+      <p class="text-xs text-slate-500 font-mono mb-2">canonical handoffs sealed</p>
+      {data.designedNotOpened.map(p => (
+        <div class="border-l-2 border-cyber-violet/50 pl-4 py-1">
+          <p class="font-mono text-sm text-slate-200 break-words">{p.name}</p>
+          {p.note && <p class="text-xs text-slate-500 mt-1 leading-relaxed">{p.note}</p>}
+        </div>
+      ))}
+    </Card>
+  </Section>
+)}

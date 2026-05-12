@@ -1,0 +1,27 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import SHAChip from '../SHAChip.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.repoAnchors} title="Repo Anchors">
+  <Card class="space-y-4">
+    {data.repoAnchors.map(anchor => (
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="font-mono text-xs uppercase tracking-wider text-cyber-cyan/80 min-w-[60px]">
+          {anchor.label}
+        </span>
+        <span class="font-mono text-sm text-slate-300">{anchor.repo}</span>
+        <span class="text-slate-700">@</span>
+        <SHAChip sha={anchor.sha} />
+        <span class="text-xs text-slate-500">({anchor.note})</span>
+      </div>
+    ))}
+  </Card>
+</Section>

@@ -1,0 +1,17 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.activePhase} title="Active Phase" icon="lightning">
+  <Card>
+    <p class="font-mono text-sm text-cyber-cyan break-words mb-3">{data.activePhase.name}</p>
+    <p class="text-xs text-slate-500">{data.activePhase.detailsHint}</p>
+  </Card>
+</Section>

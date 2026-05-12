@@ -1,0 +1,25 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import SHAChip from '../SHAChip.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.completedPhases} title="Completed Phases" icon="check" count={data.completedPhases.length}>
+  <Card>
+    <p class="text-xs text-slate-500 mb-4 font-mono">CLOSED in STATUS.md; most recent first</p>
+    <ul class="space-y-0 max-h-[60vh] overflow-y-auto pr-2">
+      {data.completedPhases.map(p => (
+        <li class="flex items-start gap-3 py-2 border-t border-slate-800/50 first:border-t-0">
+          <SHAChip sha={p.sha} />
+          <span class="font-mono text-xs text-slate-300 break-words flex-1 pt-0.5">{p.name}</span>
+        </li>
+      ))}
+    </ul>
+  </Card>
+</Section>

@@ -1,0 +1,21 @@
+---
+import type { DashboardData } from '../../lib/types';
+import Section from '../Section.astro';
+import Card from '../Card.astro';
+import { SECTION_IDS } from '../../lib/constants';
+
+interface Props {
+  data: DashboardData;
+}
+const { data } = Astro.props;
+---
+<Section id={SECTION_IDS.hero} title="Where Are We Now">
+  <Card class="sm:p-8">
+    <p class="text-xs font-mono uppercase tracking-wider text-slate-500 mb-2">Active phase</p>
+    <p class="font-mono text-sm sm:text-base text-slate-100 break-words">{data.whereAreWeNow.activePhase}</p>
+    <div class="mt-6 pt-6 border-t border-slate-800/50 flex items-baseline gap-2">
+      <span class="font-mono text-2xl text-cyber-emerald">{data.whereAreWeNow.totalClosedCount}</span>
+      <span class="text-sm text-slate-400">phases CLOSED in STATUS.md</span>
+    </div>
+  </Card>
+</Section>

@@ -1,0 +1,10 @@
+---
+import { shortenSha } from '../lib/format';
+
+interface Props {
+  sha: string;
+}
+const { sha } = Astro.props;
+const short = shortenSha(sha);
+---
+<code class="inline-block font-mono text-xs px-2 py-0.5 rounded bg-slate-800/50 text-cyber-cyan border border-cyber-cyan/20">{short}</code>
