@@ -1,17 +1,17 @@
 # Project Progress Dashboard — Agent Avila
 
-Generated: 2026-05-12T00:39:03.922Z
-Parent HEAD: 2aef470 (relentlessvic/agent-avila) — in sync with origin/main
+Generated: 2026-05-12T04:30:49.718Z
+Parent HEAD: 8fcfb7b (relentlessvic/agent-avila) — in sync with origin/main
 Relay HEAD:  b8ab035 (relentlessvic/agent-avila-relay; Phase F sealed)
-Working tree: changed: orchestrator/CHECKLIST.md, orchestrator/DASHBOARD.md, orchestrator/NEXT-ACTION.md, orchestrator/STATUS.md; untracked: position.json.snap.20260502T020154Z
+Working tree: changed: orchestrator/DASHBOARD.md; untracked: position.json.snap.20260502T020154Z
 
 ## ⚪ Where Are We Now
 
-Active phase: `PROJECT-PROGRESS-DASHBOARD-REFRESH-001`. 29 phases CLOSED in STATUS.md.
+Active phase: `PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC`. 37 phases CLOSED in STATUS.md.
 
 ## ⚡ Active Phase
 
-Phase: `PROJECT-PROGRESS-DASHBOARD-REFRESH-001`
+Phase: `PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC`
 Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 ## 🚦 Safety Gates
@@ -33,6 +33,14 @@ Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 | SHA | Phase |
 |---|---|
+| `23e3f00` | PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT |
+| `e6af54a` | PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC |
+| `abb4853` | PROJECT-PROGRESS-DASHBOARD-WEB-DESIGN-SPEC-CLOSEOUT-SYNC |
+| `93222d3` | PROJECT-PROGRESS-DASHBOARD-WEB-DESIGN-SPEC-CLOSEOUT |
+| `1b49fc3` | PROJECT-PROGRESS-DASHBOARD-WEB-DESIGN-SPEC |
+| `85ab274` | PROJECT-PROGRESS-DASHBOARD-REFRESH-001-CLOSEOUT-SYNC |
+| `b70d9e1` | PROJECT-PROGRESS-DASHBOARD-REFRESH-001-CLOSEOUT |
+| `eb0634f` | PROJECT-PROGRESS-DASHBOARD-REFRESH-001 |
 | `2aef470` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT-CLOSEOUT-SYNC |
 | `e81dfaa` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT-CLOSEOUT |
 | `f5cc97a` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT |
@@ -112,7 +120,7 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 🔗 Repo Anchors
 
-- Parent: `relentlessvic/agent-avila` @ `2aef470` (main; in sync)
+- Parent: `relentlessvic/agent-avila` @ `8fcfb7b` (main; in sync)
 - Relay:  `relentlessvic/agent-avila-relay` @ `b8ab035` (main; Phase F sealed)
 
 ## 🛡️ Dormant vs Active Systems
@@ -127,4 +135,4 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 👉 Next Safe Action
 
-Continue the active phase `PROJECT-PROGRESS-DASHBOARD-REFRESH-001` per its NEXT-ACTION block, or pause and choose a backlog item.
+Continue the active phase `PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC` per its NEXT-ACTION block, or pause and choose a backlog item.
