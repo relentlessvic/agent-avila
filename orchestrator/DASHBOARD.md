@@ -1,13 +1,13 @@
 # Project Progress Dashboard — Agent Avila
 
-Generated: 2026-05-12T16:24:59.761Z
-Parent HEAD: 0583c63 (relentlessvic/agent-avila) — in sync with origin/main
+Generated: 2026-05-12T22:59:16.434Z
+Parent HEAD: facc828 (relentlessvic/agent-avila) — in sync with origin/main
 Relay HEAD:  b8ab035 (relentlessvic/agent-avila-relay; Phase F sealed)
 Working tree: changed: orchestrator/DASHBOARD.md; untracked: position.json.snap.20260502T020154Z
 
 ## ⚪ Where Are We Now
 
-Active phase: `PROJECT-PROGRESS-DASHBOARD-REFRESH-004-CLOSEOUT-SYNC-CLOSEOUT`. 53 phases CLOSED in STATUS.md.
+Active phase: `PROJECT-PROGRESS-DASHBOARD-REFRESH-004-CLOSEOUT-SYNC-CLOSEOUT`. 57 phases CLOSED in STATUS.md.
 
 ## ⚡ Active Phase
 
@@ -33,6 +33,10 @@ Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 | SHA | Phase |
 |---|---|
+| `b23aeab` | PROJECT-PROGRESS-DASHBOARD-WEB-UX-UPGRADE-CLOSEOUT |
+| `65d802e` | PROJECT-PROGRESS-DASHBOARD-BUILD-PREVIEW-DESIGN-SPEC-CLOSEOUT |
+| `34e15df` | PROJECT-PROGRESS-DASHBOARD-BUILD-PREVIEW-DESIGN-SPEC |
+| `41a7cfe` | PROJECT-PROGRESS-DASHBOARD-REFRESH-005 |
 | `3362796` | PROJECT-PROGRESS-DASHBOARD-REFRESH-004-CLOSEOUT-SYNC |
 | `1f48efd` | PROJECT-PROGRESS-DASHBOARD-REFRESH-004-CLOSEOUT |
 | `0d4fc33` | PROJECT-PROGRESS-DASHBOARD-REFRESH-004 |
@@ -136,7 +140,7 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 🔗 Repo Anchors
 
-- Parent: `relentlessvic/agent-avila` @ `0583c63` (main; in sync)
+- Parent: `relentlessvic/agent-avila` @ `facc828` (main; in sync)
 - Relay:  `relentlessvic/agent-avila-relay` @ `b8ab035` (main; Phase F sealed)
 
 ## 🛡️ Dormant vs Active Systems
