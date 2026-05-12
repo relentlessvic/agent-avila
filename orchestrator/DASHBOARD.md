@@ -1,17 +1,17 @@
 # Project Progress Dashboard — Agent Avila
 
-Generated: 2026-05-12T12:49:45.844Z
-Parent HEAD: 1839524 (relentlessvic/agent-avila) — in sync with origin/main
+Generated: 2026-05-12T14:49:51.806Z
+Parent HEAD: 31a8782 (relentlessvic/agent-avila) — in sync with origin/main
 Relay HEAD:  b8ab035 (relentlessvic/agent-avila-relay; Phase F sealed)
 Working tree: changed: orchestrator/DASHBOARD.md; untracked: position.json.snap.20260502T020154Z
 
 ## ⚪ Where Are We Now
 
-Active phase: `PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT-SYNC`. 43 phases CLOSED in STATUS.md.
+Active phase: `PROJECT-PROGRESS-DASHBOARD-WEB-CONTENT-CLOSEOUT-SYNC`. 49 phases CLOSED in STATUS.md.
 
 ## ⚡ Active Phase
 
-Phase: `PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT-SYNC`
+Phase: `PROJECT-PROGRESS-DASHBOARD-WEB-CONTENT-CLOSEOUT-SYNC`
 Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 ## 🚦 Safety Gates
@@ -33,6 +33,12 @@ Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 | SHA | Phase |
 |---|---|
+| `ae83a63` | PROJECT-PROGRESS-DASHBOARD-WEB-CONTENT-CLOSEOUT |
+| `04f7b7f` | PROJECT-PROGRESS-DASHBOARD-WEB-CONTENT |
+| `1aeb503` | PROJECT-PROGRESS-DASHBOARD-REFRESH-003-CLOSEOUT-SYNC |
+| `a82d47d` | PROJECT-PROGRESS-DASHBOARD-REFRESH-003-CLOSEOUT |
+| `738febe` | PROJECT-PROGRESS-DASHBOARD-REFRESH-003 |
+| `1839524` | PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT-SYNC |
 | `8a5b60b` | PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT |
 | `cc6819d` | PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD |
 | `831af05` | PROJECT-PROGRESS-DASHBOARD-REFRESH-002-CLOSEOUT-SYNC |
@@ -126,7 +132,7 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 🔗 Repo Anchors
 
-- Parent: `relentlessvic/agent-avila` @ `1839524` (main; in sync)
+- Parent: `relentlessvic/agent-avila` @ `31a8782` (main; in sync)
 - Relay:  `relentlessvic/agent-avila-relay` @ `b8ab035` (main; Phase F sealed)
 
 ## 🛡️ Dormant vs Active Systems
@@ -141,4 +147,4 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 👉 Next Safe Action
 
-Continue the active phase `PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT-SYNC` per its NEXT-ACTION block, or pause and choose a backlog item.
+Continue the active phase `PROJECT-PROGRESS-DASHBOARD-WEB-CONTENT-CLOSEOUT-SYNC` per its NEXT-ACTION block, or pause and choose a backlog item.
