@@ -1,17 +1,17 @@
 # Project Progress Dashboard — Agent Avila
 
-Generated: 2026-05-11T23:41:37.865Z
-Parent HEAD: 7b7e1cc (relentlessvic/agent-avila) — in sync with origin/main
+Generated: 2026-05-12T00:39:03.922Z
+Parent HEAD: 2aef470 (relentlessvic/agent-avila) — in sync with origin/main
 Relay HEAD:  b8ab035 (relentlessvic/agent-avila-relay; Phase F sealed)
-Working tree: changed: orchestrator/CHECKLIST.md, orchestrator/NEXT-ACTION.md, orchestrator/STATUS.md; untracked: orchestrator/DASHBOARD.md, position.json.snap.20260502T020154Z, tools/
+Working tree: changed: orchestrator/CHECKLIST.md, orchestrator/DASHBOARD.md, orchestrator/NEXT-ACTION.md, orchestrator/STATUS.md; untracked: position.json.snap.20260502T020154Z
 
 ## ⚪ Where Are We Now
 
-Active phase: `PROJECT-PROGRESS-DASHBOARD-IMPLEMENT`. 26 phases CLOSED in STATUS.md.
+Active phase: `PROJECT-PROGRESS-DASHBOARD-REFRESH-001`. 29 phases CLOSED in STATUS.md.
 
 ## ⚡ Active Phase
 
-Phase: `PROJECT-PROGRESS-DASHBOARD-IMPLEMENT`
+Phase: `PROJECT-PROGRESS-DASHBOARD-REFRESH-001`
 Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 ## 🚦 Safety Gates
@@ -33,6 +33,9 @@ Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 | SHA | Phase |
 |---|---|
+| `2aef470` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT-CLOSEOUT-SYNC |
+| `e81dfaa` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT-CLOSEOUT |
+| `f5cc97a` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT |
 | `7b7e1cc` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC |
 | `dceba5b` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT-DESIGN-SPEC-CLOSEOUT |
 | `c8798ea` | PROJECT-PROGRESS-DASHBOARD-IMPLEMENT-DESIGN-SPEC |
@@ -109,7 +112,7 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 🔗 Repo Anchors
 
-- Parent: `relentlessvic/agent-avila` @ `7b7e1cc` (main; in sync)
+- Parent: `relentlessvic/agent-avila` @ `2aef470` (main; in sync)
 - Relay:  `relentlessvic/agent-avila-relay` @ `b8ab035` (main; Phase F sealed)
 
 ## 🛡️ Dormant vs Active Systems
@@ -124,4 +127,4 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 👉 Next Safe Action
 
-Continue the active phase `PROJECT-PROGRESS-DASHBOARD-IMPLEMENT` per its NEXT-ACTION block, or pause and choose a backlog item.
+Continue the active phase `PROJECT-PROGRESS-DASHBOARD-REFRESH-001` per its NEXT-ACTION block, or pause and choose a backlog item.
