@@ -1,0 +1,40 @@
+---
+import '../styles/global.css';
+import '../styles/theme.css';
+
+const { title = 'Project Progress Dashboard' } = Astro.props;
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body class="min-h-screen flex flex-col">
+    <a href="#main" class="skip-link">Skip to main content</a>
+
+    <header class="px-6 py-4 flex items-center justify-between">
+      <div class="font-mono text-xs tracking-[0.18em] text-slate-300 uppercase">
+        Agent Avila <span class="text-cyber-cyan/70">/</span> Progress Console
+      </div>
+      <div class="status-pill">Status: Scaffold Ready</div>
+    </header>
+
+    <div class="divider-neon mx-6"></div>
+
+    <main id="main" class="flex-1 flex items-center justify-center px-6 py-12">
+      <slot />
+    </main>
+
+    <footer class="px-6 py-4 text-xs text-slate-500 space-y-1 border-t border-slate-800/40">
+      <p>Generated locally · no network · no deploy · no trading</p>
+      <p>
+        This web project is entirely separate from the trading runtime
+        <code class="text-slate-400">dashboard.js</code>. It does not modify,
+        replace, or supplement live trading functionality.
+      </p>
+    </footer>
+  </body>
+</html>
