@@ -1,17 +1,17 @@
 # Project Progress Dashboard — Agent Avila
 
-Generated: 2026-05-12T04:30:49.718Z
-Parent HEAD: 8fcfb7b (relentlessvic/agent-avila) — in sync with origin/main
+Generated: 2026-05-12T12:49:45.844Z
+Parent HEAD: 1839524 (relentlessvic/agent-avila) — in sync with origin/main
 Relay HEAD:  b8ab035 (relentlessvic/agent-avila-relay; Phase F sealed)
 Working tree: changed: orchestrator/DASHBOARD.md; untracked: position.json.snap.20260502T020154Z
 
 ## ⚪ Where Are We Now
 
-Active phase: `PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC`. 37 phases CLOSED in STATUS.md.
+Active phase: `PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT-SYNC`. 43 phases CLOSED in STATUS.md.
 
 ## ⚡ Active Phase
 
-Phase: `PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC`
+Phase: `PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT-SYNC`
 Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 ## 🚦 Safety Gates
@@ -33,6 +33,12 @@ Details: see canonical STATUS.md + CHECKLIST.md + NEXT-ACTION.md
 
 | SHA | Phase |
 |---|---|
+| `8a5b60b` | PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT |
+| `cc6819d` | PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD |
+| `831af05` | PROJECT-PROGRESS-DASHBOARD-REFRESH-002-CLOSEOUT-SYNC |
+| `26afa37` | PROJECT-PROGRESS-DASHBOARD-REFRESH-002-CLOSEOUT |
+| `3361ed1` | PROJECT-PROGRESS-DASHBOARD-REFRESH-002 |
+| `8fcfb7b` | PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC |
 | `23e3f00` | PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT |
 | `e6af54a` | PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC |
 | `abb4853` | PROJECT-PROGRESS-DASHBOARD-WEB-DESIGN-SPEC-CLOSEOUT-SYNC |
@@ -120,7 +126,7 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 🔗 Repo Anchors
 
-- Parent: `relentlessvic/agent-avila` @ `8fcfb7b` (main; in sync)
+- Parent: `relentlessvic/agent-avila` @ `1839524` (main; in sync)
 - Relay:  `relentlessvic/agent-avila-relay` @ `b8ab035` (main; Phase F sealed)
 
 ## 🛡️ Dormant vs Active Systems
@@ -135,4 +141,4 @@ Future dates omitted; future phases are separately gated with no committed-ancho
 
 ## 👉 Next Safe Action
 
-Continue the active phase `PROJECT-PROGRESS-DASHBOARD-WEB-IMPLEMENT-DESIGN-SPEC-CLOSEOUT-SYNC` per its NEXT-ACTION block, or pause and choose a backlog item.
+Continue the active phase `PROJECT-PROGRESS-DASHBOARD-WEB-SCAFFOLD-CLOSEOUT-SYNC` per its NEXT-ACTION block, or pause and choose a backlog item.
