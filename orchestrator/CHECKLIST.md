@@ -4567,7 +4567,7 @@ DOCS-ONLY (Mode 3) operator-directed codification of the Codex-cleared conversat
 - [x] Operator push approval for parent-repo `relentlessvic/agent-avila` `origin/main` exercised; push fast-forward `7be44ce..7aa0ef9` (no force; no rewrite; no `--no-verify`).
 - [x] Three-way SHA consistency PASS verified post-push at parent local HEAD = parent origin/main = parent live remote `refs/heads/main` = `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e`.
 
-## COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC-CLOSEOUT-SYNC — IN PROGRESS
+## COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC-CLOSEOUT-SYNC — CLOSED at `683115f14b544fdaaf182ef43fd6236d46379834`
 
 DOCS-ONLY (Mode 3) operator-directed optional Rule-1 seal-mirror of the prior `COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC` sealed at parent commit `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e` (fast-forward `7be44ce..7aa0ef9`; no force; no rewrite; parent three-way SHA consistency PASS verified post-push). Codex DOCS-ONLY DESIGN-SPEC review CLEARED: round-2 fresh PASS (Codex agent ID `a586832fb72393e04`); round-1 was non-substantive FAIL on carve-out wording interpretation only (agent `ad1561b6e18549916`). The config-injection DESIGN is now codified as a permanent SAFE-class handoff at `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN.md` (274 lines / 19,090 bytes). Implementation, deployment, Railway, Discord activation, Relay activation, Stage 5, Stages 7-10b, DB, Kraken, env/secrets, trading, `MANUAL_LIVE_ARMED`, Autopilot, and CEILING-PAUSE all remain NOT authorized. **Relay runtime remains DORMANT.** Autopilot DORMANT. RUN-10 + RUN-11 evidence remain untracked (18 files each). Relay HEAD preserved at `f232c328284e687511a794dc89358bbc0cd275d1`; Relay working tree clean. Scope: exactly 3 parent-repo status-doc updates only; no new handoff; no Relay-repo touch; no sealed handoff edit. Approvers exactly `{Victor}`; Codex review verdicts do NOT constitute operator approval. Per Rule 1: this CLOSEOUT-SYNC is the optional canonical seal-mirror of the CONFIG-INJECTION-DESIGN-SPEC; no recursive paperwork beyond.
 
@@ -4582,7 +4582,28 @@ DOCS-ONLY (Mode 3) operator-directed optional Rule-1 seal-mirror of the prior `C
 - [x] Recorded no implementation, deployment, Railway, Discord activation, Relay activation, Stage 5, Stages 7-10b, DB, Kraken, env/secrets, trading, MANUAL_LIVE_ARMED, Autopilot, or CEILING-PAUSE action is authorized.
 - [x] Recorded no tests / installs / Discord / Relay activation / Railway / deploy / DB / Kraken / env-secrets / trading / Autopilot change / CEILING-PAUSE change occurred during this CLOSEOUT-SYNC.
 - [x] Verified existing sealed handoffs are NOT edited; APPROVAL-GATES.md and COMM-HUB-RELAY-RULES.md untouched; Relay repo untouched.
-- [ ] Codex DOCS-ONLY review of this CLOSEOUT-SYNC diff (pending; operator decision).
-- [ ] Operator commit-only approval naming the 3-file parent-repo scope (pending Codex round-1 PASS).
+- [x] Codex DOCS-ONLY review of this CLOSEOUT-SYNC diff CLEARED — round-2 fresh PASS 18/18 (Codex agent ID `a86852c5042c6105e`; round-1 non-substantive FAIL due to dispatcher mis-stated counts at agent `afddc41ca3138f367`).
+- [x] Operator commit-only approval named the 3-file parent-repo scope; committed at parent SHA `683115f14b544fdaaf182ef43fd6236d46379834`.
+- [x] Operator push approval for parent-repo `relentlessvic/agent-avila` `origin/main` exercised; push fast-forward `7aa0ef9..683115f` (no force; no rewrite; no `--no-verify`).
+- [x] Three-way SHA consistency PASS verified post-push at parent local HEAD = parent origin/main = parent live remote `refs/heads/main` = `683115f14b544fdaaf182ef43fd6236d46379834`.
+
+## COMM-HUB-RELAY-RUNTIME-EGRESS-ALLOWLIST-DESIGN-SPEC — IN PROGRESS
+
+DOCS-ONLY (Mode 3) operator-directed codification of the Codex-cleared conversation-only `COMM-HUB-RELAY-RUNTIME-EGRESS-ALLOWLIST-DESIGN` as a permanent SAFE-class handoff at `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-EGRESS-ALLOWLIST-DESIGN.md` (359 lines / 27,630 bytes). Codex terminal design review: round-1 fresh compact PASS 24/24 (Codex companion subagent ID `af9ff0ffdae06dbb7`; Codex internal agent ID not exposed). Initial approved hostnames are exactly `discord.com` and `gateway.discord.gg`, enumerated in a sealed `APPROVED_HOSTNAMES` constant in the loader source AND in the committed manifest; no suffix-based auto-allow; no wildcards; no arbitrary subdomain allowance. Future implementation classification: Mode 5 / HIGH-RISK IMPLEMENTATION, non-activation scope. Implementation, deployment, Railway, Discord activation, Relay activation, Stage 5, Stages 7-10b, DB, Kraken, env/secrets, trading, `MANUAL_LIVE_ARMED`, Autopilot, and CEILING-PAUSE all remain NOT authorized. **Relay runtime remains DORMANT.** Autopilot DORMANT. RUN-10 + RUN-11 evidence remain untracked (18 files each). Scope: exactly 4 parent-repo files — 1 NEW handoff + 3 status-doc updates; no Relay-repo touch; no sealed handoff edit. Approvers exactly `{Victor}`; Codex review verdicts do NOT constitute operator approval.
+
+- [x] EGRESS-ALLOWLIST-DESIGN-SPEC opened (this current phase) — DOCS-ONLY (Mode 3); 4-file parent-repo scope (1 NEW handoff + 3 status-doc updates).
+- [x] Created new permanent SAFE-class handoff `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-EGRESS-ALLOWLIST-DESIGN.md` (359 lines / 27,630 bytes) codifying the Codex-cleared conversation-only DESIGN with §0-§13 structure.
+- [x] Handoff records the Codex DESIGN-ONLY review chain (round-1 fresh compact PASS 24/24; over-length original prompt operator-cancelled; compact-packet dispatch succeeded).
+- [x] Handoff records corrected manifest shape: required fields `allowlistedHostnames` + `rotatedAt` + `rotatedFromParentSha`; `notes` optional ≤256 chars; unknown extra fields rejected.
+- [x] Handoff records corrected explicit-hostname policy: initial approved set exactly `discord.com` + `gateway.discord.gg`; sealed `APPROVED_HOSTNAMES` constant in loader source; no suffix-based auto-allow; no wildcards; broader Discord-owned suffix families informational only.
+- [x] Handoff records corrected load-success test wording: do not claim Stage 15 traversal unless valid `operatorPhaseId` is injected; remains non-activating and no-network.
+- [x] Handoff records future implementation classification as Mode 5 / HIGH-RISK IMPLEMENTATION, non-activation scope.
+- [x] Handoff records the other 3 deploy blockers (`scripts.start`, Railway run config, `operatorPhaseId` non-env injection) remain separately gated and untouched by this design.
+- [x] Recorded Relay runtime DORMANT, Autopilot DORMANT, Discord activation NO, Deployment NOT authorized.
+- [x] Recorded RUN-10 + RUN-11 evidence remain untracked (18 files each).
+- [x] Recorded no tests / installs / Discord / Relay activation / Railway / deploy / DB / Kraken / env-secrets / trading / Autopilot / CEILING-PAUSE actions occurred during this codification.
+- [x] Verified existing sealed handoffs NOT edited; `APPROVAL-GATES.md` and `COMM-HUB-RELAY-RULES.md` untouched; Relay repo untouched at `f232c328284e687511a794dc89358bbc0cd275d1`.
+- [ ] Codex DOCS-ONLY review of this DESIGN-SPEC diff (pending; operator decision).
+- [ ] Operator commit-only approval naming the 4-file parent-repo scope (pending Codex round-1 PASS).
 - [ ] Operator push approval (pending commit; parent-repo `relentlessvic/agent-avila` `origin/main` only).
 - [ ] Three-way SHA consistency PASS verified post-push (pending push).
