@@ -4549,7 +4549,7 @@ COMM-HUB-RELAY-RUNTIME-DEPLOYMENT-RUNBOOK-DESIGN-SPEC-CLOSEOUT-SYNC is a DOCS-ON
 - [x] Operator push approval for parent-repo `relentlessvic/agent-avila` `origin/main` exercised; push fast-forward `895643a..7be44ce` (no force; no rewrite; no `--no-verify`).
 - [x] Three-way SHA consistency PASS verified post-push at parent local HEAD = parent origin/main = parent live remote `refs/heads/main` = `7be44cef8aa65e85c007291e1cb0211bbeebd705`.
 
-## COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC — IN PROGRESS
+## COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC — CLOSED at `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e`
 
 DOCS-ONLY (Mode 3) operator-directed codification of the Codex-cleared conversation-only `COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN` as a permanent SAFE-class handoff at `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN.md` (274 lines / 19,090 bytes). Codex terminal design review: round-4 fresh PASS (Codex agent ID `ab5c3efb2d8522961`); full Codex chain recorded inside the new handoff. Deployment, implementation, Railway, Discord activation, Relay activation, Stage 5, Stages 7-10b, DB, Kraken, env/secrets, trading, `MANUAL_LIVE_ARMED`, Autopilot, and CEILING-PAUSE all remain NOT authorized. **Relay runtime remains DORMANT.** Autopilot DORMANT. RUN-10 + RUN-11 evidence remain untracked (18 files each). Scope: exactly 4 parent-repo files — 1 NEW handoff + 3 status-doc updates; no Relay-repo touch; no sealed handoff edit. Approvers exactly `{Victor}`; Codex review verdicts do NOT constitute operator approval.
 
@@ -4562,7 +4562,27 @@ DOCS-ONLY (Mode 3) operator-directed codification of the Codex-cleared conversat
 - [x] Recorded RUN-10 + RUN-11 evidence remain untracked (18 files each).
 - [x] Recorded no tests / installs / Discord / Relay activation / Railway / deploy / DB / Kraken / env-secrets / trading / Autopilot / CEILING-PAUSE actions occurred during this codification.
 - [x] Verified existing sealed handoffs NOT edited; `APPROVAL-GATES.md` and `COMM-HUB-RELAY-RULES.md` untouched; Relay repo untouched at `f232c328284e687511a794dc89358bbc0cd275d1`.
-- [ ] Codex DOCS-ONLY review of this DESIGN-SPEC diff (pending; operator decision).
-- [ ] Operator commit-only approval naming the 4-file parent-repo scope (pending Codex round-1 PASS).
+- [x] Codex DOCS-ONLY review of this DESIGN-SPEC diff CLEARED — round-2 fresh PASS (Codex agent ID `a586832fb72393e04`; round-1 non-substantive FAIL on carve-out wording at `ad1561b6e18549916`).
+- [x] Operator commit-only approval named the 4-file parent-repo scope; committed at parent SHA `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e`.
+- [x] Operator push approval for parent-repo `relentlessvic/agent-avila` `origin/main` exercised; push fast-forward `7be44ce..7aa0ef9` (no force; no rewrite; no `--no-verify`).
+- [x] Three-way SHA consistency PASS verified post-push at parent local HEAD = parent origin/main = parent live remote `refs/heads/main` = `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e`.
+
+## COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC-CLOSEOUT-SYNC — IN PROGRESS
+
+DOCS-ONLY (Mode 3) operator-directed optional Rule-1 seal-mirror of the prior `COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC` sealed at parent commit `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e` (fast-forward `7be44ce..7aa0ef9`; no force; no rewrite; parent three-way SHA consistency PASS verified post-push). Codex DOCS-ONLY DESIGN-SPEC review CLEARED: round-2 fresh PASS (Codex agent ID `a586832fb72393e04`); round-1 was non-substantive FAIL on carve-out wording interpretation only (agent `ad1561b6e18549916`). The config-injection DESIGN is now codified as a permanent SAFE-class handoff at `orchestrator/handoffs/COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN.md` (274 lines / 19,090 bytes). Implementation, deployment, Railway, Discord activation, Relay activation, Stage 5, Stages 7-10b, DB, Kraken, env/secrets, trading, `MANUAL_LIVE_ARMED`, Autopilot, and CEILING-PAUSE all remain NOT authorized. **Relay runtime remains DORMANT.** Autopilot DORMANT. RUN-10 + RUN-11 evidence remain untracked (18 files each). Relay HEAD preserved at `f232c328284e687511a794dc89358bbc0cd275d1`; Relay working tree clean. Scope: exactly 3 parent-repo status-doc updates only; no new handoff; no Relay-repo touch; no sealed handoff edit. Approvers exactly `{Victor}`; Codex review verdicts do NOT constitute operator approval. Per Rule 1: this CLOSEOUT-SYNC is the optional canonical seal-mirror of the CONFIG-INJECTION-DESIGN-SPEC; no recursive paperwork beyond.
+
+- [x] CONFIG-INJECTION-DESIGN-SPEC-CLOSEOUT-SYNC opened (this current phase) — DOCS-ONLY (Mode 3); 3 parent-repo status-doc updates only.
+- [x] Recorded prior `COMM-HUB-RELAY-RUNTIME-CONFIG-INJECTION-DESIGN-SPEC` CLOSED at parent SHA `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e`.
+- [x] Recorded parent push fast-forward `7be44ce..7aa0ef9` (no force; no rewrite; no `--no-verify`).
+- [x] Recorded parent three-way SHA consistency PASS at parent local HEAD = parent origin/main = parent live remote `refs/heads/main` = `7aa0ef9d277e52c0e1f9e30af0e344b4b66dd64e`.
+- [x] Recorded parent status after push contains only the two authorized untracked carve-outs (`orchestrator/handoffs/evidence/` whole-directory + `position.json.snap.20260502T020154Z`).
+- [x] Recorded Relay HEAD preserved at `f232c328284e687511a794dc89358bbc0cd275d1`; Relay working tree clean; Relay runtime remains DORMANT.
+- [x] Recorded RUN-10 and RUN-11 evidence remain untracked and uncommitted (18 files each).
+- [x] Recorded Autopilot DORMANT preserved.
+- [x] Recorded no implementation, deployment, Railway, Discord activation, Relay activation, Stage 5, Stages 7-10b, DB, Kraken, env/secrets, trading, MANUAL_LIVE_ARMED, Autopilot, or CEILING-PAUSE action is authorized.
+- [x] Recorded no tests / installs / Discord / Relay activation / Railway / deploy / DB / Kraken / env-secrets / trading / Autopilot change / CEILING-PAUSE change occurred during this CLOSEOUT-SYNC.
+- [x] Verified existing sealed handoffs are NOT edited; APPROVAL-GATES.md and COMM-HUB-RELAY-RULES.md untouched; Relay repo untouched.
+- [ ] Codex DOCS-ONLY review of this CLOSEOUT-SYNC diff (pending; operator decision).
+- [ ] Operator commit-only approval naming the 3-file parent-repo scope (pending Codex round-1 PASS).
 - [ ] Operator push approval (pending commit; parent-repo `relentlessvic/agent-avila` `origin/main` only).
 - [ ] Three-way SHA consistency PASS verified post-push (pending push).
